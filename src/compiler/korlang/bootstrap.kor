@@ -1,0 +1,25 @@
+// Self-hosted bootstrap plan scaffold
+
+module compiler.bootstrap
+
+import compiler.ast
+import compiler.kir
+import compiler.llvm
+import compiler.diag
+
+struct BootstrapPlan
+  stage: String
+  notes: String
+
+fun compile_with_rust_frontend(prog: Program, out: String) -> Bool
+fun compile_with_korlang_frontend(src: String, out: String) -> Bool
+
+fun compile_with_rust_frontend(prog: Program, out: String) -> Bool {
+  // Placeholder: use Rust compiler to emit LLVM IR or object.
+  false
+}
+
+fun compile_with_korlang_frontend(src: String, out: String) -> Bool {
+  // Placeholder: use Korlang frontend + KIR + LLVM bindings.
+  false
+}

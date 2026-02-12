@@ -41,9 +41,9 @@ This document tracks the evolution of the **Korlang** programming language. Phas
 - [x] **9.3 @nogc Validation:** Implement the borrow checker and safety analysis in Korlang.
 
 ### ⚙️ Phase 10: Self-Hosting - Part 3: KIR & LLVM Codegen
-- [ ] **10.1 KIR (Korlang IR):** Define the intermediate representation in Korlang.
-- [ ] **10.2 LLVM Bindings:** Create FFI bindings to LLVM for the Korlang-based compiler.
-- [ ] **10.3 Bootstrap Compilation:** Use the Rust-compiler to compile the Korlang-compiler.
+- [x] **10.1 KIR (Korlang IR):** Define the intermediate representation in Korlang.
+- [x] **10.2 LLVM Bindings:** Create FFI bindings to LLVM for the Korlang-based compiler.
+- [x] **10.3 Bootstrap Compilation:** Use the Rust-compiler to compile the Korlang-compiler.
 
 ### 🔄 Phase 11: The "Great Switch" (Bootstrapping)
 - [ ] **11.1 Stage 1:** Compile Korlang-compiler using Rust-compiler.

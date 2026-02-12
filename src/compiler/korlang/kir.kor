@@ -1,0 +1,60 @@
+// Self-hosted compiler IR: KIR definitions
+
+module compiler.kir
+
+import compiler.ast
+import compiler.diag
+
+struct KirModule
+  functions: List<KirFunction>
+
+struct KirFunction
+  name: String
+  params: List<KirParam>
+  ret: KirType
+  blocks: List<KirBlock>
+
+struct KirParam
+  name: String
+  ty: KirType
+
+struct KirBlock
+  label: String
+  instrs: List<KirInstr>
+
+enum KirInstr
+  Let(String, KirType, KirValue)
+  Assign(String, KirValue)
+  Return(KirValue?)
+  Branch(String)
+  CondBranch(KirValue, String, String)
+  Call(String, List<KirValue>)
+  Phi(String, KirType, List<KirValue>)
+  Load(KirValue)
+  Store(KirValue, KirValue)
+  Borrow(KirValue)
+  Move(KirValue)
+  Drop(KirValue)
+
+struct KirValue
+  name: String
+  ty: KirType
+
+enum KirType
+  Int
+  UInt
+  Float
+  Bool
+  Char
+  String
+  Ptr(KirType)
+  Array(KirType)
+  Tuple(List<KirType>)
+  Struct(String)
+
+fun lower_program(prog: Program) -> KirModule
+
+fun lower_program(prog: Program) -> KirModule {
+  // Placeholder: Lower AST to KIR.
+  KirModule { functions: List.new<KirFunction>() }
+}
