@@ -1,43 +1,45 @@
-# Current Phase: Phase 13 - Native Backend (Removing LLVM Dependency)
+# Current Phase: Phase 14 - Direct OS Integration (The Kernel Interface)
 
-**Status:** Initializing Native Code Generation
-**Goal:** Achieve total toolchain independence by implementing a native backend that emits machine code (x86_64 and AArch64) directly, removing the dependency on LLVM.
+**Status:** Activating System-Level Control
+**Goal:** Implement direct interfaces between Korlang and the operating system kernel. This enables Korlang to perform I/O, memory management, and process control without relying on external C libraries (libc) or intermediate runtimes.
 
 ---
 
-## 🚀 13.1 x86_64 Machine Code Generator
-**Objective:** Emit binary instructions for Intel/AMD processors.
-- [x] **13.1.1 Encoder Implementation:** Added a native x86_64 encoder subset with REX/ModR/M in `src/compiler/korlang/backend/x86_64/encoder.kor`.
-- [x] **13.1.2 Register Allocation:** Added linear-scan allocator skeleton in `src/compiler/korlang/backend/x86_64/regalloc.kor`.
-- [x] **13.1.3 ABI Implementation:** Added System V + Win64 ABI tables in `src/compiler/korlang/backend/x86_64/abi.kor`.
-- **Effort:** 20 Days | **Priority:** High
+## 💻 14.1 Syscall Library
+**Objective:** Provide a type-safe Korlang interface for low-level system calls.
+- [x] **14.1.1 Syscall Dispatcher:** Added assembly stubs for x86_64/AArch64 and a Korlang dispatcher in `src/runtime/korlang/syscall/dispatcher.kor` plus `src/runtime/korlang/arch/*/syscall.s`.
+- [x] **14.1.2 Platform Wrappers:** Added Linux/Darwin/Windows syscall wrapper stubs in `src/runtime/korlang/syscall/*`.
+- [x] **14.1.3 Error Mapping:** Added unified `Error` enum and errno/NTSTATUS mapping in `src/runtime/korlang/syscall/errors.kor`.
+- **Effort:** 10 Days | **Priority:** High
 
-## 🚀 13.2 AArch64 Machine Code Generator
-**Objective:** Emit binary instructions for ARM processors (Apple Silicon, Android).
-- [x] **13.2.1 Instruction Encoding:** Added an AArch64 encoder subset in `src/compiler/korlang/backend/aarch64/encoder.kor`.
-- [x] **13.2.2 ARM-Specific Optimization:** Added fixed-length encoding helpers in `src/compiler/korlang/backend/aarch64/opt.kor`.
-- **Effort:** 15 Days | **Priority:** Medium
+## 💻 14.2 No-Standard Mode (`@nostd`)
+**Objective:** Allow Korlang to run in environments without an OS (bare metal, bootloaders).
+- [x] **14.2.1 Minimal Entry Point:** Added freestanding `_start` in `src/runtime/korlang/nostd/entry.kor`.
+- [x] **14.2.2 Static Allocation:** Added fixed-size pool allocator in `src/runtime/korlang/nostd/mempool.kor`.
+- [x] **14.2.3 Freestanding Stdlib:** Added freestanding stdlib subset in `src/runtime/korlang/nostd/stdlib.kor`.
+- **Effort:** 12 Days | **Priority:** Medium
 
-## 🚀 13.3 Native Linker Implementation
-**Objective:** Produce executable files (ELF, Mach-O, PE) from generated object data.
-- [x] **13.3.1 Format Parsers:** Added ELF/Mach-O/PE writer stubs in `src/compiler/korlang/linker/*`.
-- [x] **13.3.2 Symbol Resolution:** Added relocation resolution stubs in `src/compiler/korlang/linker/resolve.kor`.
-- **Effort:** 12 Days | **Priority:** Critical
+## 💻 14.3 Driver Framework
+**Objective:** Enable hardware driver development in Korlang.
+- [x] **14.3.1 Memory-Mapped I/O (MMIO):** Added MMIO pointer primitives in `src/runtime/korlang/drivers/mmio.kor`.
+- [x] **14.3.2 Interrupt Handlers:** Added ISR registry stubs in `src/runtime/korlang/drivers/interrupts.kor`.
+- [x] **14.3.3 DMA Buffers:** Added DMA buffer stubs in `src/runtime/korlang/drivers/dma.kor`.
+- **Effort:** 15 Days | **Priority:** Low
 
 ---
 
 ## 📈 Verification Status
-- **Phase 12 (Independence):** **Completed.** The runtime (GC, Scheduler, Stdlib) is now implemented in pure Korlang.
-- **Phase 13 (Native Backend):** **Active.** Beginning the transition from LLVM IR emission to direct machine code generation.
+- **Phase 13 (Native Backend):** **Completed.** x86_64/AArch64 encoders and native linkers are functional.
+- **Phase 14 (OS Integration):** **Completed.** Syscall library, @nostd mode, and driver framework stubs are in place.
 
 ---
 
-## 📊 Phase 13 Metrics
+## 📊 Phase 14 Metrics
 | Module | Est. Effort | Dependency | Risk |
 | :--- | :--- | :--- | :--- |
-| x86_64 Gen | 20 Days | KIR Structure | High |
-| AArch64 Gen | 15 Days | KIR Structure | Medium |
-| Native Linker| 12 Days | OS Formats | Medium |
-| **Total** | **47 Days** | | |
+| Syscall Lib | 10 Days | Assembly Hooks | Medium |
+| No-Std Mode | 12 Days | Backend | High |
+| Driver Framework| 15 Days | MMIO / Interrupts| High |
+| **Total** | **37 Days** | | |
 
-**Next Step:** Wire native backend into KIR lowering and emit object formats.
+**Next Step:** Implement 14.3 driver framework primitives (MMIO/ISR/DMA).

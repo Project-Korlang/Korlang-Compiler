@@ -1,0 +1,26 @@
+// Linux syscall wrappers (subset)
+
+module runtime.syscall.linux
+
+import runtime.syscall.dispatcher
+import runtime.syscall.errors
+
+const SYS_READ: UInt = 0;
+const SYS_WRITE: UInt = 1;
+const SYS_EXIT: UInt = 60;
+
+fun read(fd: UInt, ptr: UInt, len: UInt) -> UInt {
+  dispatcher.syscall3(SYS_READ, fd, ptr, len)
+}
+
+fun write(fd: UInt, ptr: UInt, len: UInt) -> UInt {
+  dispatcher.syscall3(SYS_WRITE, fd, ptr, len)
+}
+
+fun exit(code: UInt) -> UInt {
+  dispatcher.syscall1(SYS_EXIT, code)
+}
+
+fun map_error(errno: Int) -> errors.Error {
+  errors.map_errno(errno)
+}

@@ -1,0 +1,12 @@
+// @nostd minimal entry point
+
+module runtime.nostd.entry
+
+// Custom start symbol for freestanding builds
+fun _start() -> Int {
+  // In bare-metal mode, user must provide main_nostd.
+  let code = main_nostd();
+  code
+}
+
+fun main_nostd() -> Int { 0 }

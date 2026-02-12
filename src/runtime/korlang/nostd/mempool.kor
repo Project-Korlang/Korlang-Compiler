@@ -1,0 +1,27 @@
+// Static allocation pools for @nostd
+
+module runtime.nostd.mempool
+
+struct Pool {
+  base: UInt;
+  size: UInt;
+  offset: UInt;
+}
+
+fun Pool_new(base: UInt, size: UInt) -> Pool {
+  Pool { base: base, size: size, offset: 0 }
+}
+
+fun pool_alloc(p: Pool, size: UInt, align: UInt) -> UInt {
+  let aligned = align_up(p.base + p.offset, align) - p.base;
+  if (aligned + size > p.size) { return 0; }
+  let ptr = p.base + aligned;
+  p.offset = aligned + size;
+  ptr
+}
+
+fun align_up(value: UInt, align: UInt) -> UInt {
+  if (align == 0) { return value; }
+  let mask = align - 1;
+  (value + mask) & ~mask
+}

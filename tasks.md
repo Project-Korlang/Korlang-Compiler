@@ -55,15 +55,15 @@ This document tracks the evolution of the **Korlang** programming language. Phas
 - [x] **12.2 Assembly Hooks:** Implement low-level context switching in pure assembly.
 - [x] **12.3 Removing Rust Stdlib:** Eliminate all remaining Rust library dependencies.
 
-### 🚀 Phase 13: Native Backend (Removing LLVM Dependency)
+### ✅ Phase 13: Native Backend (Removing LLVM Dependency) (Completed)
 - [x] **13.1 x86_64 Generator:** Direct machine code emission for Intel/AMD.
 - [x] **13.2 AArch64 Generator:** Direct machine code emission for ARM (Apple Silicon/Android).
 - [x] **13.3 Linker Implementation:** A native Korlang linker to produce ELF/Mach-O/PE binaries.
 
-### 💻 Phase 14: Direct OS Integration (The Kernel Interface)
-- [ ] **14.1 Syscall Library:** Direct system call wrappers for Linux, macOS, and Windows.
-- [ ] **14.2 No-Standard Mode:** Allow Korlang to run on bare metal without an OS.
-- [ ] **14.3 Driver Framework:** Ability to write hardware drivers in Korlang.
+### 💻 Phase 14: Direct OS Integration (The Kernel Interface) (Current)
+- [x] **14.1 Syscall Library:** Direct system call wrappers for Linux, macOS, and Windows.
+- [x] **14.2 No-Standard Mode:** Allow Korlang to run on bare metal without an OS.
+- [x] **14.3 Driver Framework:** Ability to write hardware drivers in Korlang.
 
 ### 💎 Phase 15: Ownership Evolution (Static Memory Management)
 - [ ] **15.1 Region-Based Memory:** Implement static region analysis to reduce GC reliance.

@@ -1,0 +1,17 @@
+// Windows syscall wrappers (subset)
+
+module runtime.syscall.windows
+
+import runtime.syscall.dispatcher
+import runtime.syscall.errors
+
+// Placeholder syscall numbers for NT (real values vary by build)
+const NT_EXIT_PROCESS: UInt = 0x2A;
+
+fun exit_process(code: UInt) -> UInt {
+  dispatcher.syscall1(NT_EXIT_PROCESS, code)
+}
+
+fun map_status(status: UInt) -> errors.Error {
+  errors.map_ntstatus(status)
+}

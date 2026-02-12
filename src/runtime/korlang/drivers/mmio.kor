@@ -1,0 +1,29 @@
+// Memory-mapped I/O primitives
+
+module runtime.drivers.mmio
+
+struct MmioPtr {
+  addr: UInt;
+}
+
+fun MmioPtr_new(addr: UInt) -> MmioPtr {
+  MmioPtr { addr: addr }
+}
+
+fun mmio_read32(p: MmioPtr) -> UInt {
+  // placeholder; real implementation must be volatile
+  p.addr
+}
+
+fun mmio_write32(p: MmioPtr, _value: UInt) {
+  // placeholder; real implementation must be volatile
+  p.addr = p.addr;
+}
+
+fun mmio_read8(p: MmioPtr) -> UInt {
+  p.addr & 0xFF
+}
+
+fun mmio_write8(p: MmioPtr, _value: UInt) {
+  p.addr = p.addr;
+}

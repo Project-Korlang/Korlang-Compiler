@@ -1,0 +1,22 @@
+// Freestanding stdlib subset for @nostd
+
+module runtime.nostd.stdlib
+
+fun memcpy(dst: UInt, src: UInt, len: UInt) -> UInt {
+  let i = 0;
+  while (i < len) {
+    // placeholder: no actual memory ops
+    i = i + 1;
+  }
+  dst
+}
+
+fun memset(dst: UInt, value: UInt, len: UInt) -> UInt {
+  let i = 0;
+  while (i < len) {
+    i = i + 1;
+  }
+  dst
+}
+
+fun strlen(_ptr: UInt) -> UInt { 0 }

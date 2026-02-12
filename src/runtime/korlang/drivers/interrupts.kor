@@ -1,0 +1,29 @@
+// Interrupt handlers / ISR registry (stubs)
+
+module runtime.drivers.interrupts
+
+struct Isr {
+  vector: UInt;
+  handler: String;
+}
+
+struct IsrTable {
+  entries: List<Isr>;
+}
+
+fun IsrTable_new() -> IsrTable {
+  IsrTable { entries: List.new() }
+}
+
+fun isr_register(table: IsrTable, vector: UInt, handler: String) {
+  table.entries.push(Isr { vector: vector, handler: handler });
+}
+
+fun isr_lookup(table: IsrTable, vector: UInt) -> String? {
+  let i = 0;
+  while (i < table.entries.len()) {
+    if (table.entries[i].vector == vector) { return table.entries[i].handler; }
+    i = i + 1;
+  }
+  null
+}

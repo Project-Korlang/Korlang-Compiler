@@ -1,0 +1,37 @@
+// Unified error mapping for OS syscalls
+
+module runtime.syscall.errors
+
+enum Error {
+  Ok;
+  NotFound;
+  PermissionDenied;
+  InvalidArgument;
+  WouldBlock;
+  Interrupted;
+  Unknown;
+}
+
+fun map_errno(errno: Int) -> Error {
+  match (errno) {
+    0 => Error.Ok
+    2 => Error.NotFound
+    13 => Error.PermissionDenied
+    22 => Error.InvalidArgument
+    11 => Error.WouldBlock
+    4 => Error.Interrupted
+    _ => Error.Unknown
+  }
+}
+
+fun map_ntstatus(status: UInt) -> Error {
+  // Minimal NTSTATUS mapping
+  match (status) {
+    0 => Error.Ok
+    0xC000000F => Error.NotFound
+    0xC0000022 => Error.PermissionDenied
+    0xC000000D => Error.InvalidArgument
+    0xC0000005 => Error.Unknown
+    _ => Error.Unknown
+  }
+}

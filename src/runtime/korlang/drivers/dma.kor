@@ -1,0 +1,17 @@
+// DMA buffer management (Tier 3 managed buffers - stubs)
+
+module runtime.drivers.dma
+
+struct DmaBuffer {
+  addr: UInt;
+  len: UInt;
+  aligned: UInt;
+}
+
+fun dma_alloc(len: UInt, align: UInt) -> DmaBuffer {
+  DmaBuffer { addr: 0, len: len, aligned: align }
+}
+
+fun dma_free(_buf: DmaBuffer) {
+  // placeholder
+}

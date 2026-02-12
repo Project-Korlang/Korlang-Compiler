@@ -1,0 +1,17 @@
+// Syscall dispatcher for Korlang runtime
+
+module runtime.syscall.dispatcher
+
+// Assembly-backed raw syscall entrypoint (provided by arch/*.s)
+fun syscall_raw(n: UInt, a1: UInt, a2: UInt, a3: UInt, a4: UInt, a5: UInt, a6: UInt) -> UInt {
+  // Placeholder until FFI binding hooks are wired
+  0
+}
+
+fun syscall0(n: UInt) -> UInt { syscall_raw(n, 0, 0, 0, 0, 0, 0) }
+fun syscall1(n: UInt, a1: UInt) -> UInt { syscall_raw(n, a1, 0, 0, 0, 0, 0) }
+fun syscall2(n: UInt, a1: UInt, a2: UInt) -> UInt { syscall_raw(n, a1, a2, 0, 0, 0, 0) }
+fun syscall3(n: UInt, a1: UInt, a2: UInt, a3: UInt) -> UInt { syscall_raw(n, a1, a2, a3, 0, 0, 0) }
+fun syscall4(n: UInt, a1: UInt, a2: UInt, a3: UInt, a4: UInt) -> UInt { syscall_raw(n, a1, a2, a3, a4, 0, 0) }
+fun syscall5(n: UInt, a1: UInt, a2: UInt, a3: UInt, a4: UInt, a5: UInt) -> UInt { syscall_raw(n, a1, a2, a3, a4, a5, 0) }
+fun syscall6(n: UInt, a1: UInt, a2: UInt, a3: UInt, a4: UInt, a5: UInt, a6: UInt) -> UInt { syscall_raw(n, a1, a2, a3, a4, a5, a6) }
