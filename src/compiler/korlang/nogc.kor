@@ -1,13 +1,186 @@
-// Self-hosted semantic analysis: @nogc validation scaffold
+// Self-hosted semantic analysis: @nogc validation and escape analysis
 
 module compiler.nogc
 
 import compiler.ast
 import compiler.diag
+import compiler.types
+import compiler.symtab
+
+struct FuncInfo
+  name: String
+  nogc: Bool
+
+struct NogcCtx
+  funcs: List<FuncInfo>
+  symtab: SymbolTable
 
 fun validate_nogc(prog: Program) -> List<Diagnostic>
 
+// internal
+fun check_fun(ctx: NogcCtx, fun: FunDecl, diags: List<Diagnostic>)
+fun check_stmt(ctx: NogcCtx, stmt: Stmt, diags: List<Diagnostic>)
+fun check_expr(ctx: NogcCtx, expr: Expr, diags: List<Diagnostic>) -> Type
+fun is_nogc_func(ctx: NogcCtx, name: String) -> Bool
+fun is_alloc_type(t: Type) -> Bool
+
 fun validate_nogc(prog: Program) -> List<Diagnostic> {
-  // Placeholder: implement borrow/lifetime checks for @nogc later.
-  List.new<Diagnostic>()
+  let diags = List.new<Diagnostic>();
+  let funcs = List.new<FuncInfo>();
+  let i = 0;
+  while i < prog.items.len() {
+    match prog.items[i] {
+      Item.Fun(f) => funcs.push(FuncInfo { name: f.name, nogc: f.nogc })
+      _ => {}
+    }
+    i = i + 1;
+  }
+  let ctx = NogcCtx { funcs: funcs, symtab: SymbolTable.new() };
+
+  let j = 0;
+  while j < prog.items.len() {
+    match prog.items[j] {
+      Item.Fun(f) => if f.nogc { check_fun(ctx, f, diags); }
+      _ => {}
+    }
+    j = j + 1;
+  }
+
+  diags
+}
+
+fun check_fun(ctx: NogcCtx, fun: FunDecl, diags: List<Diagnostic>) {
+  ctx.symtab.enter();
+  let i = 0;
+  while i < fun.params.len() {
+    let p = fun.params[i];
+    ctx.symtab.define(p.name, type_from_ref(p.ty), false, SymbolKind.Var);
+    i = i + 1;
+  }
+  let body_ty = check_expr(ctx, Expr.Block(fun.body), diags);
+  if fun.ret != null {
+    let ret_ty = type_from_ref(fun.ret!);
+    if is_alloc_type(ret_ty) {
+      diags.push(Diagnostic.new("@nogc cannot return heap-allocated type", fun.span));
+    }
+  } else {
+    if is_alloc_type(body_ty) {
+      diags.push(Diagnostic.new("@nogc cannot return heap-allocated type", fun.span));
+    }
+  }
+  ctx.symtab.exit();
+}
+
+fun check_stmt(ctx: NogcCtx, stmt: Stmt, diags: List<Diagnostic>) {
+  match stmt {
+    Stmt.Var(v) => {
+      let t = check_expr(ctx, v.value, diags);
+      ctx.symtab.define(v.name, t, v.mutable, SymbolKind.Var);
+    }
+    Stmt.Expr(e, _) => { check_expr(ctx, e, diags); }
+    Stmt.Return(e, span) => {
+      if e != null {
+        let t = check_expr(ctx, e!, diags);
+        if is_alloc_type(t) {
+          diags.push(Diagnostic.new("@nogc return escapes heap allocation", span));
+        }
+      }
+    }
+    Stmt.If(cond, then_block, else_stmt, _) => {
+      check_expr(ctx, cond, diags);
+      check_stmt(ctx, Stmt.Block(then_block), diags);
+      if else_stmt != null { check_stmt(ctx, else_stmt!, diags); }
+    }
+    Stmt.While(cond, body, _) => { check_expr(ctx, cond, diags); check_stmt(ctx, Stmt.Block(body), diags); }
+    Stmt.For(name, iter, body, _) => {
+      check_expr(ctx, iter, diags);
+      ctx.symtab.enter();
+      ctx.symtab.define(name, Type.Unknown, false, SymbolKind.Var);
+      check_stmt(ctx, Stmt.Block(body), diags);
+      ctx.symtab.exit();
+    }
+    Stmt.Match(expr, arms, _) => {
+      check_expr(ctx, expr, diags);
+      let i = 0; while i < arms.len() { check_expr(ctx, arms[i].body, diags); i = i + 1; }
+    }
+    Stmt.Block(b) => {
+      ctx.symtab.enter();
+      let i = 0; while i < b.stmts.len() { check_stmt(ctx, b.stmts[i], diags); i = i + 1; }
+      if b.tail != null { check_expr(ctx, b.tail!, diags); }
+      ctx.symtab.exit();
+    }
+    _ => {}
+  }
+}
+
+fun check_expr(ctx: NogcCtx, expr: Expr, diags: List<Diagnostic>) -> Type {
+  match expr {
+    Expr.Literal(l, span) => {
+      match l {
+        Literal.String(_) => diags.push(Diagnostic.new("allocation not allowed in @nogc", span))
+        _ => {}
+      }
+      match l {
+        Literal.Int(_) => Type.Int
+        Literal.Float(_) => Type.Float
+        Literal.String(_) => Type.String
+        Literal.Char(_) => Type.Char
+        Literal.Bool(_) => Type.Bool
+      }
+    }
+    Expr.Ident(name, span) => {
+      let sym = ctx.symtab.lookup(name);
+      if sym == null { diags.push(Diagnostic.new("undefined symbol '" + name + "'", span)); return Type.Unknown; }
+      sym!.ty
+    }
+    Expr.Array(items, span) => {
+      diags.push(Diagnostic.new("allocation not allowed in @nogc", span));
+      let i = 0; while i < items.len() { check_expr(ctx, items[i], diags); i = i + 1; }
+      Type.Array(Type.Any)
+    }
+    Expr.Tensor(_, span) => { diags.push(Diagnostic.new("allocation not allowed in @nogc", span)); Type.Tensor(Type.Float) }
+    Expr.Interpolated(parts, span) => {
+      diags.push(Diagnostic.new("allocation not allowed in @nogc", span));
+      let i = 0; while i < parts.len() { check_expr(ctx, parts[i], diags); i = i + 1; }
+      Type.String
+    }
+    Expr.Call(callee, args, span) => {
+      match callee {
+        Expr.Ident(name, _) => {
+          if !is_nogc_func(ctx, name) {
+            diags.push(Diagnostic.new("call to non-@nogc function in @nogc", span));
+          }
+        }
+        _ => {}
+      }
+      let i = 0; while i < args.len() { check_expr(ctx, args[i], diags); i = i + 1; }
+      Type.Unknown
+    }
+    Expr.Binary(l, _, r, _) => { check_expr(ctx, l, diags); check_expr(ctx, r, diags); Type.Unknown }
+    Expr.Unary(_, e, _) => { check_expr(ctx, e, diags); Type.Unknown }
+    Expr.Assign(l, _, r, _) => { check_expr(ctx, l, diags); check_expr(ctx, r, diags); Type.Unknown }
+    Expr.Member(t, _, _) => { check_expr(ctx, t, diags); Type.Unknown }
+    Expr.Index(t, i, _) => { check_expr(ctx, t, diags); check_expr(ctx, i, diags); Type.Unknown }
+    Expr.If(c, t, e, _) => { check_expr(ctx, c, diags); check_expr(ctx, Expr.Block(t), diags); check_expr(ctx, Expr.Block(e), diags); Type.Unknown }
+    Expr.Match(e, arms, _) => { check_expr(ctx, e, diags); let i = 0; while i < arms.len() { check_expr(ctx, arms[i].body, diags); i = i + 1; } Type.Unknown }
+    Expr.Block(b) => { check_stmt(ctx, Stmt.Block(b), diags); Type.Unknown }
+  }
+}
+
+fun is_nogc_func(ctx: NogcCtx, name: String) -> Bool {
+  let i = 0;
+  while i < ctx.funcs.len() {
+    if ctx.funcs[i].name == name { return ctx.funcs[i].nogc; }
+    i = i + 1;
+  }
+  false
+}
+
+fun is_alloc_type(t: Type) -> Bool {
+  match t {
+    Type.String => true
+    Type.Array(_) => true
+    Type.Tensor(_) => true
+    _ => false
+  }
 }

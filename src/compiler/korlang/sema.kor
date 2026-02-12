@@ -4,7 +4,6 @@ module compiler.sema
 
 import compiler.ast
 import compiler.diag
-import compiler.symtab
 import compiler.infer
 import compiler.nogc
 
@@ -19,16 +18,11 @@ fun Sema.new() -> Sema {
 }
 
 fun Sema.check_program(self: Sema, prog: Program) -> Result<Program, List<Diagnostic>> {
-  // Symbol table pass (scaffold)
-  let _ = SymbolTable.new();
-
-  // Type inference (scaffold)
   let inferred = infer_program(prog);
   if inferred.is_err() {
     return Result.err(inferred.err());
   }
 
-  // @nogc validation (scaffold)
   let nogc_diags = validate_nogc(inferred.ok());
   if nogc_diags.len() > 0 {
     return Result.err(nogc_diags);

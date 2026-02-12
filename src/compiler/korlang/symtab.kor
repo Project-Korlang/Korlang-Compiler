@@ -1,63 +1,75 @@
-// Self-hosted semantic analysis: symbol table
+// Self-hosted semantic analysis: symbol table with scope tree
 
 module compiler.symtab
 
-import compiler.ast
-import compiler.diag
+import compiler.types
+
+enum SymbolKind
+  Var
+  Func
 
 struct Symbol
   name: String
-  ty: TypeRef?
+  ty: Type
   mutable: Bool
+  kind: SymbolKind
 
 struct Scope
   symbols: List<Symbol>
+  parent: Int
 
 struct SymbolTable
   scopes: List<Scope>
+  current: Int
 
 fun SymbolTable.new() -> SymbolTable
-fun SymbolTable.push_scope(self: SymbolTable)
-fun SymbolTable.pop_scope(self: SymbolTable)
-fun SymbolTable.define(self: SymbolTable, name: String, ty: TypeRef?, mutable: Bool) -> Bool
+fun SymbolTable.enter(self: SymbolTable) -> Int
+fun SymbolTable.exit(self: SymbolTable)
+fun SymbolTable.define(self: SymbolTable, name: String, ty: Type, mutable: Bool, kind: SymbolKind) -> Bool
 fun SymbolTable.lookup(self: SymbolTable, name: String) -> Symbol?
 
 fun SymbolTable.new() -> SymbolTable {
   let scopes = List.new<Scope>();
-  scopes.push(Scope { symbols: List.new<Symbol>() });
-  SymbolTable { scopes: scopes }
+  scopes.push(Scope { symbols: List.new<Symbol>(), parent: -1 });
+  SymbolTable { scopes: scopes, current: 0 }
 }
 
-fun SymbolTable.push_scope(self: SymbolTable) {
-  self.scopes.push(Scope { symbols: List.new<Symbol>() });
+fun SymbolTable.enter(self: SymbolTable) -> Int {
+  let parent = self.current;
+  self.scopes.push(Scope { symbols: List.new<Symbol>(), parent: parent });
+  self.current = self.scopes.len() - 1;
+  self.current
 }
 
-fun SymbolTable.pop_scope(self: SymbolTable) {
-  if self.scopes.len() > 1 { self.scopes.pop(); }
+fun SymbolTable.exit(self: SymbolTable) {
+  if self.current != 0 {
+    self.current = self.scopes[self.current].parent;
+  }
 }
 
-fun SymbolTable.define(self: SymbolTable, name: String, ty: TypeRef?, mutable: Bool) -> Bool {
-  let scope = self.scopes[self.scopes.len() - 1];
+fun SymbolTable.define(self: SymbolTable, name: String, ty: Type, mutable: Bool, kind: SymbolKind) -> Bool {
+  let scope = self.scopes[self.current];
   let i = 0;
   while i < scope.symbols.len() {
     if scope.symbols[i].name == name { return false; }
     i = i + 1;
   }
-  scope.symbols.push(Symbol { name: name, ty: ty, mutable: mutable });
+  scope.symbols.push(Symbol { name: name, ty: ty, mutable: mutable, kind: kind });
   true
 }
 
 fun SymbolTable.lookup(self: SymbolTable, name: String) -> Symbol? {
-  let i = self.scopes.len() - 1;
-  while i >= 0 {
-    let scope = self.scopes[i];
+  let idx = self.current;
+  let cur = idx;
+  while cur >= 0 {
+    let scope = self.scopes[cur];
     let j = 0;
     while j < scope.symbols.len() {
       if scope.symbols[j].name == name { return scope.symbols[j]; }
       j = j + 1;
     }
-    if i == 0 { break; }
-    i = i - 1;
+    if scope.parent < 0 { break; }
+    cur = scope.parent;
   }
   null
 }
