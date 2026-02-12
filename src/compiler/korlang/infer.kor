@@ -203,17 +203,22 @@ fun infer_expr(ctx: InferCtx, expr: Expr, diags: List<Diagnostic>) -> Type {
     Expr.Binary(left, op, right, span) => {
       let lt = infer_expr(ctx, left, diags);
       let rt = infer_expr(ctx, right, diags);
-      match op {
-        BinaryOp.Add | BinaryOp.Sub | BinaryOp.Mul | BinaryOp.Div | BinaryOp.Mod => {
-          add_constraint(ctx, Type.Number, lt, span);
-          add_constraint(ctx, Type.Number, rt, span);
-          if lt == rt { lt } else { Type.Float }
-        }
-        BinaryOp.DotAdd | BinaryOp.DotSub | BinaryOp.DotMul | BinaryOp.DotDiv | BinaryOp.MatMul => Type.Tensor(Type.Float)
-        BinaryOp.Eq | BinaryOp.NotEq | BinaryOp.Lt | BinaryOp.LtEq | BinaryOp.Gt | BinaryOp.GtEq => Type.Bool
-        BinaryOp.And | BinaryOp.Or => { add_constraint(ctx, Type.Bool, lt, span); add_constraint(ctx, Type.Bool, rt, span); Type.Bool }
-        BinaryOp.NullCoalesce => { if lt == rt { lt } else { Type.Any } }
-        BinaryOp.Pipe | BinaryOp.Arrow => rt
+      if op == BinaryOp.Add || op == BinaryOp.Sub || op == BinaryOp.Mul || op == BinaryOp.Div || op == BinaryOp.Mod {
+        add_constraint(ctx, Type.Number, lt, span);
+        add_constraint(ctx, Type.Number, rt, span);
+        if lt == rt { lt } else { Type.Float }
+      } else if op == BinaryOp.DotAdd || op == BinaryOp.DotSub || op == BinaryOp.DotMul || op == BinaryOp.DotDiv || op == BinaryOp.MatMul {
+        Type.Tensor(Type.Float)
+      } else if op == BinaryOp.Eq || op == BinaryOp.NotEq || op == BinaryOp.Lt || op == BinaryOp.LtEq || op == BinaryOp.Gt || op == BinaryOp.GtEq {
+        Type.Bool
+      } else if op == BinaryOp.And || op == BinaryOp.Or {
+        add_constraint(ctx, Type.Bool, lt, span);
+        add_constraint(ctx, Type.Bool, rt, span);
+        Type.Bool
+      } else if op == BinaryOp.NullCoalesce {
+        if lt == rt { lt } else { Type.Any }
+      } else {
+        rt
       }
     }
     Expr.Assign(left, _, right, span) => {
