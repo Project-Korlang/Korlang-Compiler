@@ -1,0 +1,13 @@
+// Self-hosted semantic analysis: @nogc validation scaffold
+
+module compiler.nogc
+
+import compiler.ast
+import compiler.diag
+
+fun validate_nogc(prog: Program) -> List<Diagnostic>
+
+fun validate_nogc(prog: Program) -> List<Diagnostic> {
+  // Placeholder: implement borrow/lifetime checks for @nogc later.
+  List.new<Diagnostic>()
+}

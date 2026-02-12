@@ -1,0 +1,41 @@
+// Self-hosted semantic analysis: type inference scaffold
+
+module compiler.infer
+
+import compiler.ast
+import compiler.diag
+
+struct TypeBinding
+  name: String
+  ty: TypeRef
+
+struct TypeEnv
+  locals: List<TypeBinding>
+
+fun TypeEnv.new() -> TypeEnv
+fun TypeEnv.get(self: TypeEnv, name: String) -> TypeRef?
+fun TypeEnv.set(self: TypeEnv, name: String, ty: TypeRef)
+
+fun infer_program(prog: Program) -> Result<Program, List<Diagnostic>>
+
+fun TypeEnv.new() -> TypeEnv {
+  TypeEnv { locals: List.new<TypeBinding>() }
+}
+
+fun TypeEnv.get(self: TypeEnv, name: String) -> TypeRef? {
+  let i = 0;
+  while i < self.locals.len() {
+    if self.locals[i].name == name { return self.locals[i].ty; }
+    i = i + 1;
+  }
+  null
+}
+
+fun TypeEnv.set(self: TypeEnv, name: String, ty: TypeRef) {
+  self.locals.push(TypeBinding { name: name, ty: ty });
+}
+
+fun infer_program(prog: Program) -> Result<Program, List<Diagnostic>> {
+  // Placeholder: full Hindley-Milner style inference will be implemented later.
+  Result.ok(prog)
+}

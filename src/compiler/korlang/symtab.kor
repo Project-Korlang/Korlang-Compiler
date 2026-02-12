@@ -1,0 +1,63 @@
+// Self-hosted semantic analysis: symbol table
+
+module compiler.symtab
+
+import compiler.ast
+import compiler.diag
+
+struct Symbol
+  name: String
+  ty: TypeRef?
+  mutable: Bool
+
+struct Scope
+  symbols: List<Symbol>
+
+struct SymbolTable
+  scopes: List<Scope>
+
+fun SymbolTable.new() -> SymbolTable
+fun SymbolTable.push_scope(self: SymbolTable)
+fun SymbolTable.pop_scope(self: SymbolTable)
+fun SymbolTable.define(self: SymbolTable, name: String, ty: TypeRef?, mutable: Bool) -> Bool
+fun SymbolTable.lookup(self: SymbolTable, name: String) -> Symbol?
+
+fun SymbolTable.new() -> SymbolTable {
+  let scopes = List.new<Scope>();
+  scopes.push(Scope { symbols: List.new<Symbol>() });
+  SymbolTable { scopes: scopes }
+}
+
+fun SymbolTable.push_scope(self: SymbolTable) {
+  self.scopes.push(Scope { symbols: List.new<Symbol>() });
+}
+
+fun SymbolTable.pop_scope(self: SymbolTable) {
+  if self.scopes.len() > 1 { self.scopes.pop(); }
+}
+
+fun SymbolTable.define(self: SymbolTable, name: String, ty: TypeRef?, mutable: Bool) -> Bool {
+  let scope = self.scopes[self.scopes.len() - 1];
+  let i = 0;
+  while i < scope.symbols.len() {
+    if scope.symbols[i].name == name { return false; }
+    i = i + 1;
+  }
+  scope.symbols.push(Symbol { name: name, ty: ty, mutable: mutable });
+  true
+}
+
+fun SymbolTable.lookup(self: SymbolTable, name: String) -> Symbol? {
+  let i = self.scopes.len() - 1;
+  while i >= 0 {
+    let scope = self.scopes[i];
+    let j = 0;
+    while j < scope.symbols.len() {
+      if scope.symbols[j].name == name { return scope.symbols[j]; }
+      j = j + 1;
+    }
+    if i == 0 { break; }
+    i = i - 1;
+  }
+  null
+}

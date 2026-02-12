@@ -36,9 +36,9 @@ This document tracks the evolution of the **Korlang** programming language. Phas
 - [x] **8.3 Self-Hosting Test Suite:** Ensure the new frontend produces identical ASTs to the Rust bootstrap.
 
 ### 🧠 Phase 9: Self-Hosting - Part 2: Semantic Analysis
-- [ ] **9.1 Symbol Table:** Implement nested scoping and type resolution in pure Korlang.
-- [ ] **9.2 Type Inference:** Port the Hindley-Milner-inspired inference engine to Korlang.
-- [ ] **9.3 @nogc Validation:** Implement the borrow checker and safety analysis in Korlang.
+- [x] **9.1 Symbol Table:** Implement nested scoping and type resolution in pure Korlang.
+- [x] **9.2 Type Inference:** Port the Hindley-Milner-inspired inference engine to Korlang.
+- [x] **9.3 @nogc Validation:** Implement the borrow checker and safety analysis in Korlang.
 
 ### ⚙️ Phase 10: Self-Hosting - Part 3: KIR & LLVM Codegen
 - [ ] **10.1 KIR (Korlang IR):** Define the intermediate representation in Korlang.
