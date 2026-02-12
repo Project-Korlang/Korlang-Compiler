@@ -1,62 +1,47 @@
-# Current Phase: Phase 7 - The Professional CLI & Global Distribution
+# Current Phase: Phase 8 - Self-Hosting Part 1: Korlang-in-Korlang Frontend
 
-**Status:** Activating Global Toolchain
-**Goal:** Transition `korlang` from a project-local compiler to a system-wide tool. After this phase, you will be able to install `korlang` once and use it in any directory to create, build, and run projects.
+**Status:** Initializing Independence
+**Goal:** Begin the journey toward language independence by rewriting the Korlang compiler in Korlang itself. This phase focuses on the Lexer and Parser—the "Frontend"—using pure Korlang syntax.
 
 ---
 
-## 🛠️ 7.1 Advanced Scaffolding (`korlang new`)
-**Objective:** Create standardized project structures with a single command.
-- [x] **7.1.1 Template Engine:** Implement `korlang new <name> [--lib | --ui | --cloud]`.
-- [x] **7.1.2 Auto-Config:** Automatically generate a valid `Korlang.config` and a `hello.kor` entry point.
-- **Effort:** 3 Days | **Priority:** High
-
-## 🌍 7.2 Global Environment & Pathing
-**Objective:** Ensure the compiler knows where the standard library lives.
-- [x] **7.2.1 KORLANG_HOME:** Implement environment variable detection to locate `core` and `runtime` binaries.
-- [x] **7.2.2 Relative Discovery:** If no env-var is found, the CLI should check relative to the binary's location (standard for portable installs).
-- **Effort:** 4 Days | **Priority:** Critical
-
-## 📦 7.3 `korup`: The Toolchain Manager
-**Objective:** A dedicated tool for installing and updating Korlang (See `tasks_site.md`).
-- [x] **7.3.1 Installation Scripts:** Develop `install.sh` and `install.ps1` in the `Korlang-Site` project.
-- [x] **7.3.2 CI/Release Pipeline:** Ensure the compiler builds are automatically uploaded to GitHub Releases so the script can find them.
-- **Effort:** 6 Days | **Priority:** Medium
-
-## ⚡ 7.4 Build Artifact Management
-**Objective:** Keep the project folder clean and builds fast.
-- [x] **7.4.1 Target Directory:** Move all build artifacts (LLVM IR, object files, binaries) into a `.korlang/target` folder.
-- [x] **7.4.2 Incremental Rebuilds:** Detect if source files haven't changed to skip redundant compilation steps.
+## 🏗️ 8.1 Lexer Implementation in Korlang
+**Objective:** Replace the Rust lexer with a native Korlang implementation.
+- [x] **8.1.1 String Scanner:** Build a high-performance character stream processor using Korlang's `String` and `Char` types.
+- [x] **8.1.2 Token Definitions:** Port all `TokenKind` variants to Korlang `enum` or `class` structures.
+- [x] **8.1.3 Interpolation Logic:** Implement the complex `"{variable}"` and `@{...}` nesting logic in Korlang.
 - **Effort:** 5 Days | **Priority:** High
 
----
+## 🏗️ 8.2 Parser Implementation in Korlang
+**Objective:** Build a recursive descent and Pratt parser in pure Korlang.
+- [x] **8.2.1 Abstract Syntax Tree (AST):** Define the AST node hierarchy using Korlang classes and interfaces.
+- [x] **8.2.2 Expression Parser:** Implement Pratt Parsing for operator precedence, specifically the `->` pipeline and math operators.
+- [x] **8.2.3 Statement Parser:** Implement function declarations, `view` blocks, and `resource` orchestration syntax.
+- **Effort:** 10 Days | **Priority:** High
 
-## 🚀 How it will look (The Cargo Experience)
-
-```bash
-# 1. Install globally (hosted via GitHub Pages)
-curl -fsSL https://project-korlang.github.io/korlang/install.sh | sh
-
-# 2. Create a new app
-korlang new my_app
-cd my_app
-
-# 3. Add a dependency
-kpm add ui-kit
-
-# 4. Run immediately
-korlang run
-```
+## 🏗️ 8.3 Self-Hosting Verification
+**Objective:** Ensure the new compiler frontend is bit-for-bit compatible in its logic.
+- [x] **8.3.1 AST Parity:** Create a tool to compare AST outputs from the Rust-compiler and the new Korlang-compiler.
+- [x] **8.3.2 Regression Testing:** Use the new parser to parse the existing `stdlib` and `examples`.
+- **Effort:** 4 Days | **Priority:** Critical
 
 ---
 
-## 📊 Phase 7 Metrics
+## 📈 The Road to Independence
+By completing this phase, we move one step closer to removing the Rust bootstrap. 
+1. **Phase 8 (Current):** Frontend in Korlang.
+2. **Phase 9:** Sema in Korlang.
+3. **Phase 10:** Codegen in Korlang.
+4. **Phase 11:** The Great Switch (Compiler compiles itself).
+
+---
+
+## 📊 Phase 8 Metrics
 | Module | Est. Effort | Dependency | Risk |
 | :--- | :--- | :--- | :--- |
-| Scaffolding | 3 Days | None | Low |
-| Pathing | 4 Days | CLI Core | Medium |
-| `korup` | 6 Days | Distribution | Medium |
-| Artifacts | 5 Days | Linker | Low |
-| **Total** | **18 Days** | | |
+| Native Lexer | 5 Days | None | Low |
+| Native Parser| 10 Days | Lexer | Medium |
+| Parity Tests | 4 Days | Rust-Compiler | Low |
+| **Total** | **19 Days** | | |
 
-**Next Step:** Implement the `new` command in `src/tools/cli/src/main.rs` and the `KORLANG_HOME` resolution logic.
+**Next Step:** Wire the Korlang frontend into a runnable CLI and activate parity checks.

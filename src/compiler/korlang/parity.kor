@@ -1,0 +1,267 @@
+// Self-hosted frontend AST parity checks
+
+module compiler.parity
+
+import compiler.ast
+
+fun ast_equal(a: Program, b: Program) -> Bool
+
+fun ast_equal(a: Program, b: Program) -> Bool {
+  if a.items.len() != b.items.len() { return false; }
+  let i = 0;
+  while i < a.items.len() {
+    if !item_equal(a.items[i], b.items[i]) { return false; }
+    i = i + 1;
+  }
+  true
+}
+
+fun item_equal(a: Item, b: Item) -> Bool {
+  match a {
+    Item.Fun(x) => match b { Item.Fun(y) => fun_equal(x, y) _ => false }
+    Item.Struct(x) => match b { Item.Struct(y) => struct_equal(x, y) _ => false }
+    Item.Enum(x) => match b { Item.Enum(y) => enum_equal(x, y) _ => false }
+    Item.TypeAlias(x) => match b { Item.TypeAlias(y) => type_alias_equal(x, y) _ => false }
+    Item.View(x) => match b { Item.View(y) => view_equal(x, y) _ => false }
+    Item.Resource(x) => match b { Item.Resource(y) => resource_equal(x, y) _ => false }
+    Item.Const(x) => match b { Item.Const(y) => var_equal(x, y) _ => false }
+    Item.Stmt(x) => match b { Item.Stmt(y) => stmt_equal(x, y) _ => false }
+  }
+}
+
+fun fun_equal(a: FunDecl, b: FunDecl) -> Bool {
+  a.name == b.name && params_equal(a.params, b.params) && type_ref_opt_equal(a.ret, b.ret) && block_equal(a.body, b.body) && a.nogc == b.nogc
+}
+
+fun params_equal(a: List<Param>, b: List<Param>) -> Bool {
+  if a.len() != b.len() { return false; }
+  let i = 0;
+  while i < a.len() {
+    if a[i].name != b[i].name || !type_ref_equal(a[i].ty, b[i].ty) { return false; }
+    i = i + 1;
+  }
+  true
+}
+
+fun struct_equal(a: StructDecl, b: StructDecl) -> Bool {
+  if a.name != b.name || a.fields.len() != b.fields.len() { return false; }
+  let i = 0;
+  while i < a.fields.len() {
+    if a.fields[i].name != b.fields[i].name || !type_ref_equal(a.fields[i].ty, b.fields[i].ty) { return false; }
+    i = i + 1;
+  }
+  true
+}
+
+fun enum_equal(a: EnumDecl, b: EnumDecl) -> Bool {
+  if a.name != b.name || a.variants.len() != b.variants.len() { return false; }
+  let i = 0;
+  while i < a.variants.len() {
+    if a.variants[i].name != b.variants[i].name { return false; }
+    if !type_ref_list_equal(a.variants[i].payload, b.variants[i].payload) { return false; }
+    i = i + 1;
+  }
+  true
+}
+
+fun type_alias_equal(a: TypeAliasDecl, b: TypeAliasDecl) -> Bool {
+  a.name == b.name && type_ref_equal(a.target, b.target)
+}
+
+fun view_equal(a: ViewDecl, b: ViewDecl) -> Bool {
+  if a.name != b.name { return false; }
+  if !params_equal(a.params, b.params) { return false; }
+  if a.body.len() != b.body.len() { return false; }
+  let i = 0;
+  while i < a.body.len() {
+    if !view_node_equal(a.body[i], b.body[i]) { return false; }
+    i = i + 1;
+  }
+  true
+}
+
+fun view_node_equal(a: ViewNode, b: ViewNode) -> Bool {
+  if a.name != b.name { return false; }
+  if a.args.len() != b.args.len() { return false; }
+  let i = 0;
+  while i < a.args.len() {
+    if a.args[i].name != b.args[i].name { return false; }
+    if !expr_equal(a.args[i].value, b.args[i].value) { return false; }
+    i = i + 1;
+  }
+  if a.children.len() != b.children.len() { return false; }
+  let j = 0;
+  while j < a.children.len() {
+    if !view_node_equal(a.children[j], b.children[j]) { return false; }
+    j = j + 1;
+  }
+  true
+}
+
+fun resource_equal(a: ResourceDecl, b: ResourceDecl) -> Bool {
+  if a.name != b.name || a.resource_type != b.resource_type || a.entries.len() != b.entries.len() { return false; }
+  let i = 0;
+  while i < a.entries.len() {
+    if a.entries[i].key != b.entries[i].key { return false; }
+    if !expr_equal(a.entries[i].value, b.entries[i].value) { return false; }
+    i = i + 1;
+  }
+  true
+}
+
+fun var_equal(a: VarDecl, b: VarDecl) -> Bool {
+  a.mutable == b.mutable && a.name == b.name && type_ref_opt_equal(a.ty, b.ty) && expr_equal(a.value, b.value)
+}
+
+fun stmt_equal(a: Stmt, b: Stmt) -> Bool {
+  match a {
+    Stmt.Var(x) => match b { Stmt.Var(y) => var_equal(x, y) _ => false }
+    Stmt.Expr(x, _) => match b { Stmt.Expr(y, _) => expr_equal(x, y) _ => false }
+    Stmt.Return(x, _) => match b { Stmt.Return(y, _) => expr_opt_equal(x, y) _ => false }
+    Stmt.Break(_) => match b { Stmt.Break(_) => true _ => false }
+    Stmt.Continue(_) => match b { Stmt.Continue(_) => true _ => false }
+    Stmt.If(c1, t1, e1, _) => match b { Stmt.If(c2, t2, e2, _) => expr_equal(c1, c2) && block_equal(t1, t2) && stmt_opt_equal(e1, e2) _ => false }
+    Stmt.While(c1, b1, _) => match b { Stmt.While(c2, b2, _) => expr_equal(c1, c2) && block_equal(b1, b2) _ => false }
+    Stmt.For(n1, i1, b1, _) => match b { Stmt.For(n2, i2, b2, _) => n1 == n2 && expr_equal(i1, i2) && block_equal(b1, b2) _ => false }
+    Stmt.Match(e1, a1, _) => match b { Stmt.Match(e2, a2, _) => expr_equal(e1, e2) && match_arm_list_equal(a1, a2) _ => false }
+    Stmt.Block(b1) => match b { Stmt.Block(b2) => block_equal(b1, b2) _ => false }
+  }
+}
+
+fun block_equal(a: Block, b: Block) -> Bool {
+  if a.stmts.len() != b.stmts.len() { return false; }
+  let i = 0;
+  while i < a.stmts.len() {
+    if !stmt_equal(a.stmts[i], b.stmts[i]) { return false; }
+    i = i + 1;
+  }
+  expr_opt_equal(a.tail, b.tail)
+}
+
+fun match_arm_list_equal(a: List<MatchArm>, b: List<MatchArm>) -> Bool {
+  if a.len() != b.len() { return false; }
+  let i = 0;
+  while i < a.len() {
+    if !pattern_equal(a[i].pat, b[i].pat) || !expr_equal(a[i].body, b[i].body) { return false; }
+    i = i + 1;
+  }
+  true
+}
+
+fun expr_equal(a: Expr, b: Expr) -> Bool {
+  match a {
+    Expr.Literal(l1, _) => match b { Expr.Literal(l2, _) => literal_equal(l1, l2) _ => false }
+    Expr.Ident(n1, _) => match b { Expr.Ident(n2, _) => n1 == n2 _ => false }
+    Expr.Unary(o1, e1, _) => match b { Expr.Unary(o2, e2, _) => o1 == o2 && expr_equal(e1, e2) _ => false }
+    Expr.Binary(l1, o1, r1, _) => match b { Expr.Binary(l2, o2, r2, _) => o1 == o2 && expr_equal(l1, l2) && expr_equal(r1, r2) _ => false }
+    Expr.Assign(l1, o1, r1, _) => match b { Expr.Assign(l2, o2, r2, _) => o1 == o2 && expr_equal(l1, l2) && expr_equal(r1, r2) _ => false }
+    Expr.Call(c1, a1, _) => match b { Expr.Call(c2, a2, _) => expr_equal(c1, c2) && expr_list_equal(a1, a2) _ => false }
+    Expr.Member(t1, n1, _) => match b { Expr.Member(t2, n2, _) => n1 == n2 && expr_equal(t1, t2) _ => false }
+    Expr.Index(t1, i1, _) => match b { Expr.Index(t2, i2, _) => expr_equal(t1, t2) && expr_equal(i1, i2) _ => false }
+    Expr.If(c1, t1, e1, _) => match b { Expr.If(c2, t2, e2, _) => expr_equal(c1, c2) && block_equal(t1, t2) && block_equal(e1, e2) _ => false }
+    Expr.Match(e1, a1, _) => match b { Expr.Match(e2, a2, _) => expr_equal(e1, e2) && match_arm_list_equal(a1, a2) _ => false }
+    Expr.Block(b1) => match b { Expr.Block(b2) => block_equal(b1, b2) _ => false }
+    Expr.Array(a1, _) => match b { Expr.Array(a2, _) => expr_list_equal(a1, a2) _ => false }
+    Expr.Tensor(t1, _) => match b { Expr.Tensor(t2, _) => tensor_equal(t1, t2) _ => false }
+    Expr.Interpolated(p1, _) => match b { Expr.Interpolated(p2, _) => expr_list_equal(p1, p2) _ => false }
+  }
+}
+
+fun expr_list_equal(a: List<Expr>, b: List<Expr>) -> Bool {
+  if a.len() != b.len() { return false; }
+  let i = 0;
+  while i < a.len() {
+    if !expr_equal(a[i], b[i]) { return false; }
+    i = i + 1;
+  }
+  true
+}
+
+fun tensor_equal(a: List<List<Expr>>, b: List<List<Expr>>) -> Bool {
+  if a.len() != b.len() { return false; }
+  let i = 0;
+  while i < a.len() {
+    if !expr_list_equal(a[i], b[i]) { return false; }
+    i = i + 1;
+  }
+  true
+}
+
+fun pattern_equal(a: Pattern, b: Pattern) -> Bool {
+  match a {
+    Pattern.Ident(n1, _) => match b { Pattern.Ident(n2, _) => n1 == n2 _ => false }
+    Pattern.Wildcard(_) => match b { Pattern.Wildcard(_) => true _ => false }
+    Pattern.Literal(l1, _) => match b { Pattern.Literal(l2, _) => literal_equal(l1, l2) _ => false }
+    Pattern.Tuple(p1, _) => match b { Pattern.Tuple(p2, _) => pattern_list_equal(p1, p2) _ => false }
+    Pattern.Struct(n1, f1, _) => match b { Pattern.Struct(n2, f2, _) => n1 == n2 && field_pattern_list_equal(f1, f2) _ => false }
+  }
+}
+
+fun pattern_list_equal(a: List<Pattern>, b: List<Pattern>) -> Bool {
+  if a.len() != b.len() { return false; }
+  let i = 0;
+  while i < a.len() {
+    if !pattern_equal(a[i], b[i]) { return false; }
+    i = i + 1;
+  }
+  true
+}
+
+fun field_pattern_list_equal(a: List<FieldPattern>, b: List<FieldPattern>) -> Bool {
+  if a.len() != b.len() { return false; }
+  let i = 0;
+  while i < a.len() {
+    if a[i].name != b[i].name || !pattern_equal(a[i].pat, b[i].pat) { return false; }
+    i = i + 1;
+  }
+  true
+}
+
+fun type_ref_equal(a: TypeRef, b: TypeRef) -> Bool {
+  match a {
+    TypeRef.Named(n1, _) => match b { TypeRef.Named(n2, _) => n1 == n2 _ => false }
+    TypeRef.Tuple(t1, _) => match b { TypeRef.Tuple(t2, _) => type_ref_list_equal(t1, t2) _ => false }
+    TypeRef.Array(t1, _) => match b { TypeRef.Array(t2, _) => type_ref_equal(t1, t2) _ => false }
+    TypeRef.Tensor(e1, s1, _) => match b { TypeRef.Tensor(e2, s2, _) => type_ref_equal(e1, e2) && shape_list_equal(s1, s2) _ => false }
+    TypeRef.Optional(t1, _) => match b { TypeRef.Optional(t2, _) => type_ref_equal(t1, t2) _ => false }
+    TypeRef.NonNull(t1, _) => match b { TypeRef.NonNull(t2, _) => type_ref_equal(t1, t2) _ => false }
+  }
+}
+
+fun type_ref_list_equal(a: List<TypeRef>, b: List<TypeRef>) -> Bool {
+  if a.len() != b.len() { return false; }
+  let i = 0;
+  while i < a.len() {
+    if !type_ref_equal(a[i], b[i]) { return false; }
+    i = i + 1;
+  }
+  true
+}
+
+fun type_ref_opt_equal(a: TypeRef?, b: TypeRef?) -> Bool {
+  if a == null && b == null { return true; }
+  if a == null || b == null { return false; }
+  type_ref_equal(a!, b!)
+}
+
+fun expr_opt_equal(a: Expr?, b: Expr?) -> Bool {
+  if a == null && b == null { return true; }
+  if a == null || b == null { return false; }
+  expr_equal(a!, b!)
+}
+
+fun stmt_opt_equal(a: Stmt?, b: Stmt?) -> Bool {
+  if a == null && b == null { return true; }
+  if a == null || b == null { return false; }
+  stmt_equal(a!, b!)
+}
+
+fun literal_equal(a: Literal, b: Literal) -> Bool {
+  match a {
+    Literal.Int(x) => match b { Literal.Int(y) => x == y _ => false }
+    Literal.Float(x) => match b { Literal.Float(y) => x == y _ => false }
+    Literal.String(x) => match b { Literal.String(y) => x == y _ => false }
+    Literal.Char(x) => match b { Literal.Char(y) => x == y _ => false }
+    Literal.Bool(x) => match b { Literal.Bool(y) => x == y _ => false }
+  }
+}

@@ -1,0 +1,116 @@
+// Self-hosted frontend tokens
+
+module compiler.token
+
+import compiler.diag
+
+enum TokenKind
+  Identifier(String)
+  IntLiteral(Int)
+  FloatLiteral(Float)
+  StringLiteral(String)
+  CharLiteral(Char)
+  BoolLiteral(Bool)
+
+  Keyword(String)
+
+  Plus
+  Minus
+  Star
+  Slash
+  Percent
+
+  DotPlus
+  DotMinus
+  DotStar
+  DotSlash
+  At
+
+  Eq
+  PlusEq
+  MinusEq
+  StarEq
+  SlashEq
+  PercentEq
+
+  EqEq
+  FatArrow
+  NotEq
+  Lt
+  LtEq
+  Gt
+  GtEq
+
+  AndAnd
+  OrOr
+  Not
+
+  Arrow
+  Pipe
+  NullCoalesce
+  Question
+
+  LParen
+  RParen
+  LBrace
+  RBrace
+  LBracket
+  RBracket
+
+  Comma
+  Semi
+  Colon
+  Dot
+
+  InterpStart
+  InterpEnd
+
+  Eof
+
+struct Token
+  kind: TokenKind
+  span: Span
+
+fun Token.new(kind: TokenKind, span: Span) -> Token
+
+fun TokenKind.is_identifier(self: TokenKind) -> Bool
+fun TokenKind.ident_value(self: TokenKind) -> String
+fun TokenKind.is_string_literal(self: TokenKind) -> Bool
+fun TokenKind.string_value(self: TokenKind) -> String
+fun TokenKind.is_keyword(self: TokenKind, kw: String) -> Bool
+
+// --- helpers ---
+fun TokenKind.is_identifier(self: TokenKind) -> Bool {
+  match self {
+    TokenKind.Identifier(_) => true
+    _ => false
+  }
+}
+
+fun TokenKind.ident_value(self: TokenKind) -> String {
+  match self {
+    TokenKind.Identifier(name) => name
+    _ => ""
+  }
+}
+
+fun TokenKind.is_string_literal(self: TokenKind) -> Bool {
+  match self {
+    TokenKind.StringLiteral(_) => true
+    _ => false
+  }
+}
+
+fun TokenKind.string_value(self: TokenKind) -> String {
+  match self {
+    TokenKind.StringLiteral(s) => s
+    _ => ""
+  }
+}
+
+fun TokenKind.is_keyword(self: TokenKind, kw: String) -> Bool {
+  match self {
+    TokenKind.Keyword(k) => k == kw
+    _ => false
+  }
+}
