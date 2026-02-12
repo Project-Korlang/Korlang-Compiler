@@ -32,9 +32,7 @@ for p in sorted((root / 'src' / 'compiler' / 'korlang').glob('*.kor')):
         parts.append(line)
         i += 1
     parts.append('')
-parts.append('fun main() -> Int {')
-parts.append('  0')
-parts.append('}')
+# driver.kor provides the entry point
 text = '\n'.join(parts)
 
 def replace_generic(text, name, to_brackets):

@@ -13,6 +13,7 @@ mod channel;
 mod blocking;
 mod stdio;
 mod panic;
+mod driver;
 pub mod ui;
 pub mod cloud;
 pub mod tensor;
@@ -108,6 +109,11 @@ pub extern "C" fn korlang_main(
     argv: *const *const u8,
 ) -> i32 {
     entry(argc, argv)
+}
+
+#[no_mangle]
+pub extern "C" fn korlang_driver() {
+    driver::korlang_driver();
 }
 
 #[no_mangle]

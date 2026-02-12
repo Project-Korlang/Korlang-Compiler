@@ -74,6 +74,14 @@ impl<'ctx> Codegen<'ctx> {
         let entry = self.context.append_basic_block(func, "entry");
         self.builder.position_at_end(entry);
         let mut returned = false;
+
+        // Emit basic statement calls for the self-hosted driver.
+        for stmt in &fun.body.stmts {
+            if let Stmt::Expr(Expr::Call { callee, args, .. }, _) = stmt {
+                let _ = self.emit_call(callee, args);
+            }
+        }
+
         if let Some(ret) = &fun.ret {
             if let Some(val) = self.try_emit_return(&fun.body, ret) {
                 let _ = self.builder.build_return(Some(&val));
@@ -89,6 +97,21 @@ impl<'ctx> Codegen<'ctx> {
             }
             let _ = self.builder.build_return(None);
         }
+    }
+
+    fn emit_call(&mut self, callee: &Expr, args: &[Expr]) -> Option<BasicValueEnum<'ctx>> {
+        // Minimal FFI: @import("symbol") calls an extern symbol with no args.
+        if let Expr::Ident(name, _) = callee {
+            if name == "@import" {
+                if let Some(Expr::Literal(Literal::String(sym), _)) = args.get(0) {
+                    let fn_ty = self.context.void_type().fn_type(&[], false);
+                    let f = self.module.add_function(sym, fn_ty, None);
+                    let _ = self.builder.build_call(f, &[], "ffi");
+                    return None;
+                }
+            }
+        }
+        None
     }
 
     fn try_emit_return(&self, body: &Block, ret: &TypeRef) -> Option<BasicValueEnum<'ctx>> {
