@@ -1,0 +1,33 @@
+// Native Korlang runtime stdlib: memory allocation over GC heap
+
+module runtime.std.mem
+
+import runtime.gc
+
+struct Allocator {
+  heap: Heap;
+}
+
+fun Allocator_new(young_threshold: UInt, old_threshold: UInt) -> Allocator {
+  Allocator { heap: Heap_new(young_threshold, old_threshold) }
+}
+
+fun alloc(alloc: Allocator, size: UInt, fields: UInt) -> UInt {
+  heap_alloc(alloc.heap, size, fields)
+}
+
+fun add_root(alloc: Allocator, id: UInt) {
+  heap_add_root(alloc.heap, id);
+}
+
+fun remove_root(alloc: Allocator, id: UInt) {
+  heap_remove_root(alloc.heap, id);
+}
+
+fun collect_young(alloc: Allocator) {
+  heap_collect_young(alloc.heap);
+}
+
+fun collect_full(alloc: Allocator) {
+  heap_collect_full(alloc.heap);
+}

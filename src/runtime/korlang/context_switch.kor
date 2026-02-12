@@ -1,0 +1,19 @@
+// Native Korlang runtime: context switching hooks (stubs)
+
+module runtime.context_switch
+
+struct Context {
+  sp: UInt;
+  pc: UInt;
+}
+
+fun ctx_make(entry: UInt, stack_top: UInt) -> Context {
+  Context { sp: stack_top, pc: entry }
+}
+
+fun ctx_switch(from: Context, to: Context) -> Bool {
+  // Placeholder for assembly swap. Real implementation will be in arch-specific assembly.
+  from.sp = from.sp;
+  to.sp = to.sp;
+  true
+}

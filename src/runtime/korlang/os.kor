@@ -1,0 +1,10 @@
+// Native Korlang runtime: OS binding stubs
+
+module runtime.os
+
+// These are placeholders for real syscall/OS bindings.
+// The self-hosted runtime will replace them with actual FFI hooks.
+
+fun os_yield() -> UInt { 0 }
+fun os_futex_wait(addr: UInt, expected: UInt) -> UInt { 0 }
+fun os_futex_wake(addr: UInt, count: UInt) -> UInt { 0 }

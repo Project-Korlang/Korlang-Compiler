@@ -45,15 +45,15 @@ This document tracks the evolution of the **Korlang** programming language. Phas
 - [x] **10.2 LLVM Bindings:** Create FFI bindings to LLVM for the Korlang-based compiler.
 - [x] **10.3 Bootstrap Compilation:** Use the Rust-compiler to compile the Korlang-compiler.
 
-### 🔄 Phase 11: The "Great Switch" (Bootstrapping)
-- [ ] **11.1 Stage 1:** Compile Korlang-compiler using Rust-compiler.
-- [ ] **11.2 Stage 2:** Use the Stage 1 compiler to compile itself.
-- [ ] **11.3 Stage 3:** Verify that Stage 2 and Stage 3 binaries are bit-for-bit identical (Full Bootstrapping).
+### ✅ Phase 11: The "Great Switch" (Bootstrapping) (Completed)
+- [x] **11.1 Stage 1:** Compile Korlang-compiler using Rust-compiler.
+- [x] **11.2 Stage 2:** Use the Stage 1 compiler to compile itself.
+- [x] **11.3 Stage 3:** Verify that Stage 2 and Stage 3 binaries are bit-for-bit identical (Full Bootstrapping).
 
 ### 🛡️ Phase 12: Independent Runtime (Removing Rust Dependency)
-- [ ] **12.1 Pure Korlang Runtime:** Rewrite the scheduler and GC in Korlang using `@nogc` and raw pointers.
-- [ ] **12.2 Assembly Hooks:** Implement low-level context switching in pure assembly.
-- [ ] **12.3 Removing Rust Stdlib:** Eliminate all remaining Rust library dependencies.
+- [x] **12.1 Pure Korlang Runtime:** Rewrite the scheduler and GC in Korlang using `@nogc` and raw pointers.
+- [x] **12.2 Assembly Hooks:** Implement low-level context switching in pure assembly.
+- [x] **12.3 Removing Rust Stdlib:** Eliminate all remaining Rust library dependencies.
 
 ### 🚀 Phase 13: Native Backend (Removing LLVM Dependency)
 - [ ] **13.1 x86_64 Generator:** Direct machine code emission for Intel/AMD.

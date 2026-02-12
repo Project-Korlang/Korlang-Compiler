@@ -1,0 +1,99 @@
+// Native Korlang runtime: work-stealing task scheduler (logical model)
+
+module runtime.scheduler
+
+struct Task {
+  id: UInt;
+  entry: String; // symbol name to invoke
+  arg: UInt;
+}
+
+struct Deque {
+  items: List<Task>;
+}
+
+struct Worker {
+  id: UInt;
+  deque: Deque;
+}
+
+struct Scheduler {
+  workers: List<Worker>;
+  next_task: UInt;
+}
+
+fun Scheduler_new(worker_count: UInt) -> Scheduler {
+  let workers = List.new();
+  let i = 0;
+  while (i < worker_count) {
+    workers.push(Worker { id: i, deque: Deque { items: List.new() } });
+    i = i + 1;
+  }
+  Scheduler { workers: workers, next_task: 1 }
+}
+
+fun scheduler_spawn(s: Scheduler, entry: String, arg: UInt) -> UInt {
+  let id = s.next_task;
+  s.next_task = s.next_task + 1;
+  let task = Task { id: id, entry: entry, arg: arg };
+  // push to worker 0 by default
+  s.workers[0].deque.items.push(task);
+  id
+}
+
+fun scheduler_run_once(s: Scheduler, worker_id: UInt) -> Bool {
+  let task = deque_pop_bottom(s.workers[worker_id].deque);
+  if (task != null) { return run_task(task); }
+  // steal from others
+  let i = 0;
+  while (i < s.workers.len()) {
+    if (i != worker_id) {
+      let stolen = deque_steal_top(s.workers[i].deque);
+      if (stolen != null) { return run_task(stolen); }
+    }
+    i = i + 1;
+  }
+  false
+}
+
+fun deque_pop_bottom(d: Deque) -> Task? {
+  if (d.items.len() == 0) { return null; }
+  // pop last
+  let idx = d.items.len() - 1;
+  let out = d.items[idx];
+  d.items = list_truncate(d.items, idx);
+  out
+}
+
+fun deque_steal_top(d: Deque) -> Task? {
+  if (d.items.len() == 0) { return null; }
+  let out = d.items[0];
+  d.items = list_drop_first(d.items);
+  out
+}
+
+fun list_truncate(xs: List<Task>, len: UInt) -> List<Task> {
+  let out = List.new();
+  let i = 0;
+  while (i < len) {
+    out.push(xs[i]);
+    i = i + 1;
+  }
+  out
+}
+
+fun list_drop_first(xs: List<Task>) -> List<Task> {
+  let out = List.new();
+  let i = 1;
+  while (i < xs.len()) {
+    out.push(xs[i]);
+    i = i + 1;
+  }
+  out
+}
+
+fun run_task(task: Task) -> Bool {
+  // Placeholder: real runtime will resolve and invoke symbols via OS bindings.
+  // For now, acknowledge execution.
+  task.id > 0
+}

@@ -1,0 +1,9 @@
+// Native Korlang runtime stdlib: filesystem stubs
+
+module runtime.std.fs
+
+// Placeholder for future direct syscall-based FS operations.
+
+fun exists(_path_ptr: UInt, _len: UInt) -> Bool { false }
+fun open_read(_path_ptr: UInt, _len: UInt) -> Int { -1 }
+fun open_write(_path_ptr: UInt, _len: UInt) -> Int { -1 }
