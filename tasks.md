@@ -50,15 +50,15 @@ This document tracks the evolution of the **Korlang** programming language. Phas
 - [x] **11.2 Stage 2:** Use the Stage 1 compiler to compile itself.
 - [x] **11.3 Stage 3:** Verify that Stage 2 and Stage 3 binaries are bit-for-bit identical (Full Bootstrapping).
 
-### 🛡️ Phase 12: Independent Runtime (Removing Rust Dependency)
+### ✅ Phase 12: Independent Runtime (Removing Rust Dependency) (Completed)
 - [x] **12.1 Pure Korlang Runtime:** Rewrite the scheduler and GC in Korlang using `@nogc` and raw pointers.
 - [x] **12.2 Assembly Hooks:** Implement low-level context switching in pure assembly.
 - [x] **12.3 Removing Rust Stdlib:** Eliminate all remaining Rust library dependencies.
 
 ### 🚀 Phase 13: Native Backend (Removing LLVM Dependency)
-- [ ] **13.1 x86_64 Generator:** Direct machine code emission for Intel/AMD.
-- [ ] **13.2 AArch64 Generator:** Direct machine code emission for ARM (Apple Silicon/Android).
-- [ ] **13.3 Linker Implementation:** A native Korlang linker to produce ELF/Mach-O/PE binaries.
+- [x] **13.1 x86_64 Generator:** Direct machine code emission for Intel/AMD.
+- [x] **13.2 AArch64 Generator:** Direct machine code emission for ARM (Apple Silicon/Android).
+- [x] **13.3 Linker Implementation:** A native Korlang linker to produce ELF/Mach-O/PE binaries.
 
 ### 💻 Phase 14: Direct OS Integration (The Kernel Interface)
 - [ ] **14.1 Syscall Library:** Direct system call wrappers for Linux, macOS, and Windows.

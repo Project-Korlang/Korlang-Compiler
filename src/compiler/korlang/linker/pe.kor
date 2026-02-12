@@ -1,0 +1,29 @@
+// Native linker: PE writer (subset)
+
+module compiler.linker.pe
+
+struct PeSection {
+  name: String;
+  data: List<UInt>;
+  align: UInt;
+}
+
+struct PeFile {
+  sections: List<PeSection>;
+}
+
+fun PeFile_new() -> PeFile {
+  PeFile { sections: List.new() }
+}
+
+fun pe_add_section(file: PeFile, name: String, data: List<UInt>, align: UInt) {
+  file.sections.push(PeSection { name: name, data: data, align: align });
+}
+
+fun pe_write(_file: PeFile) -> List<UInt> {
+  // Placeholder 'MZ' magic
+  let out = List.new();
+  out.push(0x4D);
+  out.push(0x5A);
+  out
+}

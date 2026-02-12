@@ -1,0 +1,31 @@
+// Native linker: Mach-O writer (subset)
+
+module compiler.linker.macho
+
+struct MachSection {
+  name: String;
+  data: List<UInt>;
+  align: UInt;
+}
+
+struct MachFile {
+  sections: List<MachSection>;
+}
+
+fun MachFile_new() -> MachFile {
+  MachFile { sections: List.new() }
+}
+
+fun macho_add_section(file: MachFile, name: String, data: List<UInt>, align: UInt) {
+  file.sections.push(MachSection { name: name, data: data, align: align });
+}
+
+fun macho_write(_file: MachFile) -> List<UInt> {
+  // Placeholder magic for 64-bit Mach-O (0xFEEDFACF)
+  let out = List.new();
+  out.push(0xCF);
+  out.push(0xFA);
+  out.push(0xED);
+  out.push(0xFE);
+  out
+}

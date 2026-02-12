@@ -1,0 +1,31 @@
+// Native linker: ELF writer (subset)
+
+module compiler.linker.elf
+
+struct ElfSection {
+  name: String;
+  data: List<UInt>;
+  align: UInt;
+}
+
+struct ElfFile {
+  sections: List<ElfSection>;
+}
+
+fun ElfFile_new() -> ElfFile {
+  ElfFile { sections: List.new() }
+}
+
+fun elf_add_section(file: ElfFile, name: String, data: List<UInt>, align: UInt) {
+  file.sections.push(ElfSection { name: name, data: data, align: align });
+}
+
+fun elf_write(_file: ElfFile) -> List<UInt> {
+  // Placeholder bytes (real ELF requires headers + section tables)
+  let out = List.new();
+  out.push(0x7F);
+  out.push(0x45); // 'E'
+  out.push(0x4C); // 'L'
+  out.push(0x46); // 'F'
+  out
+}

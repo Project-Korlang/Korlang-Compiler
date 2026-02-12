@@ -1,0 +1,58 @@
+// x86_64 ABI definitions (SysV AMD64 + Windows x64)
+
+module compiler.backend.x86_64.abi
+
+enum CallingConv {
+  SysV;
+  Win64;
+}
+
+struct AbiInfo {
+  arg_gprs: List<UInt>;
+  caller_saved: List<UInt>;
+  callee_saved: List<UInt>;
+  stack_align: UInt;
+  shadow_space: UInt;
+}
+
+const RAX: UInt = 0;
+const RCX: UInt = 1;
+const RDX: UInt = 2;
+const RBX: UInt = 3;
+const RSP: UInt = 4;
+const RBP: UInt = 5;
+const RSI: UInt = 6;
+const RDI: UInt = 7;
+const R8: UInt = 8;
+const R9: UInt = 9;
+const R10: UInt = 10;
+const R11: UInt = 11;
+const R12: UInt = 12;
+const R13: UInt = 13;
+const R14: UInt = 14;
+const R15: UInt = 15;
+
+fun abi_info(cc: CallingConv) -> AbiInfo {
+  match (cc) {
+    CallingConv.SysV => AbiInfo {
+      arg_gprs: [RDI, RSI, RDX, RCX, R8, R9],
+      caller_saved: [RAX, RCX, RDX, RSI, RDI, R8, R9, R10, R11],
+      callee_saved: [RBX, RBP, R12, R13, R14, R15],
+      stack_align: 16,
+      shadow_space: 0,
+    }
+    CallingConv.Win64 => AbiInfo {
+      arg_gprs: [RCX, RDX, R8, R9],
+      caller_saved: [RAX, RCX, RDX, R8, R9, R10, R11],
+      callee_saved: [RBX, RBP, RDI, RSI, R12, R13, R14, R15],
+      stack_align: 16,
+      shadow_space: 32,
+    }
+  }
+}
+
+fun abi_arg_reg(cc: CallingConv, index: UInt) -> UInt? {
+  let info = abi_info(cc);
+  if (index < info.arg_gprs.len()) { return info.arg_gprs[index]; }
+  null
+}

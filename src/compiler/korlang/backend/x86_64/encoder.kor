@@ -1,0 +1,113 @@
+// Native x86_64 instruction encoder (subset)
+
+module compiler.backend.x86_64.encoder
+
+struct ByteBuf {
+  bytes: List<UInt>;
+}
+
+const RAX: UInt = 0;
+const RCX: UInt = 1;
+const RDX: UInt = 2;
+const RBX: UInt = 3;
+const RSP: UInt = 4;
+const RBP: UInt = 5;
+const RSI: UInt = 6;
+const RDI: UInt = 7;
+const R8: UInt = 8;
+const R9: UInt = 9;
+const R10: UInt = 10;
+const R11: UInt = 11;
+const R12: UInt = 12;
+const R13: UInt = 13;
+const R14: UInt = 14;
+const R15: UInt = 15;
+
+fun ByteBuf_new() -> ByteBuf {
+  ByteBuf { bytes: List.new() }
+}
+
+fun emit_u8(buf: ByteBuf, v: UInt) {
+  buf.bytes.push(v & 0xFF);
+}
+
+fun emit_u32(buf: ByteBuf, v: UInt) {
+  emit_u8(buf, v & 0xFF);
+  emit_u8(buf, (v >> 8) & 0xFF);
+  emit_u8(buf, (v >> 16) & 0xFF);
+  emit_u8(buf, (v >> 24) & 0xFF);
+}
+
+fun emit_u64(buf: ByteBuf, v: UInt) {
+  emit_u32(buf, v & 0xFFFFFFFF);
+  emit_u32(buf, (v >> 32) & 0xFFFFFFFF);
+}
+
+fun rex(w: Bool, r: UInt, x: UInt, b: UInt) -> UInt {
+  let base = 0x40;
+  let wbit = if (w) { 0x08 } else { 0 };
+  let rbit = if ((r & 8) != 0) { 0x04 } else { 0 };
+  let xbit = if ((x & 8) != 0) { 0x02 } else { 0 };
+  let bbit = if ((b & 8) != 0) { 0x01 } else { 0 };
+  base + wbit + rbit + xbit + bbit
+}
+
+fun modrm(mod: UInt, reg: UInt, rm: UInt) -> UInt {
+  ((mod & 3) << 6) | ((reg & 7) << 3) | (rm & 7)
+}
+
+// Register-to-register encodings
+fun enc_mov_rr(buf: ByteBuf, dst: UInt, src: UInt) {
+  emit_u8(buf, rex(true, src, 0, dst));
+  emit_u8(buf, 0x89);
+  emit_u8(buf, modrm(3, src, dst));
+}
+
+fun enc_add_rr(buf: ByteBuf, dst: UInt, src: UInt) {
+  emit_u8(buf, rex(true, src, 0, dst));
+  emit_u8(buf, 0x01);
+  emit_u8(buf, modrm(3, src, dst));
+}
+
+fun enc_sub_rr(buf: ByteBuf, dst: UInt, src: UInt) {
+  emit_u8(buf, rex(true, src, 0, dst));
+  emit_u8(buf, 0x29);
+  emit_u8(buf, modrm(3, src, dst));
+}
+
+fun enc_xor_rr(buf: ByteBuf, dst: UInt, src: UInt) {
+  emit_u8(buf, rex(true, src, 0, dst));
+  emit_u8(buf, 0x31);
+  emit_u8(buf, modrm(3, src, dst));
+}
+
+// Move immediate 64 into register
+fun enc_mov_ri64(buf: ByteBuf, dst: UInt, imm: UInt) {
+  emit_u8(buf, rex(true, 0, 0, dst));
+  emit_u8(buf, 0xB8 + (dst & 7));
+  emit_u64(buf, imm);
+}
+
+fun enc_push_r64(buf: ByteBuf, reg: UInt) {
+  if (reg >= 8) {
+    emit_u8(buf, rex(false, 0, 0, reg));
+  }
+  emit_u8(buf, 0x50 + (reg & 7));
+}
+
+fun enc_pop_r64(buf: ByteBuf, reg: UInt) {
+  if (reg >= 8) {
+    emit_u8(buf, rex(false, 0, 0, reg));
+  }
+  emit_u8(buf, 0x58 + (reg & 7));
+}
+
+fun enc_call_reg(buf: ByteBuf, reg: UInt) {
+  emit_u8(buf, rex(true, 2, 0, reg));
+  emit_u8(buf, 0xFF);
+  emit_u8(buf, modrm(3, 2, reg));
+}
+
+fun enc_ret(buf: ByteBuf) {
+  emit_u8(buf, 0xC3);
+}
