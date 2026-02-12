@@ -12,6 +12,8 @@ cd "$ROOT/src/runtime"
 cargo build --release
 
 cd "$ROOT/src/tools/cli"
+export LLVM_SYS_160_PREFIX="${LLVM_SYS_160_PREFIX:-/usr/lib/llvm-16}"
+export LLVM_SYS_160_NO_Polly="${LLVM_SYS_160_NO_Polly:-1}"
 cargo build --release
 
 # Install stage1 layout
