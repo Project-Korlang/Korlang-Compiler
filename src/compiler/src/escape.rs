@@ -107,6 +107,11 @@ fn mark_escapes(expr: &Expr, res: &mut EscapeResult, locals: &HashSet<String>) {
                 mark_escapes(a, res, locals);
             }
         }
+        Expr::StructLit { fields, .. } => {
+            for (_, value) in fields {
+                mark_escapes(value, res, locals);
+            }
+        }
         Expr::Member { target, .. } => mark_escapes(target, res, locals),
         Expr::Index { target, index, .. } => {
             mark_escapes(target, res, locals);

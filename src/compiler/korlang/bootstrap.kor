@@ -7,9 +7,10 @@ import compiler.kir
 import compiler.llvm
 import compiler.diag
 
-struct BootstrapPlan
-  stage: String
-  notes: String
+struct BootstrapPlan {
+  stage: String;
+  notes: String;
+}
 
 fun compile_with_rust_frontend(prog: Program, out: String) -> Bool
 fun compile_with_korlang_frontend(src: String, out: String) -> Bool

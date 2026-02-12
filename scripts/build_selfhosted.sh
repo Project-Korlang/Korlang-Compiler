@@ -77,9 +77,10 @@ out.write_text(text)
 print(out)
 PY
 
-# Build a stage1 selfhosted binary (compile-only, no real runtime yet).
+# Build a stage2 selfhosted binary using the stage1 compiler.
 cd "$ROOT"
-KORLANG_BIN="${KORLANG_BIN:-korlang}"
+STAGE1_BIN="$ROOT/dist/bootstrap-stage1/bin/korlang"
+KORLANG_BIN="${KORLANG_BIN:-$STAGE1_BIN}"
 if ! command -v "$KORLANG_BIN" >/dev/null 2>&1 && [ ! -x "$KORLANG_BIN" ]; then
   echo "korlang binary not found (set KORLANG_BIN or add to PATH)" >&2
   exit 1

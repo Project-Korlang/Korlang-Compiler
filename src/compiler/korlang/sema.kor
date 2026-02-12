@@ -7,24 +7,25 @@ import compiler.diag
 import compiler.infer
 import compiler.nogc
 
-struct Sema
-  diags: List<Diagnostic>
-
-fun Sema.new() -> Sema
-fun Sema.check_program(self: Sema, prog: Program) -> Result<Program, List<Diagnostic>>
-
-fun Sema.new() -> Sema {
-  Sema { diags: List.new<Diagnostic>() }
+struct Sema {
+  diags: List<Diagnostic>;
 }
 
-fun Sema.check_program(self: Sema, prog: Program) -> Result<Program, List<Diagnostic>> {
+fun Sema_new() -> Sema
+fun Sema_check_program(self: Sema, prog: Program) -> Result<Program, List<Diagnostic>>
+
+fun Sema_new() -> Sema {
+  Sema { diags: List.new() }
+}
+
+fun Sema_check_program(self: Sema, prog: Program) -> Result<Program, List<Diagnostic>> {
   let inferred = infer_program(prog);
-  if inferred.is_err() {
+  if (inferred.is_err()) {
     return Result.err(inferred.err());
   }
 
   let nogc_diags = validate_nogc(inferred.ok());
-  if nogc_diags.len() > 0 {
+  if (nogc_diags.len() > 0) {
     return Result.err(nogc_diags);
   }
 

@@ -6,11 +6,16 @@ import compiler.kir
 import compiler.ast
 
 // FFI declarations (placeholders for LLVM C API)
-struct LLVMContext
-struct LLVMModule
-struct LLVMBuilder
-struct LLVMType
-struct LLVMValue
+struct LLVMContext {
+}
+struct LLVMModule {
+}
+struct LLVMBuilder {
+}
+struct LLVMType {
+}
+struct LLVMValue {
+}
 
 fun llvm_init() -> Bool
 fun llvm_create_context() -> LLVMContext
@@ -31,38 +36,38 @@ fun llvm_write_bitcode(module: LLVMModule, path: String) -> Bool
 fun emit_llvm_ir(mod: KirModule) -> String
 
 fun emit_llvm_ir(mod: KirModule) -> String {
-  let out = "";
+  let out = " ";
   let i = 0;
-  while i < mod.functions.len() {
+  while (i < mod.functions.len()) {
     out = out + emit_fn(mod.functions[i]);
     i = i + 1;
   }
   out
 }
 
-fun emit_fn(fun: KirFunction) -> String {
-  let ret = emit_ty(fun.ret);
-  let params = "";
+fun emit_fn(f: KirFunction) -> String {
+  let ret = emit_ty(f.ret);
+  let params = " ";
   let i = 0;
-  while i < fun.params.len() {
-    let p = fun.params[i];
+  while (i < f.params.len()) {
+    let p = f.params[i];
     let frag = emit_ty(p.ty) + " %" + p.name;
-    params = params + (if i == 0 { frag } else { ", " + frag });
+    params = params + (if (i == 0) { frag } else { ", " + frag });
     i = i + 1;
   }
-  let body = "";
+  let body = " ";
   let b = 0;
-  while b < fun.blocks.len() {
-    body = body + fun.blocks[b].label + ":\n" + emit_block(fun.blocks[b]);
+  while (b < f.blocks.len()) {
+    body = body + f.blocks[b].label + ":\n" + emit_block(f.blocks[b]);
     b = b + 1;
   }
-  "define " + ret + " @" + fun.name + "(" + params + ") \{\n" + body + "\}\n\n"
+  "define " + ret + " @" + f.name + "(" + params + ") \{\n" + body + "\}\n\n"
 }
 
 fun emit_block(b: KirBlock) -> String {
-  let out = "";
+  let out = " ";
   let i = 0;
-  while i < b.instrs.len() {
+  while (i < b.instrs.len()) {
     out = out + "  " + emit_instr(b.instrs[i]) + "\n";
     i = i + 1;
   }
@@ -70,41 +75,41 @@ fun emit_block(b: KirBlock) -> String {
 }
 
 fun emit_instr(i: KirInstr) -> String {
-  match i {
-    KirInstr.Return(v) => if v != null { "ret " + emit_ty(v!.ty()) + " " + emit_val(v!) } else { "ret void" }
+  match (i) {
+    KirInstr.Return(v) => if (v != null) { "ret " + emit_ty(v.ty()) + " " + emit_val(v) } else { "ret void" }
     KirInstr.Let(name, ty, v) => name + " = add " + emit_ty(ty) + " " + emit_val(v) + ", 0"
     KirInstr.Assign(name, v) => name + " = add " + emit_ty(v.ty()) + " " + emit_val(v) + ", 0"
     KirInstr.Call(name, args) => {
-      let params = "";
+      let params = " ";
       let j = 0;
-      while j < args.len() {
+      while (j < args.len()) {
         let frag = emit_ty(args[j].ty()) + " " + emit_val(args[j]);
-        params = params + (if j == 0 { frag } else { ", " + frag });
+        params = params + (if (j == 0) { frag } else { ", " + frag });
         j = j + 1;
       }
       "call void @" + name + "(" + params + ")"
     }
     KirInstr.Branch(label) => "br label %" + label
     KirInstr.CondBranch(v, t, f) => "br i1 " + emit_val(v) + ", label %" + t + ", label %" + f
-    _ => ""
+    _ => " "
   }
 }
 
 fun emit_val(v: KirValue) -> String {
-  match v {
+  match (v) {
     KirValue.Reg(n, _) => n
-    KirValue.Const(lit, _) => match lit {
+    KirValue.Const(lit, _) => match (lit) {
       Literal.Int(x) => x.to_string()
       Literal.Float(x) => x.to_string()
       Literal.Char(x) => x.to_string()
-      Literal.Bool(x) => if x { "1" } else { "0" }
+      Literal.Bool(x) => if (x) { "1" } else { "0" }
       Literal.String(_) => "null"
     }
   }
 }
 
 fun emit_ty(t: KirType) -> String {
-  match t {
+  match (t) {
     KirType.Int => "i64"
     KirType.UInt => "i64"
     KirType.Float => "double"
