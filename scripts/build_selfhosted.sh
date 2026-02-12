@@ -32,4 +32,9 @@ PY
 
 # Build a stage1 selfhosted binary (compile-only, no real runtime yet).
 cd "$ROOT"
-korlang build "$OUTFILE" -o "$OUTDIR/korlang-selfhosted"
+KORLANG_BIN="${KORLANG_BIN:-$ROOT/src/tools/cli/target/release/korlang}"
+if [ ! -x "$KORLANG_BIN" ]; then
+  echo "korlang binary not found at $KORLANG_BIN" >&2
+  exit 1
+fi
+"$KORLANG_BIN" build "$OUTFILE" -o "$OUTDIR/korlang-selfhosted"
