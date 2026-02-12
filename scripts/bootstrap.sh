@@ -18,6 +18,9 @@ cargo build --release
 cp "$ROOT/src/tools/cli/target/release/korlang" "$STAGE1/bin/"
 cp "$ROOT/src/runtime/target/release/libkorlang_rt.a" "$STAGE1/lib/"
 
+# Build a selfhosted compiler binary using the current Korlang compiler
+"$ROOT/scripts/build_selfhosted.sh"
+
 # Smoke test: compile example using stage1
 cd "$ROOT"
 KORLANG_HOME="$STAGE1" "$STAGE1/bin/korlang" build examples/hello.kor -o "$STAGE1/hello_stage1"
