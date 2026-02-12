@@ -16,12 +16,23 @@ out = root / 'build' / 'selfhosted.kor'
 parts = []
 for p in sorted((root / 'src' / 'compiler' / 'korlang').glob('*.kor')):
     lines = p.read_text().splitlines()
-    for line in lines:
-        if line.strip().startswith('module '):
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        s = line.strip()
+        if s.startswith('module ') or s.startswith('import '):
+            i += 1
             continue
-        if line.strip().startswith('import '):
-            continue
+        # Drop forward declarations (fun signatures without body)
+        if s.startswith('fun ') and '{' not in s and not s.endswith('{'):
+            j = i + 1
+            while j < len(lines) and lines[j].strip() == '':
+                j += 1
+            if j < len(lines) and lines[j].lstrip().startswith('{'):
+                i += 1
+                continue
         parts.append(line)
+        i += 1
     parts.append('')
 parts.append('fun main() -> Int {')
 parts.append('  0')
