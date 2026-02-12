@@ -2,21 +2,30 @@
 
 module compiler.diag
 
-struct Position
-  line: Int
-  column: Int
-  offset: Int
+struct Position {
+  line: Int;
+  column: Int;
+  offset: Int;
+}
 
-fun Position.new(line: Int, column: Int, offset: Int) -> Position
+fun Position_new(line: Int, column: Int, offset: Int) -> Position {
+  Position { line: line, column: column, offset: offset }
+}
 
-struct Span
-  start: Position
-  end: Position
+struct Span {
+  start: Position;
+  end: Position;
+}
 
-fun Span.new(start: Position, end: Position) -> Span
+fun Span_new(start: Position, end: Position) -> Span {
+  Span { start: start, end: end }
+}
 
-struct Diagnostic
-  message: String
-  span: Span
+struct Diagnostic {
+  message: String;
+  span: Span;
+}
 
-fun Diagnostic.new(message: String, span: Span) -> Diagnostic
+fun Diagnostic_new(message: String, span: Span) -> Diagnostic {
+  Diagnostic { message: message, span: span }
+}

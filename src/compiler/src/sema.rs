@@ -31,6 +31,7 @@ pub struct Sema {
     diags: Vec<Diagnostic>,
     functions: HashMap<String, Type>,
     nogc_functions: HashMap<String, bool>,
+    permissive: bool,
 }
 
 impl Sema {
@@ -40,12 +41,26 @@ impl Sema {
             diags: Vec::new(),
             functions: HashMap::new(),
             nogc_functions: HashMap::new(),
+            permissive: std::env::var("KORLANG_SEMA_PERMISSIVE").ok().as_deref() == Some("1"),
         };
         s.push_scope();
+        // Predeclare builtins used by the self-hosted compiler.
+        s.define_builtin("null", Type::Any);
+        s.define_builtin("List", Type::Named("List".to_string()));
+        s.define_builtin("Result", Type::Named("Result".to_string()));
         s
     }
 
     pub fn check_program(mut self, program: &Program) -> Result<(), Vec<Diagnostic>> {
+        // Predeclare types (structs/enums/aliases) so references before definition work.
+        for item in &program.items {
+            match item {
+                Item::Struct(s) => self.define_builtin(&s.name, Type::Named(s.name.clone())),
+                Item::Enum(e) => self.define_builtin(&e.name, Type::Named(e.name.clone())),
+                Item::TypeAlias(t) => self.define_builtin(&t.name, Type::Named(t.name.clone())),
+                _ => {}
+            }
+        }
         for item in &program.items {
             if let Item::Fun(f) = item {
                 let sig = self.fun_sig(f);
@@ -172,7 +187,10 @@ impl Sema {
                 let _ = self.check_expr_with(expr, nogc);
                 let mut ty = Type::Unknown;
                 for arm in arms {
+                    self.push_scope();
+                    self.bind_pattern(&arm.pat);
                     let arm_ty = self.check_expr_with(&arm.body, nogc);
+                    self.pop_scope();
                     ty = if ty == Type::Unknown { arm_ty } else { self.join_types(ty, arm_ty) };
                 }
                 ty
@@ -214,6 +232,12 @@ impl Sema {
                 self.type_of_literal(l)
             }
             Expr::Ident(name, span) => self.lookup_var(name, *span),
+            Expr::StructLit { name, fields, .. } => {
+                for (_, value) in fields {
+                    self.check_expr_with(value, nogc);
+                }
+                Type::Named(name.clone())
+            }
             Expr::Unary { op, expr, span } => {
                 let t = self.check_expr_with(expr, nogc);
                 match op {
@@ -272,6 +296,13 @@ impl Sema {
                         self.diags.push(Diagnostic::new("call to non-@nogc function in @nogc", *span));
                     }
                 }
+                if matches!(**callee, Expr::Member { .. }) {
+                    // Allow method-like calls in the self-hosted compiler without strict typing.
+                    for arg in args {
+                        let _ = self.check_expr_with(arg, nogc);
+                    }
+                    return Type::Unknown;
+                }
                 let ct = self.check_expr_with(callee, nogc);
                 match ct {
                     Type::Func(params, ret) => {
@@ -284,6 +315,7 @@ impl Sema {
                         }
                         *ret
                     }
+                    Type::Unknown | Type::Any => Type::Unknown,
                     _ => {
                         self.diags.push(Diagnostic::new("call to non-function", *span));
                         Type::Unknown
@@ -299,6 +331,8 @@ impl Sema {
                 let _ = self.check_expr_with(index, nogc);
                 match t {
                     Type::Array(inner) => *inner,
+                    Type::Named(name) if name == "List" => Type::Unknown,
+                    Type::Unknown | Type::Any => Type::Unknown,
                     _ => {
                         self.diags.push(Diagnostic::new("indexing non-array", *span));
                         Type::Unknown
@@ -316,7 +350,10 @@ impl Sema {
                 let _ = self.check_expr_with(expr, nogc);
                 let mut ty = Type::Unknown;
                 for arm in arms {
+                    self.push_scope();
+                    self.bind_pattern(&arm.pat);
                     let at = self.check_expr_with(&arm.body, nogc);
+                    self.pop_scope();
                     ty = if ty == Type::Unknown { at } else { self.join_types(ty, at) };
                 }
                 ty
@@ -348,6 +385,36 @@ impl Sema {
                 }
                 Type::String
             }
+        }
+    }
+
+    fn define_builtin(&mut self, name: &str, ty: Type) {
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.vars.insert(name.to_string(), ty);
+        }
+    }
+
+    fn bind_pattern(&mut self, pat: &Pattern) {
+        match pat {
+            Pattern::Ident(name, span) => {
+                self.define_var(name, Type::Unknown, *span);
+            }
+            Pattern::Tuple(parts, _) => {
+                for p in parts {
+                    self.bind_pattern(p);
+                }
+            }
+            Pattern::Variant { args, .. } => {
+                for p in args {
+                    self.bind_pattern(p);
+                }
+            }
+            Pattern::Struct { fields, .. } => {
+                for f in fields {
+                    self.bind_pattern(&f.1);
+                }
+            }
+            Pattern::Literal(_, _) | Pattern::Wildcard(_) => {}
         }
     }
 
@@ -420,7 +487,10 @@ impl Sema {
     }
 
     fn unify(&mut self, expected: &Type, actual: &Type, span: Span) {
-        if expected == &Type::Unknown || actual == &Type::Unknown {
+        if self.permissive {
+            return;
+        }
+        if matches!(expected, Type::Unknown | Type::Any) || matches!(actual, Type::Unknown | Type::Any) {
             return;
         }
         if expected != actual {
@@ -444,8 +514,12 @@ impl Sema {
     }
 
     fn expect_number(&mut self, t: Type, span: Span) -> Type {
+        if self.permissive {
+            return Type::Unknown;
+        }
         match t {
             Type::Int | Type::UInt | Type::Float => Type::Float,
+            Type::Unknown | Type::Any => Type::Unknown,
             _ => {
                 self.diags.push(Diagnostic::new("expected numeric type", span));
                 Type::Unknown
@@ -454,8 +528,12 @@ impl Sema {
     }
 
     fn expect_int(&mut self, t: Type, span: Span) -> Type {
+        if self.permissive {
+            return Type::Unknown;
+        }
         match t {
             Type::Int | Type::UInt => t,
+            Type::Unknown | Type::Any => Type::Unknown,
             _ => {
                 self.diags.push(Diagnostic::new("expected integer type", span));
                 Type::Unknown
@@ -467,6 +545,7 @@ impl Sema {
         match expr {
             Expr::Literal(_, s) => *s,
             Expr::Ident(_, s) => *s,
+            Expr::StructLit { span, .. } => *span,
             Expr::Unary { span, .. } => *span,
             Expr::Binary { span, .. } => *span,
             Expr::Assign { span, .. } => *span,

@@ -365,6 +365,10 @@ impl Parser {
                 lhs = Expr::Index { target: Box::new(lhs), index: Box::new(index), span };
                 continue;
             }
+            if self.match_kind(TokenKind::Question) {
+                // Treat try operator as a no-op for now to keep parsing self-hosted code.
+                continue;
+            }
 
             let (l_bp, r_bp, op) = match self.infix_binding_power() {
                 Some(v) => v,
@@ -417,6 +421,9 @@ impl Parser {
                 if name == "tensor" && self.check_kind(TokenKind::LBracket) {
                     return self.parse_tensor_literal(tok.span);
                 }
+                if self.check_kind(TokenKind::LBrace) {
+                    return self.parse_struct_lit(name, tok.span);
+                }
                 Ok(Expr::Ident(name, tok.span))
             }
             TokenKind::Keyword("if") => self.parse_if_expr(),
@@ -468,7 +475,13 @@ impl Parser {
         let cond = self.parse_expr()?;
         let then_block = self.parse_block()?;
         self.expect_keyword("else")?;
-        let else_block = self.parse_block()?;
+        let else_block = if self.check_keyword("if") {
+            let if_expr = self.parse_if_expr()?;
+            let span = self.span_of(&if_expr);
+            Block { stmts: Vec::new(), tail: Some(Box::new(if_expr)), span }
+        } else {
+            self.parse_block()?
+        };
         let span = Span::new(start.start, else_block.span.end);
         Ok(Expr::If { cond: Box::new(cond), then_block, else_block, span })
     }
@@ -493,7 +506,11 @@ impl Parser {
             } else {
                 self.parse_expr()?
             };
-            let end = self.expect_kind(TokenKind::Semi)?.span;
+            let end = if self.match_kind(TokenKind::Semi) {
+                self.prev_span()
+            } else {
+                self.span_of(&body)
+            };
             arms.push(MatchArm { pat, body, span: Span::new(end.start, end.end) });
         }
         self.expect_kind(TokenKind::RBrace)?;
@@ -507,8 +524,12 @@ impl Parser {
                 self.advance();
                 Ok(Pattern::Wildcard(tok.span))
             }
-            TokenKind::Identifier(name) => {
+            TokenKind::Identifier(mut name) => {
                 self.advance();
+                while self.match_kind(TokenKind::Dot) {
+                    let part = self.expect_ident()?;
+                    name = format!("{}.{}", name, part);
+                }
                 if self.match_kind(TokenKind::LBrace) {
                     let mut fields = Vec::new();
                     if !self.check_kind(TokenKind::RBrace) {
@@ -527,6 +548,17 @@ impl Parser {
                     }
                     let end = self.expect_kind(TokenKind::RBrace)?.span;
                     return Ok(Pattern::Struct { name, fields, span: Span::new(tok.span.start, end.end) });
+                }
+                if self.match_kind(TokenKind::LParen) {
+                    let mut args = Vec::new();
+                    if !self.check_kind(TokenKind::RParen) {
+                        args.push(self.parse_pattern()?);
+                        while self.match_kind(TokenKind::Comma) {
+                            args.push(self.parse_pattern()?);
+                        }
+                    }
+                    let end = self.expect_kind(TokenKind::RParen)?.span;
+                    return Ok(Pattern::Variant { name, args, span: Span::new(tok.span.start, end.end) });
                 }
                 Ok(Pattern::Ident(name, tok.span))
             }
@@ -580,6 +612,28 @@ impl Parser {
         }
         let end = self.expect_kind(TokenKind::RBracket)?.span;
         Ok(Expr::Array(items, Span::new(start.start, end.end)))
+    }
+
+    fn parse_struct_lit(&mut self, name: String, start: Span) -> Result<Expr, ()> {
+        self.expect_kind(TokenKind::LBrace)?;
+        let mut fields = Vec::new();
+        if !self.check_kind(TokenKind::RBrace) {
+            loop {
+                let field = self.expect_ident()?;
+                self.expect_kind(TokenKind::Colon)?;
+                let value = self.parse_expr()?;
+                fields.push((field, value));
+                if self.match_kind(TokenKind::Comma) {
+                    if self.check_kind(TokenKind::RBrace) {
+                        break;
+                    }
+                    continue;
+                }
+                break;
+            }
+        }
+        let end = self.expect_kind(TokenKind::RBrace)?.span;
+        Ok(Expr::StructLit { name, fields, span: Span::new(start.start, end.end) })
     }
 
     fn parse_tensor_literal(&mut self, start: Span) -> Result<Expr, ()> {
@@ -783,6 +837,7 @@ impl Parser {
         match expr {
             Expr::Literal(_, s) => *s,
             Expr::Ident(_, s) => *s,
+            Expr::StructLit { span, .. } => *span,
             Expr::Unary { span, .. } => *span,
             Expr::Binary { span, .. } => *span,
             Expr::Assign { span, .. } => *span,

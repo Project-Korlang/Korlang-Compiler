@@ -4,112 +4,117 @@ module compiler.token
 
 import compiler.diag
 
-enum TokenKind
-  Identifier(String)
-  IntLiteral(Int)
-  FloatLiteral(Float)
-  StringLiteral(String)
-  CharLiteral(Char)
-  BoolLiteral(Bool)
+enum TokenKind {
+  Identifier(String);
+  IntLiteral(Int);
+  FloatLiteral(Float);
+  StringLiteral(String);
+  CharLiteral(Char);
+  BoolLiteral(Bool);
+  Keyword(String);
 
-  Keyword(String)
+  Plus;
+  Minus;
+  Star;
+  Slash;
+  Percent;
 
-  Plus
-  Minus
-  Star
-  Slash
-  Percent
+  DotPlus;
+  DotMinus;
+  DotStar;
+  DotSlash;
+  At;
 
-  DotPlus
-  DotMinus
-  DotStar
-  DotSlash
-  At
+  Eq;
+  PlusEq;
+  MinusEq;
+  StarEq;
+  SlashEq;
+  PercentEq;
 
-  Eq
-  PlusEq
-  MinusEq
-  StarEq
-  SlashEq
-  PercentEq
+  EqEq;
+  FatArrow;
+  NotEq;
+  Lt;
+  LtEq;
+  Gt;
+  GtEq;
 
-  EqEq
-  FatArrow
-  NotEq
-  Lt
-  LtEq
-  Gt
-  GtEq
+  AndAnd;
+  OrOr;
+  Not;
 
-  AndAnd
-  OrOr
-  Not
+  Arrow;
+  Pipe;
+  NullCoalesce;
+  Question;
 
-  Arrow
-  Pipe
-  NullCoalesce
-  Question
+  LParen;
+  RParen;
+  LBrace;
+  RBrace;
+  LBracket;
+  RBracket;
 
-  LParen
-  RParen
-  LBrace
-  RBrace
-  LBracket
-  RBracket
+  Comma;
+  Semi;
+  Colon;
+  Dot;
 
-  Comma
-  Semi
-  Colon
-  Dot
+  InterpStart;
+  InterpEnd;
 
-  InterpStart
-  InterpEnd
+  Eof;
+}
 
-  Eof
+struct Token {
+  kind: TokenKind;
+  span: Span;
+}
 
-struct Token
-  kind: TokenKind
-  span: Span
+fun Token_new(kind: TokenKind, span: Span) -> Token
 
-fun Token.new(kind: TokenKind, span: Span) -> Token
-
-fun TokenKind.is_identifier(self: TokenKind) -> Bool
-fun TokenKind.ident_value(self: TokenKind) -> String
-fun TokenKind.is_string_literal(self: TokenKind) -> Bool
-fun TokenKind.string_value(self: TokenKind) -> String
-fun TokenKind.is_keyword(self: TokenKind, kw: String) -> Bool
+fun TokenKind_is_identifier(self: TokenKind) -> Bool
+fun TokenKind_ident_value(self: TokenKind) -> String
+fun TokenKind_is_string_literal(self: TokenKind) -> Bool
+fun TokenKind_string_value(self: TokenKind) -> String
+fun TokenKind_is_keyword(self: TokenKind, kw: String) -> Bool
 
 // --- helpers ---
-fun TokenKind.is_identifier(self: TokenKind) -> Bool {
-  match self {
+fun Token_new(kind: TokenKind, span: Span) -> Token {
+  Token { kind: kind, span: span }
+}
+
+fun TokenKind_is_identifier(self: TokenKind) -> Bool {
+  match (self) {
     TokenKind.Identifier(_) => true
     _ => false
   }
 }
 
-fun TokenKind.ident_value(self: TokenKind) -> String {
-  match self {
+fun TokenKind_ident_value(self: TokenKind) -> String {
+  match (self) {
     TokenKind.Identifier(name) => name
-    _ => ""
+    _ => " "
   }
 }
 
-fun TokenKind.is_string_literal(self: TokenKind) -> Bool {
-  match self {
+fun TokenKind_is_string_literal(self: TokenKind) -> Bool {
+  match (self) {
     TokenKind.StringLiteral(_) => true
     _ => false
   }
 }
 
-fun TokenKind.string_value(self: TokenKind) -> String {
-  match self {
+fun TokenKind_string_value(self: TokenKind) -> String {
+  match (self) {
     TokenKind.StringLiteral(s) => s
-    _ => ""
+    _ => " "
   }
 }
 
-fun TokenKind.is_keyword(self: TokenKind, kw: String) -> Bool {
-  match self {
+fun TokenKind_is_keyword(self: TokenKind, kw: String) -> Bool {
+  match (self) {
     TokenKind.Keyword(k) => k == kw
     _ => false
   }

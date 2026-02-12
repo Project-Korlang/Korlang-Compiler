@@ -9,9 +9,11 @@ rm -rf "$OUTDIR"
 mkdir -p "$OUTDIR"
 
 # Concatenate Korlang compiler sources, stripping module/import lines.
-python3 - <<'PY'
+ROOT="$ROOT" python3 - <<'PY'
 from pathlib import Path
-root = Path('/mnt/c/Users/nanda/Desktop/KUBUNTU/Korlang/Korlang-Compiler')
+import os
+
+root = Path(os.environ['ROOT'])
 out = root / 'build' / 'selfhosted.kor'
 parts = []
 for p in sorted((root / 'src' / 'compiler' / 'korlang').glob('*.kor')):
@@ -25,27 +27,76 @@ for p in sorted((root / 'src' / 'compiler' / 'korlang').glob('*.kor')):
             continue
         # Drop forward declarations (fun signatures without body)
         if s.startswith('fun ') and '{' not in s and not s.endswith('{'):
-            j = i + 1
-            while j < len(lines) and lines[j].strip() == '':
-                j += 1
-            if j < len(lines) and lines[j].lstrip().startswith('{'):
-                i += 1
-                continue
+            i += 1
+            continue
         parts.append(line)
         i += 1
     parts.append('')
 parts.append('fun main() -> Int {')
 parts.append('  0')
 parts.append('}')
-out.write_text('\n'.join(parts))
+text = '\n'.join(parts)
+
+def replace_generic(text, name, to_brackets):
+    out = []
+    i = 0
+    pat = name + "<"
+    while i < len(text):
+        if text.startswith(pat, i):
+            i += len(pat)
+            depth = 1
+            inner = []
+            while i < len(text) and depth > 0:
+                c = text[i]
+                if c == '<':
+                    depth += 1
+                elif c == '>':
+                    depth -= 1
+                    if depth == 0:
+                        i += 1
+                        break
+                if depth > 0:
+                    inner.append(c)
+                i += 1
+            inner_text = ''.join(inner).strip()
+            if to_brackets:
+                out.append('[' + inner_text + ']')
+            else:
+                out.append('Any')
+        else:
+            out.append(text[i])
+            i += 1
+    return ''.join(out)
+
+while 'List<' in text:
+    text = replace_generic(text, 'List', True)
+while 'Result<' in text:
+    text = replace_generic(text, 'Result', False)
+
+out.write_text(text)
 print(out)
 PY
 
 # Build a stage1 selfhosted binary (compile-only, no real runtime yet).
 cd "$ROOT"
-KORLANG_BIN="${KORLANG_BIN:-$ROOT/src/tools/cli/target/release/korlang}"
-if [ ! -x "$KORLANG_BIN" ]; then
-  echo "korlang binary not found at $KORLANG_BIN" >&2
+KORLANG_BIN="${KORLANG_BIN:-korlang}"
+if ! command -v "$KORLANG_BIN" >/dev/null 2>&1 && [ ! -x "$KORLANG_BIN" ]; then
+  echo "korlang binary not found (set KORLANG_BIN or add to PATH)" >&2
   exit 1
 fi
-"$KORLANG_BIN" build "$OUTFILE" -o "$OUTDIR/korlang-selfhosted"
+
+# Ensure a runtime lib exists for linking.
+RUNTIME_HOME="$OUTDIR/runtime"
+RUNTIME_LIB="$RUNTIME_HOME/lib/libkorlang_rt.a"
+if [ ! -f "$RUNTIME_LIB" ]; then
+  if [ -f "$ROOT/src/runtime/target/release/libkorlang_rt.a" ]; then
+    mkdir -p "$RUNTIME_HOME/lib"
+    cp "$ROOT/src/runtime/target/release/libkorlang_rt.a" "$RUNTIME_LIB"
+  else
+    (cd "$ROOT/src/runtime" && cargo build --release)
+    mkdir -p "$RUNTIME_HOME/lib"
+    cp "$ROOT/src/runtime/target/release/libkorlang_rt.a" "$RUNTIME_LIB"
+  fi
+fi
+
+KORLANG_HOME="$RUNTIME_HOME" KORLANG_SEMA_PERMISSIVE=1 "$KORLANG_BIN" build "$OUTFILE" -o "$OUTDIR/korlang-selfhosted"

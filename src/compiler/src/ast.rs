@@ -148,6 +148,7 @@ pub struct MatchArm {
 pub enum Expr {
     Literal(Literal, Span),
     Ident(String, Span),
+    StructLit { name: String, fields: Vec<(String, Expr)>, span: Span },
     Unary { op: UnaryOp, expr: Box<Expr>, span: Span },
     Binary { left: Box<Expr>, op: BinaryOp, right: Box<Expr>, span: Span },
     Assign { left: Box<Expr>, op: AssignOp, right: Box<Expr>, span: Span },
@@ -220,6 +221,7 @@ pub enum Pattern {
     Wildcard(Span),
     Literal(Literal, Span),
     Tuple(Vec<Pattern>, Span),
+    Variant { name: String, args: Vec<Pattern>, span: Span },
     Struct { name: String, fields: Vec<(String, Pattern)>, span: Span },
 }
 
