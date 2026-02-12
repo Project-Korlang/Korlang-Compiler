@@ -56,7 +56,7 @@ fun emit_fn(fun: KirFunction) -> String {
     body = body + fun.blocks[b].label + ":\n" + emit_block(fun.blocks[b]);
     b = b + 1;
   }
-  "define " + ret + " @" + fun.name + "(" + params + ") {\n" + body + "}\n\n"
+  "define " + ret + " @" + fun.name + "(" + params + ") \{\n" + body + "\}\n\n"
 }
 
 fun emit_block(b: KirBlock) -> String {
