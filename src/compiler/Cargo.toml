@@ -1,0 +1,8 @@
+[package]
+name = "korlang-compiler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror = "1.0"
+inkwell = { version = "0.4", features = ["llvm16-0"] }

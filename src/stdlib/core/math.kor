@@ -1,0 +1,9 @@
+// Korlang standard library: math
+
+module math
+
+fun abs(x: Int) -> Int
+fun fabs(x: Float) -> Float
+fun sqrt(x: Float) -> Float
+fun pow(x: Float, y: Float) -> Float
+

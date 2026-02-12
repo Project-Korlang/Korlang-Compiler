@@ -1,0 +1,8 @@
+// Korlang standard library: io
+
+module io
+
+fun print(value: Any) -> Void
+fun println(value: Any) -> Void
+fun readLine() -> String?
+

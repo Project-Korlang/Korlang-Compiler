@@ -1,0 +1,11 @@
+// Korlang standard library: string
+
+module string
+
+fun len(s: String) -> Int
+fun isEmpty(s: String) -> Bool
+fun slice(s: String, start: Int, end: Int) -> String
+fun split(s: String, sep: String) -> [String]
+fun trim(s: String) -> String
+fun replace(s: String, from: String, to: String) -> String
+

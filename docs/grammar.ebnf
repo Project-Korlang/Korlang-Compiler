@@ -1,0 +1,190 @@
+(* Korlang EBNF - Phase 1.1 draft *)
+
+(* ---------- Lexical ---------- *)
+letter            = "A".."Z" | "a".."z" | "_" ;
+digit             = "0".."9" ;
+hex_digit         = digit | "A".."F" | "a".."f" ;
+
+identifier        = letter , { letter | digit } ;
+qualified_ident   = identifier , { "." , identifier } ;
+
+int_lit           = digit , { digit } ;
+hex_int_lit       = "0x" , hex_digit , { hex_digit } ;
+float_lit         = digit , { digit } , "." , digit , { digit } , [ exponent ]
+                  | digit , { digit } , exponent ;
+exponent          = ("e" | "E") , ["+" | "-"] , digit , { digit } ;
+
+bool_lit          = "true" | "false" ;
+char_lit          = "'" , char_char , "'" ;
+string_lit        = '"' , { string_char } , '"' ;
+
+string_char       = ? any char except '"' and '\\' and newline ?
+                  | escape_seq ;
+char_char         = ? any char except "'" and '\\' and newline ?
+                  | escape_seq ;
+escape_seq        = "\\" , ("\\" | "\"" | "'" | "n" | "r" | "t" | "0") ;
+
+line_comment      = "//" , { ? any char except newline ? } ;
+block_comment     = "/*" , { ? any char except "*/" ? } , "*/" ;
+comment           = line_comment | block_comment ;
+
+whitespace        = " " | "\t" | "\r" | "\n" ;
+
+keyword           =
+  "fun" | "let" | "var" | "if" | "else" | "match" | "for" | "while" |
+  "break" | "continue" | "return" | "view" | "resource" | "state" |
+  "spawn" | "@nogc" | "import" | "as" ;
+
+(* ---------- Program ---------- *)
+program           = { item } ;
+
+item              = import_decl
+                  | fun_decl
+                  | struct_decl
+                  | enum_decl
+                  | type_alias_decl
+                  | view_decl
+                  | resource_decl
+                  | const_decl
+                  | stmt ;
+
+import_decl       = "import" , qualified_ident , ["as" , identifier] , ";" ;
+
+(* ---------- Declarations ---------- *)
+fun_decl          = "fun" , identifier , param_list , ["->" , type_ref] , block ;
+const_decl        = "let" , pattern , [":" , type_ref] , "=" , expr , ";" ;
+
+struct_decl       = "struct" , identifier , "{" , { field_decl } , "}" ;
+field_decl        = identifier , ":" , type_ref , ";" ;
+
+enum_decl         = "enum" , identifier , "{" , { variant_decl } , "}" ;
+variant_decl      = identifier , ["(" , [ type_list ] , ")"] , ";" ;
+
+type_alias_decl   = "type" , identifier , "=" , type_ref , ";" ;
+
+param_list        = "(" , [ param , { "," , param } ] , ")" ;
+param             = identifier , ":" , type_ref ;
+
+type_list         = type_ref , { "," , type_ref } ;
+
+(* ---------- Statements ---------- *)
+stmt              = var_decl
+                  | expr_stmt
+                  | if_stmt
+                  | match_stmt
+                  | while_stmt
+                  | for_stmt
+                  | return_stmt
+                  | break_stmt
+                  | continue_stmt
+                  | block ;
+
+var_decl          = ("let" | "var") , pattern , [":" , type_ref] , "=" , expr , ";" ;
+expr_stmt         = expr , ";" ;
+return_stmt       = "return" , [ expr ] , ";" ;
+break_stmt        = "break" , ";" ;
+continue_stmt     = "continue" , ";" ;
+
+block             = "{" , { stmt } , [ expr ] , "}" ;
+
+if_stmt           = "if" , expr , block , [ "else" , ( block | if_stmt ) ] ;
+
+match_stmt        = "match" , expr , "{" , { match_arm } , "}" ;
+match_arm         = pattern , "=>" , ( block | expr ) , ";" ;
+
+while_stmt        = "while" , expr , block ;
+for_stmt          = "for" , pattern , "in" , expr , block ;
+
+(* ---------- Expressions ---------- *)
+expr              = assign_expr ;
+
+assign_expr       = pipeline_expr , [ assign_op , assign_expr ] ;
+assign_op         = "=" | "+=" | "-=" | "*=" | "/=" | "%=" ;
+
+pipeline_expr     = null_coalesce_expr , { ("->" | "|>") , null_coalesce_expr } ;
+
+null_coalesce_expr= logic_or_expr , [ "?:" , null_coalesce_expr ] ;
+
+logic_or_expr     = logic_and_expr , { "||" , logic_and_expr } ;
+logic_and_expr    = equality_expr , { "&&" , equality_expr } ;
+
+equality_expr     = rel_expr , { ("==" | "!=") , rel_expr } ;
+rel_expr          = add_expr , { ("<" | "<=" | ">" | ">=") , add_expr } ;
+
+add_expr          = mul_expr , { ("+" | "-" | ".+" | ".-") , mul_expr } ;
+mul_expr          = unary_expr , { ("*" | "/" | "%" | ".*" | "./" | "@") , unary_expr } ;
+
+unary_expr        = ("!" | "-" | "+" | "~") , unary_expr
+                  | call_expr ;
+
+call_expr         = primary_expr , { call_suffix } ;
+call_suffix       = call_args | member_access | index_access ;
+call_args         = "(" , [ arg , { "," , arg } ] , ")" ;
+arg               = [ identifier , ":" ] , expr ;
+member_access     = "." , identifier ;
+index_access      = "[" , expr , "]" ;
+
+primary_expr      = literal
+                  | identifier
+                  | qualified_ident
+                  | "(" , expr , ")"
+                  | array_lit
+                  | tensor_lit
+                  | block
+                  | if_expr
+                  | match_expr ;
+
+if_expr           = "if" , expr , block , "else" , block ;
+match_expr        = "match" , expr , "{" , { match_arm } , "}" ;
+
+literal           = int_lit | hex_int_lit | float_lit | bool_lit | char_lit | string_lit ;
+array_lit         = "[" , [ expr , { "," , expr } ] , "]" ;
+
+tensor_lit        = "tensor" , "[" , tensor_rows , "]" ;
+tensor_rows       = tensor_row , { "," , tensor_row } ;
+tensor_row        = "[" , [ expr , { "," , expr } ] , "]" ;
+
+(* ---------- Patterns ---------- *)
+pattern           = identifier
+                  | "_"
+                  | literal
+                  | tuple_pattern
+                  | struct_pattern ;
+
+tuple_pattern     = "(" , pattern , { "," , pattern } , ")" ;
+struct_pattern    = identifier , "{" , pattern_field , { "," , pattern_field } , "}" ;
+pattern_field     = identifier , [ ":" , pattern ] ;
+
+(* ---------- Types ---------- *)
+type_ref          = primary_type , { type_suffix } ;
+primary_type      = identifier | qualified_ident | tuple_type | array_type | tensor_type ;
+
+tuple_type        = "(" , type_ref , { "," , type_ref } , ")" ;
+array_type        = "[" , type_ref , "]" ;
+
+(* Tensor<T, Shape> *)
+tensor_type       = "Tensor" , "<" , type_ref , "," , shape_ref , ">" ;
+shape_ref         = "[" , shape_dim , { "," , shape_dim } , "]" ;
+shape_dim         = int_lit | identifier | "_" ;
+
+type_suffix       = "?" | "!" ;
+
+(* ---------- UI: view ---------- *)
+view_decl         = "view" , identifier , param_list , view_block ;
+view_block        = "{" , { view_node } , "}" ;
+
+view_node         = view_component , [ view_block ] , ";" ;
+view_component    = identifier , view_args ;
+view_args         = "(" , [ view_arg , { "," , view_arg } ] , ")" ;
+view_arg          = [ identifier , ":" ] , view_value ;
+
+view_value        = expr | view_binding ;
+view_binding      = "@{" , expr , "}" ;
+
+(* ---------- Cloud: resource ---------- *)
+resource_decl     = "resource" , identifier , resource_type , resource_block ;
+resource_type     = "(" , qualified_ident , ")" ;
+resource_block    = "{" , { resource_entry } , "}" ;
+resource_entry    = identifier , ":" , resource_value , ";" ;
+resource_value    = expr | resource_block | array_lit ;
+

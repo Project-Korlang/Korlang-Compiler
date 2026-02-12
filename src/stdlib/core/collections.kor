@@ -1,0 +1,25 @@
+// Korlang standard library: collections
+
+module collections
+
+struct List<T>
+struct Map<K, V>
+struct Set<T>
+
+fun List.new<T>() -> List<T>
+fun List.push<T>(self: List<T>, value: T) -> Void
+fun List.pop<T>(self: List<T>) -> T?
+fun List.len<T>(self: List<T>) -> Int
+
+fun Map.new<K, V>() -> Map<K, V>
+fun Map.insert<K, V>(self: Map<K, V>, key: K, value: V) -> V?
+fun Map.get<K, V>(self: Map<K, V>, key: K) -> V?
+fun Map.remove<K, V>(self: Map<K, V>, key: K) -> V?
+fun Map.len<K, V>(self: Map<K, V>) -> Int
+
+fun Set.new<T>() -> Set<T>
+fun Set.insert<T>(self: Set<T>, value: T) -> Bool
+fun Set.contains<T>(self: Set<T>, value: T) -> Bool
+fun Set.remove<T>(self: Set<T>, value: T) -> Bool
+fun Set.len<T>(self: Set<T>) -> Int
+
