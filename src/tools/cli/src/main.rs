@@ -22,8 +22,9 @@ fn main() {
         "new" => new_project(args.collect()),
         "test" => run_tests(),
         "doc" => generate_docs(),
+        "bootstrap" => bootstrap(),
         _ => {
-            eprintln!("Usage: korlang <build|run|new|test|doc> <file.kor> [-o out] [--static] [--lto|--thinlto] [--pgo-generate] [--pgo-use file]");
+            eprintln!("Usage: korlang <build|run|new|test|doc|bootstrap> <file.kor> [-o out] [--static] [--lto|--thinlto] [--pgo-generate] [--pgo-use file]");
             std::process::exit(1);
         }
     }
@@ -182,6 +183,23 @@ fn run_tests() {
 
 fn generate_docs() {
     println!("Generating docs (placeholder)...");
+}
+
+fn bootstrap() {
+    let exe = env::current_exe().ok();
+    let root = exe
+        .as_ref()
+        .and_then(|p| p.parent())
+        .and_then(|p| p.parent())
+        .and_then(|p| p.parent())
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("."));
+    let script = root.join("scripts").join("bootstrap.sh");
+    let status = Command::new("bash").arg(script).status();
+    match status {
+        Ok(s) if s.success() => {}
+        _ => eprintln!("bootstrap failed"),
+    }
 }
 
 fn hash_str(s: &str) -> String {
