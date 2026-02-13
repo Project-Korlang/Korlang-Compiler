@@ -116,6 +116,18 @@ pub extern "C" fn korlang_driver() {
     driver::korlang_driver();
 }
 
+pub fn korlang_arc_alloc_handle(size: usize) -> *mut std::ffi::c_void {
+    arc::korlang_arc_alloc(size) as *mut std::ffi::c_void
+}
+
+pub fn korlang_arc_retain_handle(handle: *mut std::ffi::c_void) {
+    arc::korlang_arc_retain(handle as *mut arc::ArcBuf);
+}
+
+pub fn korlang_arc_release_handle(handle: *mut std::ffi::c_void) {
+    arc::korlang_arc_release(handle as *mut arc::ArcBuf);
+}
+
 #[no_mangle]
 pub extern "C" fn korlang_int_add(a: i64, b: i64) -> i64 {
     a.wrapping_add(b)

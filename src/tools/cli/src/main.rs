@@ -1,10 +1,12 @@
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::hash::{Hash, Hasher};
-use std::io::{self, BufRead, Write};
-use std::path::PathBuf;
-use std::process::Command;
+use std::io::{self, BufRead, Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::thread;
 
 use korlang_compiler::codegen::Codegen;
 use korlang_compiler::diag::Diagnostic;
@@ -41,12 +43,23 @@ fn build(args: Vec<String>, run: bool) {
         return;
     }
 
-    if args.is_empty() {
-        eprintln!("missing input file");
-        std::process::exit(1);
-    }
     let (build_args, run_args) = split_run_args(&args);
-    let input = PathBuf::from(&build_args[0]);
+    let input = if build_args.is_empty() {
+        if run {
+            let default = PathBuf::from("src/main.kor");
+            if default.exists() {
+                default
+            } else {
+                eprintln!("missing input file (expected src/main.kor)");
+                std::process::exit(1);
+            }
+        } else {
+            eprintln!("missing input file");
+            std::process::exit(1);
+        }
+    } else {
+        PathBuf::from(&build_args[0])
+    };
     let mut output = PathBuf::from("a.out");
     let mut static_link = false;
     let mut lto = None;
@@ -78,10 +91,10 @@ fn build(args: Vec<String>, run: bool) {
         }
     }
 
-    let src = match fs::read_to_string(&input) {
+    let src = match resolve_source_with_imports(&input) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("failed to read source {}: {}", input.display(), e);
+            eprintln!("failed to resolve source {}: {}", input.display(), e);
             std::process::exit(1);
         }
     };
@@ -165,16 +178,38 @@ fn build(args: Vec<String>, run: bool) {
                 if !run_args.is_empty() {
                     cmd.args(&run_args);
                 }
-                match cmd.status() {
-                    Ok(run_status) if run_status.success() => {}
-                    Ok(run_status) => {
-                        let code = run_status.code().unwrap_or(1);
-                        std::process::exit(code);
-                    }
+                cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+                let mut child = match cmd.spawn() {
+                    Ok(c) => c,
                     Err(e) => {
                         eprintln!("failed to execute {}: {}", run_target.display(), e);
                         std::process::exit(1);
                     }
+                };
+                let out = child.stdout.take();
+                let err = child.stderr.take();
+                let out_thread = thread::spawn(move || {
+                    if let Some(mut r) = out {
+                        stream_pipe(&mut r, false);
+                    }
+                });
+                let err_thread = thread::spawn(move || {
+                    if let Some(mut r) = err {
+                        stream_pipe(&mut r, true);
+                    }
+                });
+                let run_status = match child.wait() {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("failed while waiting for child process: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+                let _ = out_thread.join();
+                let _ = err_thread.join();
+                if !run_status.success() {
+                    let code = run_status.code().unwrap_or(1);
+                    std::process::exit(code);
                 }
             }
         }
@@ -206,6 +241,106 @@ fn split_run_args(args: &[String]) -> (Vec<String>, Vec<String>) {
     } else {
         (args.to_vec(), Vec::new())
     }
+}
+
+fn stream_pipe<R: Read>(reader: &mut R, is_stderr: bool) {
+    let mut buf = [0u8; 1];
+    loop {
+        match reader.read(&mut buf) {
+            Ok(0) => break,
+            Ok(_) => {
+                if is_stderr {
+                    let _ = io::stderr().write_all(&buf);
+                    let _ = io::stderr().flush();
+                } else {
+                    let _ = io::stdout().write_all(&buf);
+                    let _ = io::stdout().flush();
+                }
+            }
+            Err(_) => break,
+        }
+    }
+}
+
+fn resolve_source_with_imports(input: &Path) -> Result<String, String> {
+    let mut seen = HashSet::new();
+    let mut out = String::new();
+    let project_root = find_project_root_from(input.parent().unwrap_or_else(|| Path::new(".")));
+    collect_source_recursive(input, project_root.as_deref(), &mut seen, &mut out)?;
+    Ok(out)
+}
+
+fn collect_source_recursive(
+    file: &Path,
+    project_root: Option<&Path>,
+    seen: &mut HashSet<PathBuf>,
+    out: &mut String,
+) -> Result<(), String> {
+    let canonical = fs::canonicalize(file).map_err(|e| format!("{}: {}", file.display(), e))?;
+    if !seen.insert(canonical.clone()) {
+        return Ok(());
+    }
+    let src = fs::read_to_string(&canonical).map_err(|e| format!("{}: {}", canonical.display(), e))?;
+    let base_dir = canonical.parent().unwrap_or_else(|| Path::new("."));
+
+    for line in src.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("module ") {
+            continue;
+        }
+        if let Some(mod_name) = parse_import(trimmed) {
+            let dep = resolve_import_path(base_dir, project_root, &mod_name)
+                .ok_or_else(|| format!("import '{}' not found from {}", mod_name, canonical.display()))?;
+            collect_source_recursive(&dep, project_root, seen, out)?;
+            continue;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out.push('\n');
+    Ok(())
+}
+
+fn parse_import(line: &str) -> Option<String> {
+    if !line.starts_with("import ") {
+        return None;
+    }
+    let rest = line.trim_start_matches("import ").trim();
+    if rest.is_empty() {
+        return None;
+    }
+    let module = rest.trim_end_matches(';').trim();
+    if module.starts_with('"') && module.ends_with('"') && module.len() >= 2 {
+        return Some(module[1..module.len() - 1].to_string());
+    }
+    Some(module.to_string())
+}
+
+fn resolve_import_path(base_dir: &Path, project_root: Option<&Path>, module: &str) -> Option<PathBuf> {
+    let rel = if module.ends_with(".kor") {
+        PathBuf::from(module)
+    } else {
+        PathBuf::from(module.replace('.', "/") + ".kor")
+    };
+    let candidates = [
+        base_dir.join(&rel),
+        project_root.map(|p| p.join("src").join(&rel)).unwrap_or_default(),
+        project_root.map(|p| p.join(&rel)).unwrap_or_default(),
+    ];
+    candidates.into_iter().find(|p| !p.as_os_str().is_empty() && p.exists())
+}
+
+fn find_project_root_from(start: &Path) -> Option<PathBuf> {
+    let mut cur = start.to_path_buf();
+    for _ in 0..8 {
+        if cur.join("Korlang.config").exists() {
+            return Some(cur);
+        }
+        if !cur.pop() {
+            break;
+        }
+    }
+    None
 }
 
 fn print_diags(stage: &str, file: &PathBuf, diags: &[Diagnostic]) {

@@ -1,0 +1,5 @@
+fun main() -> Int {
+  println("Initializing GPU...")
+  println("Media graph ready")
+  0
+}

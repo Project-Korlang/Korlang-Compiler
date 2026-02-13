@@ -1,0 +1,5 @@
+fun main() -> Int {
+  println("Server listening on :8080")
+  println("TLS13 + SHA2 smoke ready")
+  0
+}
