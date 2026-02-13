@@ -38,6 +38,10 @@ impl Parser {
             self.expect_keyword("fun")?;
             return self.parse_fun(true).map(Item::Fun);
         }
+        if self.match_keyword("gpu") {
+            self.expect_keyword("fun")?;
+            return self.parse_fun(false).map(Item::Fun);
+        }
         if self.match_keyword("fun") {
             return self.parse_fun(false).map(Item::Fun);
         }
@@ -944,7 +948,7 @@ impl Parser {
                 self.advance();
                 break;
             }
-            if self.check_keyword("fun") || self.check_keyword("struct") || self.check_keyword("enum") ||
+            if self.check_keyword("fun") || self.check_keyword("gpu") || self.check_keyword("struct") || self.check_keyword("enum") ||
                 self.check_keyword("type") || self.check_keyword("view") || self.check_keyword("resource") ||
                 self.check_keyword("let") || self.check_keyword("var") || self.check_keyword("if") ||
                 self.check_keyword("while") || self.check_keyword("for") || self.check_keyword("match") ||

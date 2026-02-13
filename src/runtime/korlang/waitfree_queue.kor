@@ -1,0 +1,53 @@
+// Phase 16.1.2: wait-free style bounded MPMC queue (model)
+
+module runtime.waitfree_queue
+
+import runtime.scheduler
+
+struct Slot {
+  seq: UInt;
+  task: Task?;
+}
+
+struct WaitFreeQueue {
+  slots: List<Slot>;
+  mask: UInt;
+  head: UInt;
+  tail: UInt;
+}
+
+fun WaitFreeQueue_new(power_of_two: UInt) -> WaitFreeQueue {
+  let cap = 1 << power_of_two;
+  let slots = List.new();
+  let i = 0;
+  while (i < cap) {
+    slots.push(Slot { seq: i, task: null });
+    i = i + 1;
+  }
+  WaitFreeQueue { slots: slots, mask: cap - 1, head: 0, tail: 0 }
+}
+
+fun queue_push(q: WaitFreeQueue, t: Task) -> Bool {
+  // lock-free model: producer claims tail slot
+  let pos = q.tail;
+  let idx = pos & q.mask;
+  let slot = q.slots[idx];
+  if (slot.seq != pos) { return false; }
+  slot.task = t;
+  slot.seq = pos + 1;
+  q.tail = pos + 1;
+  true
+}
+
+fun queue_pop(q: WaitFreeQueue) -> Task? {
+  // lock-free model: consumer claims head slot
+  let pos = q.head;
+  let idx = pos & q.mask;
+  let slot = q.slots[idx];
+  if (slot.seq != pos + 1) { return null; }
+  let out = slot.task;
+  slot.task = null;
+  slot.seq = pos + q.mask + 1;
+  q.head = pos + 1;
+  out
+}

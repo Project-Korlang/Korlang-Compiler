@@ -181,7 +181,7 @@ impl<'a> Lexer<'a> {
         }
         let s: String = self.chars[start_idx..self.pos].iter().collect();
         let kind = match s.as_str() {
-            "fun" | "let" | "var" | "if" | "else" | "match" | "for" | "while" |
+            "fun" | "gpu" | "let" | "var" | "if" | "else" | "match" | "for" | "while" |
             "break" | "continue" | "return" | "view" | "resource" | "state" |
             "spawn" | "@nogc" | "import" | "as" | "struct" | "enum" | "type" |
             "in" => TokenKind::Keyword(Box::leak(s.into_boxed_str())),

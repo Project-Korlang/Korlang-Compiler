@@ -1,0 +1,44 @@
+// Phase 16.2.2: CPU/GPU data marshalling for tensors and buffers
+
+module runtime.gpu.marshalling
+
+struct DeviceBuffer {
+  handle: UInt;
+  bytes: UInt;
+}
+
+struct TensorShape {
+  dims: List<UInt>;
+}
+
+struct TensorTransfer {
+  host_ptr: UInt;
+  host_bytes: UInt;
+  device: DeviceBuffer;
+  shape: TensorShape;
+}
+
+fun gpu_alloc(bytes: UInt) -> DeviceBuffer {
+  DeviceBuffer { handle: 0, bytes: bytes }
+}
+
+fun gpu_upload(host_ptr: UInt, bytes: UInt) -> DeviceBuffer {
+  let buf = gpu_alloc(bytes);
+  let _ = host_ptr;
+  buf
+}
+
+fun gpu_download(_buf: DeviceBuffer, host_ptr: UInt, _bytes: UInt) -> Bool {
+  let _ = host_ptr;
+  true
+}
+
+fun tensor_to_device(host_ptr: UInt, bytes: UInt, dims: List<UInt>) -> TensorTransfer {
+  let dev = gpu_upload(host_ptr, bytes);
+  TensorTransfer {
+    host_ptr: host_ptr,
+    host_bytes: bytes,
+    device: dev,
+    shape: TensorShape { dims: dims },
+  }
+}

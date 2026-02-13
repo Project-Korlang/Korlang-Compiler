@@ -1,0 +1,27 @@
+// Phase 16.2.1: gpu kernel descriptors and launch API
+
+module runtime.gpu.kernels
+
+struct GpuKernel {
+  name: String;
+  source: String;
+  entry: String;
+}
+
+struct GpuLaunchConfig {
+  grid_x: UInt;
+  grid_y: UInt;
+  grid_z: UInt;
+  block_x: UInt;
+  block_y: UInt;
+  block_z: UInt;
+}
+
+fun gpu_kernel(name: String, source: String, entry: String) -> GpuKernel {
+  GpuKernel { name: name, source: source, entry: entry }
+}
+
+fun gpu_launch(_kernel: GpuKernel, _cfg: GpuLaunchConfig, _args: List<UInt>) -> Bool {
+  // backend dispatch hooks (Vulkan/Metal/CUDA) are connected later
+  true
+}

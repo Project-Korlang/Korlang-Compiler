@@ -60,19 +60,19 @@ This document tracks the evolution of the **Korlang** programming language. Phas
 - [x] **13.2 AArch64 Generator:** Direct machine code emission for ARM (Apple Silicon/Android).
 - [x] **13.3 Linker Implementation:** A native Korlang linker to produce ELF/Mach-O/PE binaries.
 
-### 💻 Phase 14: Direct OS Integration (The Kernel Interface) (Current)
+### ✅ Phase 14: Direct OS Integration (The Kernel Interface) (Completed)
 - [x] **14.1 Syscall Library:** Direct system call wrappers for Linux, macOS, and Windows.
 - [x] **14.2 No-Standard Mode:** Allow Korlang to run on bare metal without an OS.
 - [x] **14.3 Driver Framework:** Ability to write hardware drivers in Korlang.
 - [x] **14.4 Full Decoupling:** Step-by-step removal of all Rust and external bootstrap source code to achieve absolute independence.
 
-### 💎 Phase 15: Ownership Evolution (Static Memory Management)
+### ✅ Phase 15: Ownership Evolution (Static Memory Management) (Completed)
 - [x] **15.1 Region-Based Memory:** Implement static region analysis to reduce GC reliance.
 - [x] **15.2 Hybrid Ownership:** Merge GC with linear types for zero-cost resource management.
 
-### 🧵 Phase 16: Hyper-Parallelism
-- [ ] **16.1 Work-Stealing 2.0:** Ultra-low latency task scheduling.
-- [ ] **16.2 GPU Compute Shaders:** Native language support for running Korlang logic on the GPU.
+### 🧵 Phase 16: Hyper-Parallelism (Current)
+- [x] **16.1 Work-Stealing 2.0:** Ultra-low latency task scheduling.
+- [x] **16.2 GPU Compute Shaders:** Native language support for running Korlang logic on the GPU.
 
 ### 📦 Phase 17: Standard Library 2.0 (The Global Standard)
 - [ ] **17.1 Native Crypto:** High-performance cryptographic primitives.

@@ -115,6 +115,10 @@ fun Parser_parse_item(self: Parser) -> Result<Item, Bool> {
     self.expect_keyword("fun")?;
     return Result.ok(Item.Fun(self.parse_fun(true)?));
   }
+  if (self.match_keyword("gpu")) {
+    self.expect_keyword("fun")?;
+    return Result.ok(Item.Fun(self.parse_fun(false)?));
+  }
   if (self.match_keyword("fun")) { return Result.ok(Item.Fun(self.parse_fun(false)?)); }
   if (self.match_keyword("struct")) { return Result.ok(Item.Struct(self.parse_struct()?)); }
   if (self.match_keyword("enum")) { return Result.ok(Item.Enum(self.parse_enum()?)); }
@@ -787,7 +791,7 @@ fun Parser_synchronize(self: Parser) {
   while (!self.at_eof()) {
     let k = self.current().kind;
     if (k == TokenKind.Semi || k == TokenKind.RBrace) { self.advance(); break; }
-    if self.check_keyword("fun") || self.check_keyword("struct") || self.check_keyword("enum") ||
+    if self.check_keyword("fun") || self.check_keyword("gpu") || self.check_keyword("struct") || self.check_keyword("enum") ||
       self.check_keyword("type") || self.check_keyword("view") || self.check_keyword("resource") ||
       self.check_keyword("let") || self.check_keyword("var") || self.check_keyword("if") ||
       self.check_keyword("while") || self.check_keyword("for") || self.check_keyword("match") ||

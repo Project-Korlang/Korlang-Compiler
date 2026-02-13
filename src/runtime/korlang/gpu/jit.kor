@@ -1,0 +1,39 @@
+// Phase 16.2.3: hardware-aware kernel JIT specialization
+
+module runtime.gpu.jit
+
+import runtime.gpu.kernels
+
+struct GpuCaps {
+  vendor: String;
+  arch: String;
+  compute_units: UInt;
+  simd_width: UInt;
+  shared_mem_kb: UInt;
+}
+
+struct CompiledKernel {
+  kernel: GpuKernel;
+  binary: UInt;
+  variant: String;
+}
+
+fun gpu_detect_caps() -> GpuCaps {
+  GpuCaps {
+    vendor: "generic",
+    arch: "generic",
+    compute_units: 1,
+    simd_width: 32,
+    shared_mem_kb: 64,
+  }
+}
+
+fun gpu_jit_compile(kernel: GpuKernel, caps: GpuCaps) -> CompiledKernel {
+  let variant = kernel.name + ":" + caps.vendor + ":" + caps.arch;
+  CompiledKernel { kernel: kernel, binary: 0, variant: variant }
+}
+
+fun gpu_jit_select(kernel: GpuKernel) -> CompiledKernel {
+  let caps = gpu_detect_caps();
+  gpu_jit_compile(kernel, caps)
+}

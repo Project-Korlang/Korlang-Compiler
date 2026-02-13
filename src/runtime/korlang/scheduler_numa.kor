@@ -1,0 +1,51 @@
+// Phase 16.1.1: NUMA-aware task placement
+
+module runtime.scheduler_numa
+
+import runtime.scheduler
+
+struct NumaWorker {
+  worker_id: UInt;
+  node_id: UInt;
+}
+
+struct NumaScheduler {
+  base: Scheduler;
+  workers: List<NumaWorker>;
+  nodes: UInt;
+}
+
+fun NumaScheduler_new(worker_count: UInt, nodes: UInt) -> NumaScheduler {
+  let base = Scheduler_new(worker_count);
+  let map = List.new();
+  let i = 0;
+  while (i < worker_count) {
+    let node = if (nodes == 0) { 0 } else { i % nodes };
+    map.push(NumaWorker { worker_id: i, node_id: node });
+    i = i + 1;
+  }
+  NumaScheduler { base: base, workers: map, nodes: nodes }
+}
+
+fun scheduler_spawn_local(ns: NumaScheduler, preferred_node: UInt, entry: String, arg: UInt) -> UInt {
+  let id = ns.base.next_task;
+  ns.base.next_task = ns.base.next_task + 1;
+  let task = Task { id: id, entry: entry, arg: arg };
+
+  let target = pick_worker_on_node(ns, preferred_node);
+  ns.base.workers[target].deque.items.push(task);
+  id
+}
+
+fun pick_worker_on_node(ns: NumaScheduler, node: UInt) -> UInt {
+  let i = 0;
+  while (i < ns.workers.len()) {
+    if (ns.workers[i].node_id == node) { return ns.workers[i].worker_id; }
+    i = i + 1;
+  }
+  0
+}
+
+fun scheduler_run_local(ns: NumaScheduler, worker_id: UInt) -> Bool {
+  scheduler_run_once(ns.base, worker_id)
+}
