@@ -49,6 +49,9 @@ impl Sema {
         s.define_builtin("List", Type::Named("List".to_string()));
         s.define_builtin("Result", Type::Named("Result".to_string()));
         s.define_builtin("@import", Type::Func(vec![Type::String], Box::new(Type::Any)));
+        s.define_builtin("print", Type::Func(vec![Type::Any], Box::new(Type::Unit)));
+        s.define_builtin("println", Type::Func(vec![Type::Any], Box::new(Type::Unit)));
+        s.define_builtin("readLine", Type::Func(vec![], Box::new(Type::String)));
         s
     }
 

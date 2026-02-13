@@ -1,0 +1,34 @@
+// Phase 19.2.1: native driver bindings for Vulkan/Metal
+
+module runtime.graphics.driver_bindings
+
+struct DriverHandle {
+  api: String;
+  handle: UInt;
+}
+
+fun open_driver() -> DriverHandle {
+  let os = sys_os();
+  if (os == "macos") {
+    return DriverHandle { api: "metal", handle: metal_open() };
+  }
+  DriverHandle { api: "vulkan", handle: vulkan_open() }
+}
+
+fun submit(h: DriverHandle, cmd_ptr: UInt, cmd_len: UInt) -> UInt {
+  if (h.api == "metal") { return metal_submit(h.handle, cmd_ptr, cmd_len); }
+  vulkan_submit(h.handle, cmd_ptr, cmd_len)
+}
+
+fun close_driver(h: DriverHandle) {
+  if (h.api == "metal") { metal_close(h.handle); return; }
+  vulkan_close(h.handle);
+}
+
+fun vulkan_open() -> UInt
+fun vulkan_submit(handle: UInt, cmd_ptr: UInt, cmd_len: UInt) -> UInt
+fun vulkan_close(handle: UInt)
+fun metal_open() -> UInt
+fun metal_submit(handle: UInt, cmd_ptr: UInt, cmd_len: UInt) -> UInt
+fun metal_close(handle: UInt)
+fun sys_os() -> String

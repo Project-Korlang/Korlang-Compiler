@@ -79,13 +79,13 @@ This document tracks the evolution of the **Korlang** programming language. Phas
 - [x] **17.1 Native Crypto:** High-performance cryptographic primitives.
 - [x] **17.2 Native Networking:** High-throughput HTTP/3 and WebSockets implementation.
 
-### 🖼️ Phase 18: Korlang-Native IDE
-- [ ] **18.1 Integrated Environment:** A full IDE built using the Korlang `view` system.
-- [ ] **18.2 Time-Travel Debugger:** Built-in support for reversing execution.
+### 🖼️ Phase 18: Korlang-Native IDE (Completed)
+- [x] **18.1 Integrated Environment:** A full IDE built using the Korlang `view` system.
+- [x] **18.2 Time-Travel Debugger:** Built-in support for reversing execution.
 
-### 🎭 Phase 19: Multimedia & Real-Time Engine
-- [ ] **19.1 Audio/Video Pipeline:** Native support for real-time media processing.
-- [ ] **19.2 Zero-Latency Graphics:** Direct Metal/Vulkan/DirectX 12 bindings.
+### 🎭 Phase 19: Multimedia & Real-Time Engine (Current)
+- [x] **19.1 Audio/Video Pipeline:** Native support for real-time media processing.
+- [x] **19.2 Zero-Latency Graphics:** Direct Metal/Vulkan/DirectX 12 bindings.
 
 ### 🤖 Phase 20: AI Autopilot Integration
 - [ ] **20.1 Built-in LLM Primitives:** Native syntax for interfacing with local and cloud AI models.

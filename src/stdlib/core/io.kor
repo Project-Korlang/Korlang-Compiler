@@ -5,4 +5,4 @@ module io
 fun print(value: Any) -> Void
 fun println(value: Any) -> Void
 fun readLine() -> String?
-
+fun toString(value: Any) -> String

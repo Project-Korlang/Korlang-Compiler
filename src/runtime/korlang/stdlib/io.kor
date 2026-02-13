@@ -12,6 +12,15 @@ const FD_STDIN: UInt = 0;
 const FD_STDOUT: UInt = 1;
 const FD_STDERR: UInt = 2;
 
+struct LineBuffer {
+  pending: String;
+  lock: UInt;
+}
+
+fun LineBuffer_new() -> LineBuffer {
+  LineBuffer { pending: "", lock: 0 }
+}
+
 fun write_stdout(ptr: UInt, len: UInt) -> UInt {
   dispatcher.syscall3(SYS_WRITE, FD_STDOUT, ptr, len)
 }
@@ -27,3 +36,28 @@ fun read_stdin(ptr: UInt, len: UInt) -> UInt {
 fun exit(code: UInt) -> UInt {
   dispatcher.syscall1(SYS_EXIT, code)
 }
+
+fun print_line_buffered(self: LineBuffer, value: Any) {
+  lock(self.lock);
+  let text = toString(value);
+  self.pending = self.pending + text;
+  let nl = str_find(self.pending, "\n");
+  if (nl >= 0) {
+    let bytes = str_bytes(self.pending);
+    write_stdout(ptr_of(bytes), len_of(bytes));
+    self.pending = "";
+  }
+  unlock(self.lock);
+}
+
+fun println_line_buffered(self: LineBuffer, value: Any) {
+  print_line_buffered(self, toString(value) + "\n");
+}
+
+fun toString(value: Any) -> String
+fun lock(l: UInt)
+fun unlock(l: UInt)
+fun str_find(s: String, needle: String) -> Int
+fun str_bytes(s: String) -> Bytes
+fun ptr_of(b: Bytes) -> UInt
+fun len_of(b: Bytes) -> UInt

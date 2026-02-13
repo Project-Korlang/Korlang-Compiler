@@ -1,0 +1,27 @@
+// Phase 19.2.2: Korlang shader JIT to SPIR-V / Metal bytecode
+
+module runtime.graphics.shader_jit
+
+struct ShaderUnit {
+  source: String;
+  stage: String; // vertex, fragment, compute
+}
+
+struct ShaderBinary {
+  target: String; // spirv, metal
+  bytes: Bytes;
+}
+
+fun jit_compile(unit: ShaderUnit, target: String) -> ShaderBinary {
+  let ast = parse_shader(unit.source);
+  let ir = lower_shader_ir(ast, unit.stage);
+  if (target == "spirv") {
+    return ShaderBinary { target: "spirv", bytes: emit_spirv(ir) };
+  }
+  ShaderBinary { target: "metal", bytes: emit_metal(ir) }
+}
+
+fun parse_shader(src: String) -> Any
+fun lower_shader_ir(ast: Any, stage: String) -> Any
+fun emit_spirv(ir: Any) -> Bytes
+fun emit_metal(ir: Any) -> Bytes

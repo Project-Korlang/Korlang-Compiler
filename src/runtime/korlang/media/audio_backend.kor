@@ -1,0 +1,54 @@
+// Phase 19.1.2: native audio backend bindings (ALSA/Pulse/CoreAudio/WASAPI)
+
+module runtime.media.audio_backend
+
+struct AudioConfig {
+  sample_rate: UInt;
+  channels: UInt;
+  frames: UInt;
+}
+
+struct AudioHandle {
+  backend: String;
+  id: UInt;
+}
+
+fun open_audio(config: AudioConfig) -> AudioHandle {
+  let os = sys_os();
+  if (os == "linux") {
+    return AudioHandle { backend: "linux", id: linux_open(config) };
+  }
+  if (os == "macos") {
+    return AudioHandle { backend: "macos", id: coreaudio_open(config) };
+  }
+  AudioHandle { backend: "windows", id: wasapi_open(config) }
+}
+
+fun write_audio(h: AudioHandle, ptr: UInt, bytes: UInt) -> UInt {
+  if (h.backend == "linux") { return linux_write(h.id, ptr, bytes); }
+  if (h.backend == "macos") { return coreaudio_write(h.id, ptr, bytes); }
+  wasapi_write(h.id, ptr, bytes)
+}
+
+fun close_audio(h: AudioHandle) {
+  if (h.backend == "linux") { linux_close(h.id); return; }
+  if (h.backend == "macos") { coreaudio_close(h.id); return; }
+  wasapi_close(h.id);
+}
+
+// Linux: ALSA/Pulse direct syscalls
+fun linux_open(config: AudioConfig) -> UInt
+fun linux_write(id: UInt, ptr: UInt, bytes: UInt) -> UInt
+fun linux_close(id: UInt)
+
+// macOS CoreAudio
+fun coreaudio_open(config: AudioConfig) -> UInt
+fun coreaudio_write(id: UInt, ptr: UInt, bytes: UInt) -> UInt
+fun coreaudio_close(id: UInt)
+
+// Windows WASAPI low latency
+fun wasapi_open(config: AudioConfig) -> UInt
+fun wasapi_write(id: UInt, ptr: UInt, bytes: UInt) -> UInt
+fun wasapi_close(id: UInt)
+
+fun sys_os() -> String

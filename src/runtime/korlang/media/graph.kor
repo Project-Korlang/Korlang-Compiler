@@ -1,0 +1,70 @@
+// Phase 19.1.1: media graph core (DAG + SRC + side-chain)
+
+module runtime.media.graph
+
+struct Edge {
+  from: UInt;
+  to: UInt;
+  sidechain: Bool;
+}
+
+struct Node {
+  id: UInt;
+  kind: String;
+  in_rate: UInt;
+  out_rate: UInt;
+}
+
+struct Graph {
+  next_id: UInt;
+  nodes: List<Node>;
+  edges: List<Edge>;
+}
+
+fun Graph_new() -> Graph {
+  Graph { next_id: 1, nodes: List.new(), edges: List.new() }
+}
+
+fun Graph_add_node(self: Graph, kind: String, in_rate: UInt, out_rate: UInt) -> UInt {
+  let id = self.next_id;
+  self.next_id = self.next_id + 1;
+  self.nodes.push(Node { id: id, kind: kind, in_rate: in_rate, out_rate: out_rate });
+  id
+}
+
+fun Graph_connect(self: Graph, from: UInt, to: UInt) -> Bool {
+  if (!Graph_is_dag_after(self, from, to)) { return false; }
+  self.edges.push(Edge { from: from, to: to, sidechain: false });
+  true
+}
+
+fun Graph_connect_sidechain(self: Graph, from: UInt, to: UInt) -> Bool {
+  if (!Graph_is_dag_after(self, from, to)) { return false; }
+  self.edges.push(Edge { from: from, to: to, sidechain: true });
+  true
+}
+
+fun Graph_process_async(self: Graph) {
+  let order = Graph_toposort(self);
+  let i = 0;
+  while (i < order.len()) {
+    spawn process_node(self, order[i]);
+    i = i + 1;
+  }
+}
+
+fun process_node(self: Graph, node_id: UInt) {
+  let node = Graph_get_node(self, node_id);
+  if (node.in_rate != node.out_rate) {
+    async_sample_rate_convert(node_id, node.in_rate, node.out_rate);
+  }
+  process_audio(node_id);
+  mix_sidechains(self, node_id);
+}
+
+fun Graph_toposort(self: Graph) -> List<UInt>
+fun Graph_is_dag_after(self: Graph, from: UInt, to: UInt) -> Bool
+fun Graph_get_node(self: Graph, id: UInt) -> Node
+fun async_sample_rate_convert(node_id: UInt, in_rate: UInt, out_rate: UInt)
+fun process_audio(node_id: UInt)
+fun mix_sidechains(self: Graph, node_id: UInt)

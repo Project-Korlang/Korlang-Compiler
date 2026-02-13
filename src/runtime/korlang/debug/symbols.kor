@@ -1,0 +1,47 @@
+// Phase 19.3.3: DWARF/PDB debug symbol reader for runtime panic traces
+
+module runtime.debug.symbols
+
+struct SymbolEntry {
+  addr: UInt;
+  file: String;
+  line: UInt;
+  func: String;
+}
+
+struct SymbolTable {
+  format: String; // dwarf, pdb
+  entries: List<SymbolEntry>;
+}
+
+fun load_symbols(path: String) -> SymbolTable {
+  let raw = fs_read_bytes(path);
+  if (is_dwarf(raw)) {
+    return SymbolTable { format: "dwarf", entries: parse_dwarf(raw) };
+  }
+  SymbolTable { format: "pdb", entries: parse_pdb(raw) }
+}
+
+fun lookup_symbol(table: SymbolTable, ip: UInt) -> SymbolEntry? {
+  let i = 0;
+  while (i < table.entries.len()) {
+    if (table.entries[i].addr == ip) { return table.entries[i]; }
+    i = i + 1;
+  }
+  null
+}
+
+fun format_panic_frame(table: SymbolTable, ip: UInt) -> String {
+  let sym = lookup_symbol(table, ip);
+  if (sym == null) {
+    return "unknown frame @0x" + hex(ip);
+  }
+  sym.file + ":" + u_to_s(sym.line) + " in " + sym.func
+}
+
+fun fs_read_bytes(path: String) -> Bytes
+fun is_dwarf(raw: Bytes) -> Bool
+fun parse_dwarf(raw: Bytes) -> List<SymbolEntry>
+fun parse_pdb(raw: Bytes) -> List<SymbolEntry>
+fun hex(v: UInt) -> String
+fun u_to_s(v: UInt) -> String

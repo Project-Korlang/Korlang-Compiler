@@ -102,6 +102,14 @@ impl<'ctx> Codegen<'ctx> {
     fn emit_call(&mut self, callee: &Expr, args: &[Expr]) -> Option<BasicValueEnum<'ctx>> {
         // Minimal FFI: @import("symbol") calls an extern symbol with no args.
         if let Expr::Ident(name, _) = callee {
+            if (name == "print" || name == "println") && !args.is_empty() {
+                let is_ln = name == "println";
+                let folded = self.fold_expr(&args[0]);
+                if let Expr::Literal(lit, _) = folded {
+                    self.emit_print_literal(&lit, is_ln);
+                    return None;
+                }
+            }
             if name == "@import" {
                 if let Some(Expr::Literal(Literal::String(sym), _)) = args.get(0) {
                     let fn_ty = self.context.void_type().fn_type(&[], false);
@@ -112,6 +120,82 @@ impl<'ctx> Codegen<'ctx> {
             }
         }
         None
+    }
+
+    fn emit_print_literal(&mut self, lit: &Literal, newline: bool) {
+        match lit {
+            Literal::String(s) => self.emit_print_string(s, newline),
+            Literal::Int(v) => {
+                let name = if newline { "korlang_io_println_i64" } else { "korlang_io_print_i64" };
+                let f = self.get_or_declare_print_i64(name);
+                let val = self.context.i64_type().const_int(*v as u64, true);
+                let _ = self.builder.build_call(f, &[val.into()], "print_i64");
+            }
+            Literal::Float(v) => {
+                let name = if newline { "korlang_io_println_f64" } else { "korlang_io_print_f64" };
+                let f = self.get_or_declare_print_f64(name);
+                let val = self.context.f64_type().const_float(*v);
+                let _ = self.builder.build_call(f, &[val.into()], "print_f64");
+            }
+            Literal::Bool(v) => {
+                let name = if newline { "korlang_io_println_bool" } else { "korlang_io_print_bool" };
+                let f = self.get_or_declare_print_bool(name);
+                let val = self.context.bool_type().const_int(*v as u64, false);
+                let _ = self.builder.build_call(f, &[val.into()], "print_bool");
+            }
+            Literal::Char(c) => {
+                self.emit_print_string(&c.to_string(), newline);
+            }
+        }
+    }
+
+    fn emit_print_string(&mut self, s: &str, newline: bool) {
+        let bytes = s.as_bytes();
+        let len = bytes.len() as u64;
+        let ptr = self
+            .builder
+            .build_global_string_ptr(s, "korlang_str")
+            .expect("global string")
+            .as_pointer_value();
+
+        let name = if newline { "korlang_io_println" } else { "korlang_io_print" };
+        let f = self.get_or_declare_print_bytes(name);
+        let lenv = self.context.i64_type().const_int(len, false);
+        let _ = self.builder.build_call(f, &[ptr.into(), lenv.into()], "print");
+    }
+
+    fn get_or_declare_print_bytes(&self, name: &str) -> inkwell::values::FunctionValue<'ctx> {
+        if let Some(f) = self.module.get_function(name) {
+            return f;
+        }
+        let i8p = self.context.i8_type().ptr_type(AddressSpace::default());
+        let u = self.context.i64_type();
+        let ty = self.context.void_type().fn_type(&[i8p.into(), u.into()], false);
+        self.module.add_function(name, ty, None)
+    }
+
+    fn get_or_declare_print_i64(&self, name: &str) -> inkwell::values::FunctionValue<'ctx> {
+        if let Some(f) = self.module.get_function(name) {
+            return f;
+        }
+        let ty = self.context.void_type().fn_type(&[self.context.i64_type().into()], false);
+        self.module.add_function(name, ty, None)
+    }
+
+    fn get_or_declare_print_f64(&self, name: &str) -> inkwell::values::FunctionValue<'ctx> {
+        if let Some(f) = self.module.get_function(name) {
+            return f;
+        }
+        let ty = self.context.void_type().fn_type(&[self.context.f64_type().into()], false);
+        self.module.add_function(name, ty, None)
+    }
+
+    fn get_or_declare_print_bool(&self, name: &str) -> inkwell::values::FunctionValue<'ctx> {
+        if let Some(f) = self.module.get_function(name) {
+            return f;
+        }
+        let ty = self.context.void_type().fn_type(&[self.context.bool_type().into()], false);
+        self.module.add_function(name, ty, None)
     }
 
     fn try_emit_return(&self, body: &Block, ret: &TypeRef) -> Option<BasicValueEnum<'ctx>> {

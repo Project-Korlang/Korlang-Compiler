@@ -1,0 +1,51 @@
+// Phase 19.1.3: zero-copy YUV->RGB and hardware decode integration
+
+module runtime.media.video_pipeline
+
+struct Frame {
+  width: UInt;
+  height: UInt;
+  format: String; // yuv420p, nv12, rgb
+  planes: List<UInt>;
+}
+
+struct Decoder {
+  backend: String; // vaapi, videotoolbox, dxva
+  handle: UInt;
+}
+
+fun yuv_to_rgb_zero_copy(frame: Frame, out_tex: UInt) {
+  // WGPU shader path; frame planes are sampled directly.
+  dispatch_yuv_rgb_shader(frame.planes, frame.width, frame.height, out_tex);
+}
+
+fun decoder_open(codec: String) -> Decoder {
+  let os = sys_os();
+  if (os == "linux") { return Decoder { backend: "vaapi", handle: vaapi_open(codec) }; }
+  if (os == "macos") { return Decoder { backend: "videotoolbox", handle: videotoolbox_open(codec) }; }
+  Decoder { backend: "dxva", handle: dxva_open(codec) }
+}
+
+fun decoder_decode(dec: Decoder, packet_ptr: UInt, packet_len: UInt) -> Frame {
+  if (dec.backend == "vaapi") { return vaapi_decode(dec.handle, packet_ptr, packet_len); }
+  if (dec.backend == "videotoolbox") { return videotoolbox_decode(dec.handle, packet_ptr, packet_len); }
+  dxva_decode(dec.handle, packet_ptr, packet_len)
+}
+
+fun decoder_close(dec: Decoder) {
+  if (dec.backend == "vaapi") { vaapi_close(dec.handle); return; }
+  if (dec.backend == "videotoolbox") { videotoolbox_close(dec.handle); return; }
+  dxva_close(dec.handle);
+}
+
+fun dispatch_yuv_rgb_shader(planes: List<UInt>, width: UInt, height: UInt, out_tex: UInt)
+fun vaapi_open(codec: String) -> UInt
+fun vaapi_decode(handle: UInt, packet_ptr: UInt, packet_len: UInt) -> Frame
+fun vaapi_close(handle: UInt)
+fun videotoolbox_open(codec: String) -> UInt
+fun videotoolbox_decode(handle: UInt, packet_ptr: UInt, packet_len: UInt) -> Frame
+fun videotoolbox_close(handle: UInt)
+fun dxva_open(codec: String) -> UInt
+fun dxva_decode(handle: UInt, packet_ptr: UInt, packet_len: UInt) -> Frame
+fun dxva_close(handle: UInt)
+fun sys_os() -> String
