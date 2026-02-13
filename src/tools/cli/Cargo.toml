@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 korlang-compiler = { path = "../../compiler" }
-inkwell = { version = "0.4", features = ["llvm16-0"] }
+inkwell = { version = "0.4", features = ["llvm16-0-prefer-dynamic"] }

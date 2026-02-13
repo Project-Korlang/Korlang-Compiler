@@ -25,12 +25,18 @@ fn main() {
         "bootstrap" => bootstrap(),
         _ => {
             eprintln!("Usage: korlang <build|run|new|test|doc|bootstrap> <file.kor> [-o out] [--static] [--lto|--thinlto] [--pgo-generate] [--pgo-use file]");
+            eprintln!("       korlang build --native-selfhost");
             std::process::exit(1);
         }
     }
 }
 
 fn build(args: Vec<String>, run: bool) {
+    if args.iter().any(|a| a == "--native-selfhost") {
+        build_native_selfhosted();
+        return;
+    }
+
     if args.is_empty() {
         eprintln!("missing input file");
         std::process::exit(1);
@@ -206,4 +212,174 @@ fn hash_str(s: &str) -> String {
     let mut h = DefaultHasher::new();
     s.hash(&mut h);
     format!("{:x}", h.finish())
+}
+
+fn build_native_selfhosted() {
+    let root = find_repo_root().unwrap_or_else(|| PathBuf::from("."));
+    let out_dir = root.join("build");
+    let runtime_home = out_dir.join("runtime");
+    let runtime_lib = runtime_home.join("lib").join("libkorlang_rt.a");
+    let out_file = out_dir.join("selfhosted.kor");
+    let out_bin = out_dir.join("korlang-selfhosted");
+
+    let _ = fs::create_dir_all(out_dir.join("runtime/lib"));
+
+    let mut files = Vec::new();
+    collect_korlang_files_top_level(&root.join("src/compiler/korlang"), &mut files);
+    files.sort();
+    if files.is_empty() {
+        eprintln!("no Korlang compiler sources found under src/compiler/korlang");
+        std::process::exit(1);
+    }
+
+    let mut merged = String::new();
+    for f in files {
+        let src = match fs::read_to_string(&f) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("failed to read {}: {}", f.display(), e);
+                std::process::exit(1);
+            }
+        };
+        for line in src.lines() {
+            let s = line.trim();
+            if s.starts_with("module ") || s.starts_with("import ") {
+                continue;
+            }
+            if s.starts_with("fun ") && !s.contains('{') && !s.ends_with('{') {
+                continue;
+            }
+            merged.push_str(line);
+            merged.push('\n');
+        }
+        merged.push('\n');
+    }
+    merged = normalize_generics(merged);
+
+    if let Err(e) = fs::write(&out_file, merged) {
+        eprintln!("failed to write {}: {}", out_file.display(), e);
+        std::process::exit(1);
+    }
+
+    if !runtime_lib.exists() {
+        let mut copied = false;
+        for cand in [
+            root.join("dist/runtime/lib/libkorlang_rt.a"),
+            root.join("src/runtime/lib/libkorlang_rt.a"),
+            root.join("src/runtime/target/release/libkorlang_rt.a"),
+            root.join("src/runtime/target/debug/libkorlang_rt.a"),
+        ] {
+            if cand.exists() {
+                if let Err(e) = fs::copy(&cand, &runtime_lib) {
+                    eprintln!("failed to copy runtime lib from {}: {}", cand.display(), e);
+                    std::process::exit(1);
+                }
+                copied = true;
+                break;
+            }
+        }
+        if !copied {
+            eprintln!("missing runtime lib: place libkorlang_rt.a at build/runtime/lib or dist/runtime/lib");
+            std::process::exit(1);
+        }
+    }
+
+    let stage1 = root.join("dist/bootstrap-stage1/bin/korlang");
+    let korlang_bin = env::var("KORLANG_BIN").map(PathBuf::from).unwrap_or(stage1);
+    if !korlang_bin.exists() {
+        eprintln!("missing KORLANG_BIN: {}", korlang_bin.display());
+        std::process::exit(1);
+    }
+
+    let status = Command::new(&korlang_bin)
+        .env("KORLANG_HOME", &runtime_home)
+        .env("KORLANG_SEMA_PERMISSIVE", "1")
+        .arg("build")
+        .arg(&out_file)
+        .arg("-o")
+        .arg(&out_bin)
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {
+            println!("native selfhost build complete: {}", out_bin.display());
+        }
+        _ => {
+            eprintln!("native selfhost build failed");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn find_repo_root() -> Option<PathBuf> {
+    let mut cur = env::current_dir().ok()?;
+    for _ in 0..8 {
+        if cur.join("src/compiler/korlang").exists() && cur.join("scripts").exists() {
+            return Some(cur);
+        }
+        if !cur.pop() {
+            break;
+        }
+    }
+    None
+}
+
+fn collect_korlang_files_top_level(dir: &PathBuf, out: &mut Vec<PathBuf>) {
+    let rd = match fs::read_dir(dir) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+    for ent in rd.flatten() {
+        let p = ent.path();
+        if p.is_file() && p.extension().and_then(|s| s.to_str()) == Some("kor") {
+            out.push(p);
+        }
+    }
+}
+
+fn normalize_generics(mut text: String) -> String {
+    while text.contains("List<") {
+        text = replace_generic(&text, "List", true);
+    }
+    while text.contains("Result<") {
+        text = replace_generic(&text, "Result", false);
+    }
+    text
+}
+
+fn replace_generic(text: &str, name: &str, to_brackets: bool) -> String {
+    let mut out = String::with_capacity(text.len());
+    let bytes = text.as_bytes();
+    let pat = format!("{}<", name);
+    let patb = pat.as_bytes();
+    let mut i = 0usize;
+
+    while i < bytes.len() {
+        if i + patb.len() <= bytes.len() && &bytes[i..i + patb.len()] == patb {
+            i += patb.len();
+            let mut depth = 1i32;
+            let start = i;
+            while i < bytes.len() && depth > 0 {
+                match bytes[i] as char {
+                    '<' => depth += 1,
+                    '>' => depth -= 1,
+                    _ => {}
+                }
+                i += 1;
+            }
+            let inner_end = i.saturating_sub(1);
+            let inner = text[start..inner_end].trim();
+            if to_brackets {
+                out.push('[');
+                out.push_str(inner);
+                out.push(']');
+            } else {
+                out.push_str("Any");
+            }
+        } else {
+            out.push(bytes[i] as char);
+            i += 1;
+        }
+    }
+    out
 }

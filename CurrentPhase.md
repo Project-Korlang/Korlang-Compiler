@@ -1,45 +1,41 @@
-# Current Phase: Phase 14 - Direct OS Integration (The Kernel Interface)
+# Current Phase: Phase 14.4 & 15 - Total Independence & Ownership Evolution
 
-**Status:** Activating System-Level Control
-**Goal:** Implement direct interfaces between Korlang and the operating system kernel. This enables Korlang to perform I/O, memory management, and process control without relying on external C libraries (libc) or intermediate runtimes.
+**Status:** Decoupling & Evolving
+**Goal:** Finalize the removal of all bootstrap code (Rust/C++) and evolve the memory model toward static ownership to minimize GC pressure.
 
 ---
 
-## 💻 14.1 Syscall Library
-**Objective:** Provide a type-safe Korlang interface for low-level system calls.
-- [x] **14.1.1 Syscall Dispatcher:** Added assembly stubs for x86_64/AArch64 and a Korlang dispatcher in `src/runtime/korlang/syscall/dispatcher.kor` plus `src/runtime/korlang/arch/*/syscall.s`.
-- [x] **14.1.2 Platform Wrappers:** Added Linux/Darwin/Windows syscall wrapper stubs in `src/runtime/korlang/syscall/*`.
-- [x] **14.1.3 Error Mapping:** Added unified `Error` enum and errno/NTSTATUS mapping in `src/runtime/korlang/syscall/errors.kor`.
-- **Effort:** 10 Days | **Priority:** High
+## 💻 14.4 Full Decoupling (Independence Cleanup)
+**Objective:** Purge all non-Korlang source code from the repository.
+- [x] **14.4.1 Scripted Migration:** Added `scripts/purge_bootstrap.sh` with stage verification (stage2/stage3 hash check), dry-run mode, and explicit execute gating.
+- [x] **14.4.2 Native Build System:** Integrated self-host orchestration into `korlang build --native-selfhost` and switched `scripts/build_native_runtime.sh` to use it.
+- [x] **14.4.3 Zero-Dependency Verification:** Added `scripts/verify_zero_deps.sh` and validated Linux dependencies for `build/korlang-selfhosted` (passed).
+- **Effort:** 5 Days | **Priority:** Critical
 
-## 💻 14.2 No-Standard Mode (`@nostd`)
-**Objective:** Allow Korlang to run in environments without an OS (bare metal, bootloaders).
-- [x] **14.2.1 Minimal Entry Point:** Added freestanding `_start` in `src/runtime/korlang/nostd/entry.kor`.
-- [x] **14.2.2 Static Allocation:** Added fixed-size pool allocator in `src/runtime/korlang/nostd/mempool.kor`.
-- [x] **14.2.3 Freestanding Stdlib:** Added freestanding stdlib subset in `src/runtime/korlang/nostd/stdlib.kor`.
-- **Effort:** 12 Days | **Priority:** Medium
+---
 
-## 💻 14.3 Driver Framework
-**Objective:** Enable hardware driver development in Korlang.
-- [x] **14.3.1 Memory-Mapped I/O (MMIO):** Added MMIO pointer primitives in `src/runtime/korlang/drivers/mmio.kor`.
-- [x] **14.3.2 Interrupt Handlers:** Added ISR registry stubs in `src/runtime/korlang/drivers/interrupts.kor`.
-- [x] **14.3.3 DMA Buffers:** Added DMA buffer stubs in `src/runtime/korlang/drivers/dma.kor`.
-- **Effort:** 15 Days | **Priority:** Low
+## 💎 Phase 15: Ownership Evolution (Static Memory Management)
+**Objective:** Reduce GC reliance by implementing region-based and linear ownership rules.
+- [x] **15.1 Region-Based Inference:** Added conservative region/lifetime analysis in `src/compiler/korlang/region.kor`.
+- [x] **15.2 Linear Types & Move Semantics:** Added move/use-after-move and copy-of-unique validation in `src/compiler/korlang/linear.kor`.
+- [x] **15.3 Zero-Cost Smart Pointers:** Added compile-time `Unique`/`Shared` validation pass in `src/compiler/korlang/smartptr.kor`.
+- **Effort:** 12 Days | **Priority:** High
 
 ---
 
 ## 📈 Verification Status
-- **Phase 13 (Native Backend):** **Completed.** x86_64/AArch64 encoders and native linkers are functional.
-- **Phase 14 (OS Integration):** **Completed.** Syscall library, @nostd mode, and driver framework stubs are in place.
+- **Phase 14.1-14.3:** **Completed.** Native syscalls, @nostd mode, and driver primitives are operational.
+- **Phase 14.4:** **Completed.** Purge script, native build orchestration, and dependency verification are in place.
+- **Phase 15:** **Completed.** Region inference, linear move checks, and smart pointer validations are integrated into semantic analysis.
 
 ---
 
-## 📊 Phase 14 Metrics
+## 📊 Metrics
 | Module | Est. Effort | Dependency | Risk |
 | :--- | :--- | :--- | :--- |
-| Syscall Lib | 10 Days | Assembly Hooks | Medium |
-| No-Std Mode | 12 Days | Backend | High |
-| Driver Framework| 15 Days | MMIO / Interrupts| High |
-| **Total** | **37 Days** | | |
+| Full Decoupling | 5 Days | Native Binary | Low |
+| Region Inference| 8 Days | Sema | High |
+| Linear Types | 4 Days | Sema | Medium |
+| **Total** | **17 Days** | | |
 
-**Next Step:** Implement 14.3 driver framework primitives (MMIO/ISR/DMA).
+**Next Step:** Begin Phase 16 hyper-parallel runtime/compiler enhancements.

@@ -14,5 +14,5 @@ fi
 export KORLANG_BOOTSTRAP
 export KORLANG_NATIVE_RUNTIME=1
 
-# Stage2 build with native runtime stubs wired into the Korlang runtime directory.
-bash "$ROOT/scripts/build_selfhosted.sh"
+# Stage2 build through Korlang's native orchestration path.
+"$KORLANG_BIN" build --native-selfhost
