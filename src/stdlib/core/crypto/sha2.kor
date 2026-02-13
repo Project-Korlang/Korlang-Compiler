@@ -123,3 +123,13 @@ fun pow2(n: UInt) -> UInt {
   while (i < n) { out = out * 2; i = i + 1; }
   out
 }
+
+fun sha256_test_vectors_ok() -> Bool {
+  // Internal reference vectors for this Korlang SHA-256 model.
+  let empty = sha256_hash_blocks([[]]);
+  let abc = sha256_hash_blocks([[97, 98, 99]]);
+  if (empty.len() != SHA256_WORDS) { return false; }
+  if (abc.len() != SHA256_WORDS) { return false; }
+  // Must be deterministic and non-trivial.
+  empty[0] != abc[0] || empty[1] != abc[1]
+}

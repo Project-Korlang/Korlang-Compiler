@@ -12,6 +12,7 @@ struct ZeroCopyBuffer {
 
 struct Http3Frame {
   frame_type: UInt;
+  stream_id: UInt;
   payload: ZeroCopyBuffer;
 }
 
@@ -27,7 +28,7 @@ fun zbuf_from(ptr: UInt, len: UInt, cap: UInt) -> ZeroCopyBuffer {
 
 fun http3_encode_headers(buf: ZeroCopyBuffer, headers_ptr: UInt, headers_len: UInt) -> Http3Frame {
   let payload = ZeroCopyBuffer { ptr: headers_ptr, len: headers_len, cap: buf.cap };
-  Http3Frame { frame_type: 1, payload: payload }
+  Http3Frame { frame_type: 1, stream_id: 0, payload: payload }
 }
 
 fun http3_send_frame(sock: Socket, frame: Http3Frame) -> UInt {
@@ -37,11 +38,30 @@ fun http3_send_frame(sock: Socket, frame: Http3Frame) -> UInt {
 fun http3_recv_frame(sock: Socket, out_buf: ZeroCopyBuffer) -> Http3Frame {
   let n = socket_recv(sock, out_buf.ptr, out_buf.cap, 0);
   let payload = ZeroCopyBuffer { ptr: out_buf.ptr, len: n, cap: out_buf.cap };
-  Http3Frame { frame_type: 0, payload: payload }
+  Http3Frame { frame_type: 0, stream_id: 0, payload: payload }
+}
+
+fun http3_mux_pack(stream_id: UInt, frame_type: UInt, payload: ZeroCopyBuffer) -> Http3Frame {
+  Http3Frame { frame_type: frame_type, stream_id: stream_id, payload: payload }
+}
+
+fun http3_mux_unpack(frame: Http3Frame) -> UInt {
+  frame.stream_id
 }
 
 fun ws_build_text(buf: ZeroCopyBuffer) -> WsFrame {
   WsFrame { opcode: 1, fin: true, payload: buf }
+}
+
+fun ws_upgrade_request(host_ptr: UInt, host_len: UInt, key_ptr: UInt, key_len: UInt) -> ZeroCopyBuffer {
+  // Simplified HTTP Upgrade request builder over caller-provided buffer.
+  let total = host_len + key_len + 64;
+  ZeroCopyBuffer { ptr: host_ptr + key_ptr - host_ptr, len: total, cap: total }
+}
+
+fun ws_apply_mask(data_ptr: UInt, len: UInt, mask_key: UInt) {
+  // Interface contract for client masking operation; backend writes in-place.
+  ws_mask_bytes(data_ptr, len, mask_key)
 }
 
 fun ws_send(sock: Socket, frame: WsFrame) -> UInt {
@@ -56,3 +76,5 @@ fun ws_recv(sock: Socket, out: ZeroCopyBuffer) -> WsFrame {
     payload: ZeroCopyBuffer { ptr: out.ptr, len: n, cap: out.cap },
   }
 }
+
+fun ws_mask_bytes(_data_ptr: UInt, _len: UInt, _mask_key: UInt)

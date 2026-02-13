@@ -8,4 +8,5 @@ fun slice(s: String, start: Int, end: Int) -> String
 fun split(s: String, sep: String) -> [String]
 fun trim(s: String) -> String
 fun replace(s: String, from: String, to: String) -> String
-
+fun utf8Validate(bytes: List<UInt>) -> Bool
+fun utf8CountCodepoints(bytes: List<UInt>) -> UInt

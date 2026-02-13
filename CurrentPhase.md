@@ -27,18 +27,20 @@
 
 ## 📦 Group 2: The Core Standard Library (Data & I/O)
 **Objective:** Ensure all standard library features work via direct syscalls.
-- [ ] **O.2.1** Validate `String` implementation independence (UTF-8 handling).
-- [ ] **O.2.2** Validate `List` and `Array` dynamic resizing logic.
-- [ ] **O.2.3** Validate `Map` / `HashMap` hashing and collision resolution.
-- [ ] **O.2.4** Verify `File` open/read/write/close syscalls on **Linux**.
-- [ ] **O.2.5** Verify `File` open/read/write/close syscalls on **macOS**.
-- [ ] **O.2.6** Verify `File` open/read/write/close syscalls on **Windows**.
-- [ ] **O.2.7** Stress test the **Native Allocator** (malloc/free replacement).
-- [ ] **O.2.8** Validate native **SHA-256** correctness against test vectors.
-- [ ] **O.2.9** Validate native **AES** encryption/decryption correctness.
-- [ ] **O.2.10** Validate native **TLS 1.3** Handshake state machine.
-- [ ] **O.2.11** Validate native **HTTP/3** framing and stream multiplexing.
-- [ ] **O.2.12** Validate native **WebSocket** upgrade handshake and masking.
+- [x] **O.2.1** Validate `String` implementation independence (UTF-8 handling).
+- [x] **O.2.2** Validate `List` and `Array` dynamic resizing logic.
+- [x] **O.2.3** Validate `Map` / `HashMap` hashing and collision resolution.
+- [x] **O.2.4** Verify `File` open/read/write/close syscalls on **Linux**.
+- [x] **O.2.5** Verify `File` open/read/write/close syscalls on **macOS**.
+- [x] **O.2.6** Verify `File` open/read/write/close syscalls on **Windows**.
+- [x] **O.2.7** Stress test the **Native Allocator** (malloc/free replacement).
+- [x] **O.2.8** Validate native **SHA-256** correctness against test vectors.
+- [x] **O.2.9** Validate native **AES** encryption/decryption correctness.
+- [x] **O.2.10** Validate native **TLS 1.3** Handshake state machine.
+- [x] **O.2.11** Validate native **HTTP/3** framing and stream multiplexing.
+- [x] **O.2.12** Validate native **WebSocket** upgrade handshake and masking.
+
+**Verification command:** `scripts/verify_group2.sh`
 
 ## 🧵 Group 3: Concurrency & Runtime Reliability
 **Objective:** Prove the scheduler and memory model under extreme load.

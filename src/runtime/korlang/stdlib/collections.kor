@@ -1,0 +1,163 @@
+// Native Korlang runtime stdlib: dynamic arrays + hash map core
+
+module runtime.std.collections
+
+struct DynArrayUInt {
+  data: List<UInt>;
+  len: UInt;
+  cap: UInt;
+}
+
+struct HashEntryUInt {
+  key: UInt;
+  value: UInt;
+  used: Bool;
+  tomb: Bool;
+}
+
+struct HashMapUInt {
+  buckets: List<HashEntryUInt>;
+  len: UInt;
+  collisions: UInt;
+}
+
+fun dyn_new() -> DynArrayUInt {
+  DynArrayUInt { data: List.new(), len: 0, cap: 0 }
+}
+
+fun dyn_reserve(a: DynArrayUInt, need: UInt) {
+  if (a.cap >= need) { return; }
+  let new_cap = if (a.cap == 0) { 8 } else { a.cap };
+  while (new_cap < need) {
+    new_cap = new_cap * 2;
+  }
+  // Logical capacity tracking; underlying List handles storage.
+  a.cap = new_cap;
+}
+
+fun dyn_push(a: DynArrayUInt, v: UInt) {
+  dyn_reserve(a, a.len + 1);
+  a.data.push(v);
+  a.len = a.len + 1;
+}
+
+fun dyn_get(a: DynArrayUInt, i: UInt) -> UInt? {
+  if (i >= a.len) { return null; }
+  a.data[i]
+}
+
+fun dyn_pop(a: DynArrayUInt) -> UInt? {
+  if (a.len == 0) { return null; }
+  a.len = a.len - 1;
+  a.data.pop()
+}
+
+fun map_new(min_cap: UInt) -> HashMapUInt {
+  let cap = normalize_cap(min_cap);
+  let buckets = List.new();
+  let i = 0;
+  while (i < cap) {
+    buckets.push(HashEntryUInt { key: 0, value: 0, used: false, tomb: false });
+    i = i + 1;
+  }
+  HashMapUInt { buckets: buckets, len: 0, collisions: 0 }
+}
+
+fun map_insert(m: HashMapUInt, key: UInt, value: UInt) -> UInt? {
+  if ((m.len + 1) * 100 >= m.buckets.len() * 70) {
+    map_rehash(m, m.buckets.len() * 2);
+  }
+  let cap = m.buckets.len();
+  let idx = hash_u64(key) % cap;
+  let first_tomb = null;
+  let step = 0;
+  while (step < cap) {
+    let slot = (idx + step) % cap;
+    let e = m.buckets[slot];
+    if (!e.used) {
+      let ins = if (first_tomb != null) { first_tomb } else { slot };
+      m.buckets[ins] = HashEntryUInt { key: key, value: value, used: true, tomb: false };
+      m.len = m.len + 1;
+      return null;
+    }
+    if (e.tomb) {
+      if (first_tomb == null) { first_tomb = slot; }
+    } else if (e.key == key) {
+      let old = e.value;
+      m.buckets[slot] = HashEntryUInt { key: key, value: value, used: true, tomb: false };
+      return old;
+    } else {
+      m.collisions = m.collisions + 1;
+    }
+    step = step + 1;
+  }
+  null
+}
+
+fun map_get(m: HashMapUInt, key: UInt) -> UInt? {
+  let cap = m.buckets.len();
+  let idx = hash_u64(key) % cap;
+  let step = 0;
+  while (step < cap) {
+    let slot = (idx + step) % cap;
+    let e = m.buckets[slot];
+    if (!e.used && !e.tomb) { return null; }
+    if (e.used && !e.tomb && e.key == key) { return e.value; }
+    step = step + 1;
+  }
+  null
+}
+
+fun map_remove(m: HashMapUInt, key: UInt) -> UInt? {
+  let cap = m.buckets.len();
+  let idx = hash_u64(key) % cap;
+  let step = 0;
+  while (step < cap) {
+    let slot = (idx + step) % cap;
+    let e = m.buckets[slot];
+    if (!e.used && !e.tomb) { return null; }
+    if (e.used && !e.tomb && e.key == key) {
+      m.buckets[slot] = HashEntryUInt { key: e.key, value: e.value, used: false, tomb: true };
+      m.len = m.len - 1;
+      return e.value;
+    }
+    step = step + 1;
+  }
+  null
+}
+
+fun map_rehash(m: HashMapUInt, new_cap: UInt) {
+  let old = m.buckets;
+  let cap = normalize_cap(new_cap);
+  let buckets = List.new();
+  let i = 0;
+  while (i < cap) {
+    buckets.push(HashEntryUInt { key: 0, value: 0, used: false, tomb: false });
+    i = i + 1;
+  }
+  m.buckets = buckets;
+  m.len = 0;
+
+  let j = 0;
+  while (j < old.len()) {
+    let e = old[j];
+    if (e.used && !e.tomb) {
+      map_insert(m, e.key, e.value);
+    }
+    j = j + 1;
+  }
+}
+
+fun hash_u64(v: UInt) -> UInt {
+  // SplitMix64-style mix, good avalanche for integer keys.
+  let x = v + 0x9E3779B97F4A7C15;
+  let y = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9;
+  let z = (y ^ (y >> 27)) * 0x94D049BB133111EB;
+  z ^ (z >> 31)
+}
+
+fun normalize_cap(v: UInt) -> UInt {
+  let c = 8;
+  while (c < v) { c = c * 2; }
+  c
+}

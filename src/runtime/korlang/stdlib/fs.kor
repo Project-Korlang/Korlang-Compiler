@@ -1,9 +1,112 @@
-// Native Korlang runtime stdlib: filesystem stubs
+// Native Korlang runtime stdlib: filesystem via direct syscall wrappers
 
 module runtime.std.fs
 
-// Placeholder for future direct syscall-based FS operations.
+import runtime.syscall.dispatcher
 
-fun exists(_path_ptr: UInt, _len: UInt) -> Bool { false }
-fun open_read(_path_ptr: UInt, _len: UInt) -> Int { -1 }
-fun open_write(_path_ptr: UInt, _len: UInt) -> Int { -1 }
+// Linux syscalls
+const LINUX_SYS_OPENAT: UInt = 257;
+const LINUX_SYS_READ: UInt = 0;
+const LINUX_SYS_WRITE: UInt = 1;
+const LINUX_SYS_CLOSE: UInt = 3;
+
+// Darwin syscalls
+const DARWIN_SYS_OPEN: UInt = 5;
+const DARWIN_SYS_READ: UInt = 3;
+const DARWIN_SYS_WRITE: UInt = 4;
+const DARWIN_SYS_CLOSE: UInt = 6;
+
+// Windows NT syscalls (placeholder IDs; wrapper path is explicit)
+const NT_CREATE_FILE: UInt = 0x55;
+const NT_READ_FILE: UInt = 0x06;
+const NT_WRITE_FILE: UInt = 0x08;
+const NT_CLOSE: UInt = 0x0F;
+
+const AT_FDCWD: UInt = 0xFFFFFFFFFFFFFFFF;
+const O_RDONLY: UInt = 0;
+const O_WRONLY: UInt = 1;
+const O_CREAT_TRUNC: UInt = 577; // O_WRONLY|O_CREAT|O_TRUNC on Linux baseline
+
+fun exists(path_ptr: UInt, len: UInt) -> Bool {
+  let fd = open_read(path_ptr, len);
+  if (fd < 0) { return false; }
+  close_fd(fd);
+  true
+}
+
+fun open_read(path_ptr: UInt, len: UInt) -> Int {
+  let os = sys_os();
+  if (os == "linux") { return linux_open(path_ptr, len, O_RDONLY); }
+  if (os == "macos") { return darwin_open(path_ptr, len, O_RDONLY); }
+  windows_open(path_ptr, len, O_RDONLY)
+}
+
+fun open_write(path_ptr: UInt, len: UInt) -> Int {
+  let os = sys_os();
+  if (os == "linux") { return linux_open(path_ptr, len, O_CREAT_TRUNC); }
+  if (os == "macos") { return darwin_open(path_ptr, len, O_CREAT_TRUNC); }
+  windows_open(path_ptr, len, O_CREAT_TRUNC)
+}
+
+fun read_fd(fd: Int, ptr: UInt, len: UInt) -> Int {
+  let os = sys_os();
+  if (os == "linux") { return linux_read(fd, ptr, len); }
+  if (os == "macos") { return darwin_read(fd, ptr, len); }
+  windows_read(fd, ptr, len)
+}
+
+fun write_fd(fd: Int, ptr: UInt, len: UInt) -> Int {
+  let os = sys_os();
+  if (os == "linux") { return linux_write(fd, ptr, len); }
+  if (os == "macos") { return darwin_write(fd, ptr, len); }
+  windows_write(fd, ptr, len)
+}
+
+fun close_fd(fd: Int) -> Int {
+  let os = sys_os();
+  if (os == "linux") { return linux_close(fd); }
+  if (os == "macos") { return darwin_close(fd); }
+  windows_close(fd)
+}
+
+fun linux_open(path_ptr: UInt, _len: UInt, flags: UInt) -> Int {
+  dispatcher.syscall4(LINUX_SYS_OPENAT, AT_FDCWD, path_ptr, flags, 420)
+}
+fun linux_read(fd: Int, ptr: UInt, len: UInt) -> Int {
+  dispatcher.syscall3(LINUX_SYS_READ, fd, ptr, len)
+}
+fun linux_write(fd: Int, ptr: UInt, len: UInt) -> Int {
+  dispatcher.syscall3(LINUX_SYS_WRITE, fd, ptr, len)
+}
+fun linux_close(fd: Int) -> Int {
+  dispatcher.syscall1(LINUX_SYS_CLOSE, fd)
+}
+
+fun darwin_open(path_ptr: UInt, _len: UInt, flags: UInt) -> Int {
+  dispatcher.syscall3(DARWIN_SYS_OPEN, path_ptr, flags, 420)
+}
+fun darwin_read(fd: Int, ptr: UInt, len: UInt) -> Int {
+  dispatcher.syscall3(DARWIN_SYS_READ, fd, ptr, len)
+}
+fun darwin_write(fd: Int, ptr: UInt, len: UInt) -> Int {
+  dispatcher.syscall3(DARWIN_SYS_WRITE, fd, ptr, len)
+}
+fun darwin_close(fd: Int) -> Int {
+  dispatcher.syscall1(DARWIN_SYS_CLOSE, fd)
+}
+
+fun windows_open(path_ptr: UInt, len: UInt, flags: UInt) -> Int {
+  // Routed to NT wrapper signature placeholders.
+  dispatcher.syscall6(NT_CREATE_FILE, path_ptr, len, flags, 0, 0, 0)
+}
+fun windows_read(fd: Int, ptr: UInt, len: UInt) -> Int {
+  dispatcher.syscall4(NT_READ_FILE, fd, ptr, len, 0)
+}
+fun windows_write(fd: Int, ptr: UInt, len: UInt) -> Int {
+  dispatcher.syscall4(NT_WRITE_FILE, fd, ptr, len, 0)
+}
+fun windows_close(fd: Int) -> Int {
+  dispatcher.syscall1(NT_CLOSE, fd)
+}
+
+fun sys_os() -> String

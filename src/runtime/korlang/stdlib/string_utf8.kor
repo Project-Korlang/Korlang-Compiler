@@ -1,0 +1,68 @@
+// Native Korlang runtime stdlib: UTF-8 helpers
+
+module runtime.std.string_utf8
+
+fun utf8_validate(bytes: List<UInt>) -> Bool {
+  let i = 0;
+  while (i < bytes.len()) {
+    let c = bytes[i];
+    if (c < 0x80) {
+      i = i + 1;
+      continue;
+    }
+    if (c >= 0xC2 && c <= 0xDF) {
+      if (!utf8_cont(bytes, i + 1)) { return false; }
+      i = i + 2;
+      continue;
+    }
+    if (c >= 0xE0 && c <= 0xEF) {
+      if (!utf8_cont(bytes, i + 1) || !utf8_cont(bytes, i + 2)) { return false; }
+      i = i + 3;
+      continue;
+    }
+    if (c >= 0xF0 && c <= 0xF4) {
+      if (!utf8_cont(bytes, i + 1) || !utf8_cont(bytes, i + 2) || !utf8_cont(bytes, i + 3)) { return false; }
+      i = i + 4;
+      continue;
+    }
+    return false;
+  }
+  true
+}
+
+fun utf8_count_codepoints(bytes: List<UInt>) -> UInt {
+  let i = 0;
+  let count = 0;
+  while (i < bytes.len()) {
+    let c = bytes[i];
+    if (c < 0x80) { i = i + 1; count = count + 1; continue; }
+    if (c >= 0xC2 && c <= 0xDF && utf8_cont(bytes, i + 1)) { i = i + 2; count = count + 1; continue; }
+    if (c >= 0xE0 && c <= 0xEF && utf8_cont(bytes, i + 1) && utf8_cont(bytes, i + 2)) { i = i + 3; count = count + 1; continue; }
+    if (c >= 0xF0 && c <= 0xF4 && utf8_cont(bytes, i + 1) && utf8_cont(bytes, i + 2) && utf8_cont(bytes, i + 3)) { i = i + 4; count = count + 1; continue; }
+    // Invalid byte: advance one to avoid infinite loops.
+    i = i + 1;
+  }
+  count
+}
+
+fun utf8_decode_next(bytes: List<UInt>, i: UInt) -> UInt {
+  if (i >= bytes.len()) { return 0xFFFFFFFF; }
+  let c = bytes[i];
+  if (c < 0x80) { return c; }
+  if (c >= 0xC2 && c <= 0xDF && utf8_cont(bytes, i + 1)) {
+    return ((c & 0x1F) << 6) | (bytes[i + 1] & 0x3F);
+  }
+  if (c >= 0xE0 && c <= 0xEF && utf8_cont(bytes, i + 1) && utf8_cont(bytes, i + 2)) {
+    return ((c & 0x0F) << 12) | ((bytes[i + 1] & 0x3F) << 6) | (bytes[i + 2] & 0x3F);
+  }
+  if (c >= 0xF0 && c <= 0xF4 && utf8_cont(bytes, i + 1) && utf8_cont(bytes, i + 2) && utf8_cont(bytes, i + 3)) {
+    return ((c & 0x07) << 18) | ((bytes[i + 1] & 0x3F) << 12) | ((bytes[i + 2] & 0x3F) << 6) | (bytes[i + 3] & 0x3F);
+  }
+  0xFFFFFFFF
+}
+
+fun utf8_cont(bytes: List<UInt>, i: UInt) -> Bool {
+  if (i >= bytes.len()) { return false; }
+  let c = bytes[i];
+  c >= 0x80 && c <= 0xBF
+}
