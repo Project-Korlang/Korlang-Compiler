@@ -1,0 +1,57 @@
+// Phase Omega Group 4: native image decoding helpers (PNG/JPG)
+
+module runtime.graphics.image_decode
+
+struct ImageHeader {
+  kind: String;
+  width: UInt;
+  height: UInt;
+}
+
+fun decode_png_header(bytes: List<UInt>) -> ImageHeader {
+  if (bytes.len() < 24) { return ImageHeader { kind: "none", width: 0, height: 0 }; }
+  if (!(bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47)) {
+    return ImageHeader { kind: "none", width: 0, height: 0 };
+  }
+  let w = be_u32(bytes, 16);
+  let h = be_u32(bytes, 20);
+  ImageHeader { kind: "png", width: w, height: h }
+}
+
+fun decode_jpg_header(bytes: List<UInt>) -> ImageHeader {
+  if (bytes.len() < 10) { return ImageHeader { kind: "none", width: 0, height: 0 }; }
+  if (!(bytes[0] == 0xFF && bytes[1] == 0xD8)) {
+    return ImageHeader { kind: "none", width: 0, height: 0 };
+  }
+  let i = 2;
+  while (i + 8 < bytes.len()) {
+    if (bytes[i] != 0xFF) { i = i + 1; continue; }
+    let marker = bytes[i + 1];
+    if (marker == 0xC0 || marker == 0xC2) {
+      let h = be_u16(bytes, i + 5);
+      let w = be_u16(bytes, i + 7);
+      return ImageHeader { kind: "jpg", width: w, height: h };
+    }
+    if (i + 3 >= bytes.len()) { break; }
+    let seg = be_u16(bytes, i + 2);
+    if (seg < 2) { break; }
+    i = i + seg + 2;
+  }
+  ImageHeader { kind: "none", width: 0, height: 0 }
+}
+
+fun decode_image_header(bytes: List<UInt>) -> ImageHeader {
+  let png = decode_png_header(bytes);
+  if (png.kind == "png") { return png; }
+  decode_jpg_header(bytes)
+}
+
+fun be_u16(bytes: List<UInt>, i: UInt) -> UInt {
+  if (i + 1 >= bytes.len()) { return 0; }
+  (bytes[i] << 8) | bytes[i + 1]
+}
+
+fun be_u32(bytes: List<UInt>, i: UInt) -> UInt {
+  if (i + 3 >= bytes.len()) { return 0; }
+  (bytes[i] << 24) | (bytes[i + 1] << 16) | (bytes[i + 2] << 8) | bytes[i + 3]
+}

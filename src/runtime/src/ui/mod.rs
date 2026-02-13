@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::process::Command;
 
 pub type ViewId = u64;
 
@@ -96,26 +95,88 @@ fn find_path(node: &ViewNode, target: &str, out: &mut Vec<ViewId>) -> bool {
     false
 }
 
+pub fn apply_diff(root: &mut ViewNode, ops: &[DiffOp]) {
+    for op in ops {
+        apply_one(root, op);
+    }
+}
+
+fn apply_one(root: &mut ViewNode, op: &DiffOp) {
+    match op {
+        DiffOp::Replace { id, node } => {
+            if let Some(slot) = find_node_mut(root, *id) {
+                *slot = node.clone();
+            }
+        }
+        DiffOp::UpdateProps { id, props } => {
+            if let Some(slot) = find_node_mut(root, *id) {
+                slot.props = props.clone();
+            }
+        }
+        DiffOp::InsertChild { parent, index, node } => {
+            if let Some(slot) = find_node_mut(root, *parent) {
+                let idx = (*index).min(slot.children.len());
+                slot.children.insert(idx, node.clone());
+            }
+        }
+        DiffOp::RemoveChild { parent, index } => {
+            if let Some(slot) = find_node_mut(root, *parent) {
+                if *index < slot.children.len() {
+                    slot.children.remove(*index);
+                }
+            }
+        }
+    }
+}
+
+fn find_node_mut(node: &mut ViewNode, id: ViewId) -> Option<&mut ViewNode> {
+    if node.id == id {
+        return Some(node);
+    }
+    for child in &mut node.children {
+        if let Some(found) = find_node_mut(child, id) {
+            return Some(found);
+        }
+    }
+    None
+}
+
 pub mod components;
-pub mod style;
+pub mod event_loop;
+pub mod glyph;
+pub mod image;
+pub mod layout;
 pub mod render;
+pub mod style;
 
 #[no_mangle]
 pub extern "C" fn korlang_ui_demo_window() -> i64 {
-    let py = r#"
-import tkinter as tk
-root = tk.Tk()
-root.title('Korlang UI')
-root.geometry('420x180')
-label = tk.Label(root, text='Korlang UI is running', font=('Arial', 16))
-label.pack(expand=True)
-root.after(3000, root.destroy)
-root.mainloop()
-"#;
+    // Native-only stub for environments where a real window backend is not linked.
+    0
+}
 
-    match Command::new("python3").arg("-c").arg(py).status() {
-        Ok(status) if status.success() => 0,
-        Ok(_) => -1,
-        Err(_) => -1,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn o4_6_scenegraph_diff_and_patch() {
+        let mut old = ViewNode::new(1, ViewNodeKind::VStack);
+        old.children.push(ViewNode::new(2, ViewNodeKind::Text));
+
+        let mut new = ViewNode::new(1, ViewNodeKind::VStack);
+        let mut text = ViewNode::new(2, ViewNodeKind::Text);
+        text.props.insert("value".into(), "hello".into());
+        new.children.push(text);
+        new.children.push(ViewNode::new(3, ViewNodeKind::Button));
+
+        let mut ops = Vec::new();
+        diff(&old, &new, &mut ops);
+        assert!(!ops.is_empty(), "expected non-empty diff ops");
+
+        apply_diff(&mut old, &ops);
+        assert_eq!(old.children.len(), 2);
+        assert_eq!(old.children[0].props.get("value").map(String::as_str), Some("hello"));
+        assert_eq!(old.children[1].id, 3);
     }
 }

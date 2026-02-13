@@ -59,11 +59,11 @@ fn collect_locals(block: &Block, locals: &mut HashSet<String>) {
 fn mark_escapes_in_block(block: &Block, res: &mut EscapeResult, locals: &HashSet<String>) {
     for stmt in &block.stmts {
         match stmt {
-            Stmt::Return(Some(expr), _) => mark_escapes(expr, res, locals),
-            Stmt::Var(v) => mark_escapes(&v.value, res, locals),
-            Stmt::Expr(e, _) => mark_escapes(e, res, locals),
+            Stmt::Return(Some(expr), _) => mark_escapes(expr, res, locals, true),
+            Stmt::Var(v) => mark_escapes(&v.value, res, locals, false),
+            Stmt::Expr(e, _) => mark_escapes(e, res, locals, false),
             Stmt::If(cond, b, o, _) => {
-                mark_escapes(cond, res, locals);
+                mark_escapes(cond, res, locals, false);
                 mark_escapes_in_block(b, res, locals);
                 if let Some(s) = o {
                     if let Stmt::Block(b) = &**s {
@@ -72,17 +72,17 @@ fn mark_escapes_in_block(block: &Block, res: &mut EscapeResult, locals: &HashSet
                 }
             }
             Stmt::While(cond, b, _) => {
-                mark_escapes(cond, res, locals);
+                mark_escapes(cond, res, locals, false);
                 mark_escapes_in_block(b, res, locals);
             }
             Stmt::For(_, iter, b, _) => {
-                mark_escapes(iter, res, locals);
+                mark_escapes(iter, res, locals, false);
                 mark_escapes_in_block(b, res, locals);
             }
             Stmt::Match(e, arms, _) => {
-                mark_escapes(e, res, locals);
+                mark_escapes(e, res, locals, false);
                 for arm in arms {
-                    mark_escapes(&arm.body, res, locals);
+                    mark_escapes(&arm.body, res, locals, false);
                 }
             }
             Stmt::Block(b) => mark_escapes_in_block(b, res, locals),
@@ -90,69 +90,69 @@ fn mark_escapes_in_block(block: &Block, res: &mut EscapeResult, locals: &HashSet
         }
     }
     if let Some(tail) = &block.tail {
-        mark_escapes(tail, res, locals);
+        mark_escapes(tail, res, locals, false);
     }
 }
 
-fn mark_escapes(expr: &Expr, res: &mut EscapeResult, locals: &HashSet<String>) {
+fn mark_escapes(expr: &Expr, res: &mut EscapeResult, locals: &HashSet<String>, should_mark: bool) {
     match expr {
         Expr::Ident(name, _) => {
-            if locals.contains(name) {
+            if should_mark && locals.contains(name) {
                 res.escapes.insert(name.clone());
             }
         }
         Expr::Call { callee, args, .. } => {
-            mark_escapes(callee, res, locals);
+            mark_escapes(callee, res, locals, false);
             for a in args {
-                mark_escapes(a, res, locals);
+                mark_escapes(a, res, locals, true);
             }
         }
         Expr::StructLit { fields, .. } => {
             for (_, value) in fields {
-                mark_escapes(value, res, locals);
+                mark_escapes(value, res, locals, should_mark);
             }
         }
-        Expr::Member { target, .. } => mark_escapes(target, res, locals),
+        Expr::Member { target, .. } => mark_escapes(target, res, locals, should_mark),
         Expr::Index { target, index, .. } => {
-            mark_escapes(target, res, locals);
-            mark_escapes(index, res, locals);
+            mark_escapes(target, res, locals, should_mark);
+            mark_escapes(index, res, locals, should_mark);
         }
-        Expr::Unary { expr, .. } => mark_escapes(expr, res, locals),
+        Expr::Unary { expr, .. } => mark_escapes(expr, res, locals, should_mark),
         Expr::Binary { left, right, .. } => {
-            mark_escapes(left, res, locals);
-            mark_escapes(right, res, locals);
+            mark_escapes(left, res, locals, should_mark);
+            mark_escapes(right, res, locals, should_mark);
         }
         Expr::Assign { left, right, .. } => {
-            mark_escapes(left, res, locals);
-            mark_escapes(right, res, locals);
+            mark_escapes(left, res, locals, should_mark);
+            mark_escapes(right, res, locals, should_mark);
         }
         Expr::If { cond, then_block, else_block, .. } => {
-            mark_escapes(cond, res, locals);
+            mark_escapes(cond, res, locals, should_mark);
             mark_escapes_in_block(then_block, res, locals);
             mark_escapes_in_block(else_block, res, locals);
         }
         Expr::Match { expr, arms, .. } => {
-            mark_escapes(expr, res, locals);
+            mark_escapes(expr, res, locals, should_mark);
             for arm in arms {
-                mark_escapes(&arm.body, res, locals);
+                mark_escapes(&arm.body, res, locals, should_mark);
             }
         }
         Expr::Block(b) => mark_escapes_in_block(b, res, locals),
         Expr::Array(items, _) => {
             for it in items {
-                mark_escapes(it, res, locals);
+                mark_escapes(it, res, locals, true);
             }
         }
         Expr::Tensor(rows, _) => {
             for row in rows {
                 for it in row {
-                    mark_escapes(it, res, locals);
+                    mark_escapes(it, res, locals, true);
                 }
             }
         }
         Expr::Interpolated { parts, .. } => {
             for p in parts {
-                mark_escapes(p, res, locals);
+                mark_escapes(p, res, locals, should_mark);
             }
         }
         _ => {}

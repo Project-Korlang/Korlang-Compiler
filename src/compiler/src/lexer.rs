@@ -210,6 +210,21 @@ impl<'a> Lexer<'a> {
                 .map_err(|_| Diagnostic::new("invalid hex literal", Span::new(start_pos, self.position())))?;
             return Ok(Token { kind: TokenKind::IntLiteral(v), span: Span::new(start_pos, self.position()) });
         }
+        if self.peek() == '0' && (self.peek_next() == 'b' || self.peek_next() == 'B') {
+            self.advance();
+            self.advance();
+            let bin_start = self.pos;
+            while !self.is_eof() && matches!(self.peek(), '0' | '1') {
+                self.advance();
+            }
+            if bin_start == self.pos {
+                return Err(Diagnostic::new("invalid binary literal", Span::new(start_pos, self.position())));
+            }
+            let s: String = self.chars[bin_start..self.pos].iter().collect();
+            let v = i64::from_str_radix(&s, 2)
+                .map_err(|_| Diagnostic::new("invalid binary literal", Span::new(start_pos, self.position())))?;
+            return Ok(Token { kind: TokenKind::IntLiteral(v), span: Span::new(start_pos, self.position()) });
+        }
         while !self.is_eof() && self.peek().is_ascii_digit() {
             self.advance();
         }
@@ -438,35 +453,60 @@ impl<'a> Lexer<'a> {
 
     fn skip_whitespace_and_comments(&mut self) {
         loop {
-            while !self.is_eof() && self.peek().is_whitespace() {
-                self.advance();
-            }
+            let before = self.pos;
+            self.skip_whitespace();
             if self.is_eof() {
                 return;
             }
-            if self.peek() == '/' && self.peek_next() == '/' {
-                self.advance();
-                self.advance();
-                while !self.is_eof() && self.peek() != '\n' {
-                    self.advance();
-                }
+            if self.skip_comment() {
                 continue;
             }
-            if self.peek() == '/' && self.peek_next() == '*' {
+            if before == self.pos {
+                break;
+            }
+        }
+    }
+
+    fn skip_whitespace(&mut self) {
+        while !self.is_eof() && self.peek().is_whitespace() {
+            self.advance();
+        }
+    }
+
+    fn skip_comment(&mut self) -> bool {
+        if self.peek() == '/' && self.peek_next() == '/' {
+            self.advance();
+            self.advance();
+            while !self.is_eof() && self.peek() != '\n' {
                 self.advance();
-                self.advance();
-                while !self.is_eof() {
-                    if self.peek() == '*' && self.peek_next() == '/' {
-                        self.advance();
-                        self.advance();
+            }
+            return true;
+        }
+        if self.peek() == '/' && self.peek_next() == '*' {
+            self.advance();
+            self.advance();
+            let mut depth = 1;
+            while !self.is_eof() {
+                if self.peek() == '/' && self.peek_next() == '*' {
+                    depth += 1;
+                    self.advance();
+                    self.advance();
+                    continue;
+                }
+                if self.peek() == '*' && self.peek_next() == '/' {
+                    self.advance();
+                    self.advance();
+                    depth -= 1;
+                    if depth == 0 {
                         break;
                     }
-                    self.advance();
+                    continue;
                 }
-                continue;
+                self.advance();
             }
-            break;
+            return true;
         }
+        false
     }
 
     fn is_eof(&self) -> bool {
@@ -474,14 +514,20 @@ impl<'a> Lexer<'a> {
     }
 
     fn peek(&self) -> char {
-        self.chars[self.pos]
+        self.chars.get(self.pos).copied().unwrap_or('\0')
     }
 
     fn peek_next(&self) -> char {
-        if self.pos + 1 >= self.chars.len() {
-            '\0'
+        self.chars.get(self.pos + 1).copied().unwrap_or('\0')
+    }
+
+    fn next_char(&mut self) -> Option<char> {
+        if self.is_eof() {
+            None
         } else {
-            self.chars[self.pos + 1]
+            let c = self.peek();
+            self.advance();
+            Some(c)
         }
     }
 
@@ -509,5 +555,138 @@ impl<'a> Lexer<'a> {
             resume_string,
             depth: 0,
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lexer_layout_matches_expected() {
+        let source = "abc";
+        let lexer = Lexer::new(source);
+        assert_eq!(lexer.src, source);
+        assert_eq!(lexer.chars.len(), source.chars().count());
+        assert_eq!(lexer.pos, 0);
+        assert_eq!(lexer.line, 1);
+        assert_eq!(lexer.col, 1);
+    }
+
+    #[test]
+    fn next_char_reads_utf8() {
+        let mut lexer = Lexer::new("\né");
+        assert_eq!(lexer.next_char(), Some('\n'));
+        assert_eq!(lexer.line, 2);
+        assert_eq!(lexer.col, 1);
+        assert_eq!(lexer.next_char(), Some('é'));
+        assert!(lexer.is_eof());
+    }
+
+    #[test]
+    fn peek_returns_zero_at_eof() {
+        let lexer = Lexer::new("");
+        assert_eq!(lexer.peek(), '\0');
+        assert_eq!(lexer.peek_next(), '\0');
+    }
+
+    #[test]
+    fn skip_whitespace_handles_spaces_tabs_newlines() {
+        let mut lexer = Lexer::new(" \t\nfoo");
+        lexer.skip_whitespace();
+        assert_eq!(lexer.peek(), 'f');
+        assert_eq!(lexer.line, 2);
+        assert_eq!(lexer.col, 1);
+    }
+
+    #[test]
+    fn skip_comment_handles_line_comment() {
+        let mut lexer = Lexer::new("// comment\nnext");
+        assert!(lexer.skip_comment());
+        assert_eq!(lexer.peek(), '\n');
+    }
+
+    fn tokens(src: &str) -> Vec<Token> {
+        Lexer::new(src).tokenize().unwrap()
+    }
+
+    fn has_keyword(tokens: &[Token], keyword: &str) -> bool {
+        tokens.iter().any(|t| matches!(t.kind, TokenKind::Keyword(k) if k == keyword))
+    }
+
+    fn has_identifier(tokens: &[Token], name: &str) -> bool {
+        tokens.iter().any(|t| matches!(t.kind, TokenKind::Identifier(ref s) if s == name))
+    }
+
+    fn has_int_literal(tokens: &[Token], value: i64) -> bool {
+        tokens.iter().any(|t| matches!(t.kind, TokenKind::IntLiteral(v) if v == value))
+    }
+
+    fn has_float_literal(tokens: &[Token], value: f64) -> bool {
+        tokens.iter().any(|t| matches!(t.kind, TokenKind::FloatLiteral(v) if (v - value).abs() < f64::EPSILON))
+    }
+
+    fn has_string_literal(tokens: &[Token], value: &str) -> bool {
+        tokens.iter().any(|t| matches!(t.kind, TokenKind::StringLiteral(ref s) if s == value))
+    }
+
+    #[test]
+    fn skip_multiline_comment() {
+        let tokens = tokens("/* comment */ fun main() -> Int {}");
+        assert!(has_keyword(&tokens, "fun"));
+    }
+
+    #[test]
+    fn skip_nested_multiline_comment() {
+        let tokens = tokens("/* outer /* inner */ outer */ fun main() -> Int {}");
+        assert!(has_keyword(&tokens, "fun"));
+    }
+
+    #[test]
+    fn identifier_parsing() {
+        let tokens = tokens("myIdentifier");
+        assert!(has_identifier(&tokens, "myIdentifier"));
+    }
+
+    #[test]
+    fn integer_decimal_parsing() {
+        let tokens = tokens("12345");
+        assert!(has_int_literal(&tokens, 12345));
+    }
+
+    #[test]
+    fn integer_hex_parsing() {
+        let tokens = tokens("0x2A");
+        assert!(has_int_literal(&tokens, 42));
+    }
+
+    #[test]
+    fn integer_binary_parsing() {
+        let tokens = tokens("0b1010");
+        assert!(has_int_literal(&tokens, 10));
+    }
+
+    #[test]
+    fn float_standard_parsing() {
+        let tokens = tokens("1.5");
+        assert!(has_float_literal(&tokens, 1.5));
+    }
+
+    #[test]
+    fn float_scientific_parsing() {
+        let tokens = tokens("1e3");
+        assert!(has_float_literal(&tokens, 1e3));
+    }
+
+    #[test]
+    fn string_literal_parsing() {
+        let tokens = tokens("\"hello\"");
+        assert!(has_string_literal(&tokens, "hello"));
+    }
+
+    #[test]
+    fn string_escape_sequences() {
+        let tokens = tokens("\"line\\n\\t\\r\\\\\\\"end\"");
+        assert!(has_string_literal(&tokens, "line\n\t\r\\\"end"));
     }
 }
