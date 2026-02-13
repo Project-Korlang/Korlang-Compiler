@@ -59,6 +59,50 @@ pub struct MpmcChannel<T> {
     cv: Condvar,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::SpscChannel;
+    use std::sync::Arc;
+    use std::thread;
+
+    #[test]
+    fn o3_5_wait_free_queue_integrity_under_contention() {
+        let ch = Arc::new(SpscChannel::with_capacity(1024));
+        let total = 200_000usize;
+        let producer = {
+            let ch = Arc::clone(&ch);
+            thread::spawn(move || {
+                for i in 0..total {
+                    loop {
+                        if ch.send(i).is_ok() {
+                            break;
+                        }
+                        std::hint::spin_loop();
+                    }
+                }
+            })
+        };
+
+        let consumer = {
+            let ch = Arc::clone(&ch);
+            thread::spawn(move || {
+                let mut next = 0usize;
+                while next < total {
+                    if let Some(v) = ch.recv() {
+                        assert_eq!(v, next, "out-of-order or corrupted queue element");
+                        next += 1;
+                    } else {
+                        std::hint::spin_loop();
+                    }
+                }
+            })
+        };
+
+        producer.join().unwrap();
+        consumer.join().unwrap();
+    }
+}
+
 impl<T> MpmcChannel<T> {
     pub fn new() -> Self {
         Self {
@@ -83,4 +127,3 @@ impl<T> MpmcChannel<T> {
         }
     }
 }
-

@@ -48,3 +48,31 @@ pub fn stack_alloc(size: usize, align: usize) -> *mut u8 {
         unsafe { s.buf.as_mut_ptr().add(aligned_sp) }
     })
 }
+
+pub fn debug_snapshot() -> (usize, usize, usize) {
+    STACK.with(|state| {
+        let s = state.borrow();
+        (s.sp, s.buf.len(), s.frames.len())
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn o3_6_fiber_stack_grow_and_shrink() {
+        push_frame();
+        let (_, initial_buf, _) = debug_snapshot();
+        let p = stack_alloc(64 * 1024, 16);
+        assert!(!p.is_null());
+        let (sp_after_alloc, buf_after_alloc, _) = debug_snapshot();
+        assert!(sp_after_alloc >= 64 * 1024);
+        assert!(buf_after_alloc >= initial_buf);
+
+        pop_frame();
+        let (sp_after_pop, buf_after_pop, _) = debug_snapshot();
+        assert_eq!(sp_after_pop, 0);
+        assert!(buf_after_pop <= buf_after_alloc);
+    }
+}

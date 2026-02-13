@@ -29,3 +29,35 @@ pub fn roots_snapshot() -> Vec<*mut u8> {
     ROOTS.with(|r| r.borrow().clone())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::thread;
+
+    #[test]
+    fn o3_7_tls_isolation_between_threads() {
+        let a = Box::into_raw(Box::new(11u8)) as usize;
+        let b = Box::into_raw(Box::new(22u8)) as usize;
+
+        let t1 = thread::spawn(move || {
+            let a = a as *mut u8;
+            push_root(a);
+            assert_eq!(roots_snapshot().len(), 1);
+            let p = pop_root();
+            assert_eq!(p, a);
+            unsafe { drop(Box::from_raw(a)); }
+        });
+        let t2 = thread::spawn(move || {
+            let b = b as *mut u8;
+            push_root(b);
+            assert_eq!(roots_snapshot().len(), 1);
+            let p = pop_root();
+            assert_eq!(p, b);
+            unsafe { drop(Box::from_raw(b)); }
+        });
+
+        t1.join().unwrap();
+        t2.join().unwrap();
+        assert!(roots_snapshot().is_empty());
+    }
+}

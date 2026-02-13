@@ -44,14 +44,16 @@
 
 ## 🧵 Group 3: Concurrency & Runtime Reliability
 **Objective:** Prove the scheduler and memory model under extreme load.
-- [ ] **O.3.1** Stress test **M:N Scheduler** with 100,000 concurrent tasks.
-- [ ] **O.3.2** Verify **Work-Stealing** algorithm balances load across cores.
-- [ ] **O.3.3** Verify **Context Switching** preserves registers correctly (x86_64).
-- [ ] **O.3.4** Verify **Context Switching** preserves registers correctly (AArch64).
-- [ ] **O.3.5** Validate **Wait-Free Queue** data integrity under high contention.
-- [ ] **O.3.6** Verify **Fiber Stack** dynamic growth and shrinking logic.
-- [ ] **O.3.7** Validate **Thread-Local Storage (TLS)** isolation between tasks.
-- [ ] **O.3.8** Verify **Mutex** and **CondVar** behavior (deadlock freedom check).
+- [x] **O.3.1** Stress test **M:N Scheduler** with 100,000 concurrent tasks.
+- [x] **O.3.2** Verify **Work-Stealing** algorithm balances load across cores.
+- [x] **O.3.3** Verify **Context Switching** preserves registers correctly (x86_64).
+- [x] **O.3.4** Verify **Context Switching** preserves registers correctly (AArch64).
+- [x] **O.3.5** Validate **Wait-Free Queue** data integrity under high contention.
+- [x] **O.3.6** Verify **Fiber Stack** dynamic growth and shrinking logic.
+- [x] **O.3.7** Validate **Thread-Local Storage (TLS)** isolation between tasks.
+- [x] **O.3.8** Verify **Mutex** and **CondVar** behavior (deadlock freedom check).
+
+**Verification command:** `scripts/verify_group3.sh`
 
 ## 🎨 Group 4: Native UI & Graphics Engine
 **Objective:** Confirm the UI stack renders pixels without external windowing libraries.
