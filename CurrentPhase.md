@@ -93,9 +93,9 @@
 - [x] **O.6.1** Verify **Tensor** memory layout and stride compatibility.
 - [x] **O.6.2** Validate **SIMD** instruction emission for Tensor operations.
 - [x] **O.6.3** Verify **GPU Kernel JIT** dispatch and execution.
-- [ ] **O.6.4** Validate Cloud **`resource`** state file management and drift detection. *(No self-contained cloud example is available yet; leaving the checkbox pending until a `resource` state test exists.)*
+- [x] **O.6.4** Validate Cloud **`resource`** state file management and drift detection.
 
-**Verification command:** `scripts/verify_group6.sh` (builds `src/runtime`, compiles both `examples/verification/gpu_media_smoke.kor` and `network_crypto_smoke.kor` to ensure tensor/SIMD/GPU/kernel code paths compile, and emits the runtime warnings already documented. Cloud resource validation remains blocked pending a dedicated scenario.)
+**Verification command:** `scripts/verify_group6.sh` (builds `src/runtime`, runs the new `cloud::state` tests that persist JSON state files and detect drift via `props_hash`, then compiles both `examples/verification/gpu_media_smoke.kor` and `network_crypto_smoke.kor` to ensure tensor/SIMD/GPU/kernel code paths compile; warnings about unused items remain but the suite completes).
 
 ---
 

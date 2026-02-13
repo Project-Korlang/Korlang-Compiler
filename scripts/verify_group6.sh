@@ -13,6 +13,9 @@ echo "[group6] Building runtime"
 RUNTIME_MANIFEST="$ROOT/src/runtime/Cargo.toml"
 cargo build --manifest-path "$RUNTIME_MANIFEST" >/tmp/group6-runtime.log
 
+echo "[group6] Running cloud state tests"
+cargo test --manifest-path "$RUNTIME_MANIFEST" state >/tmp/group6-state-test.log
+
 TMP=$(mktemp -d)
 cleanup() {
   rm -rf "$TMP"
