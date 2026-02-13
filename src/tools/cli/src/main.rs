@@ -100,6 +100,45 @@ fn build(args: Vec<String>, run: bool) {
     };
     let target_dir = PathBuf::from(".korlang/target");
     let _ = fs::create_dir_all(&target_dir);
+    let cache_dir = target_dir.join("cache");
+    let _ = fs::create_dir_all(&cache_dir);
+    let lto_tag = match lto {
+        Some(LtoMode::Full) => "full",
+        Some(LtoMode::Thin) => "thin",
+        None => "none",
+    };
+    let pgo_use_tag = pgo_use
+        .as_ref()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "none".to_string());
+    let cache_key = format!(
+        "{}|input={}|static={}|lto={}|pgo-gen={}|pgo-use={}|run={}",
+        hash_str(&src),
+        input.display(),
+        static_link,
+        lto_tag,
+        pgo_generate,
+        pgo_use_tag,
+        run
+    );
+    let output_key = output.to_string_lossy().to_string();
+    let cache_file = cache_dir.join(format!("{}.cache", hash_str(&output_key)));
+    if cache_file.exists() && output.exists() {
+        if let Ok(prev) = fs::read_to_string(&cache_file) {
+            if prev == cache_key {
+                println!("Inputs unchanged; using incremental cache for {}", output.display());
+                if run {
+                    let run_status = run_cached_binary(&output, &run_args);
+                    if !run_status.success() {
+                        std::process::exit(run_status.code().unwrap_or(1));
+                    }
+                } else {
+                    println!("Cached artifact ready: {}", output.display());
+                }
+                return;
+            }
+        }
+    }
     let out_ll = target_dir.join(output.with_extension("ll").file_name().unwrap());
     let out_obj = target_dir.join(output.with_extension("o").file_name().unwrap());
     let tokens = match Lexer::new(&src).tokenize() {
@@ -150,6 +189,10 @@ fn build(args: Vec<String>, run: bool) {
         return;
     }
 
+    if let Some(parent) = output.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
     let link = build_link_command(&out_obj, &LinkerConfig {
         output: output.clone(),
         runtime_lib,
@@ -173,44 +216,13 @@ fn build(args: Vec<String>, run: bool) {
     match status {
         Ok(s) if s.success() => {
             if run {
-                let run_target = resolve_run_target(&output);
-                let mut cmd = Command::new(&run_target);
-                if !run_args.is_empty() {
-                    cmd.args(&run_args);
-                }
-                cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-                let mut child = match cmd.spawn() {
-                    Ok(c) => c,
-                    Err(e) => {
-                        eprintln!("failed to execute {}: {}", run_target.display(), e);
-                        std::process::exit(1);
-                    }
-                };
-                let out = child.stdout.take();
-                let err = child.stderr.take();
-                let out_thread = thread::spawn(move || {
-                    if let Some(mut r) = out {
-                        stream_pipe(&mut r, false);
-                    }
-                });
-                let err_thread = thread::spawn(move || {
-                    if let Some(mut r) = err {
-                        stream_pipe(&mut r, true);
-                    }
-                });
-                let run_status = match child.wait() {
-                    Ok(s) => s,
-                    Err(e) => {
-                        eprintln!("failed while waiting for child process: {}", e);
-                        std::process::exit(1);
-                    }
-                };
-                let _ = out_thread.join();
-                let _ = err_thread.join();
+                let run_status = run_cached_binary(&output, &run_args);
                 if !run_status.success() {
-                    let code = run_status.code().unwrap_or(1);
-                    std::process::exit(code);
+                    std::process::exit(run_status.code().unwrap_or(1));
                 }
+            }
+            if let Err(e) = fs::write(&cache_file, cache_key.clone()) {
+                eprintln!("warning: failed to update cache {}: {}", cache_file.display(), e);
             }
         }
         _ => {
@@ -260,6 +272,44 @@ fn stream_pipe<R: Read>(reader: &mut R, is_stderr: bool) {
             Err(_) => break,
         }
     }
+}
+
+fn run_cached_binary(output: &PathBuf, run_args: &[String]) -> std::process::ExitStatus {
+    let run_target = resolve_run_target(output);
+    let mut cmd = Command::new(&run_target);
+    if !run_args.is_empty() {
+        cmd.args(run_args);
+    }
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("failed to execute {}: {}", run_target.display(), e);
+            std::process::exit(1);
+        }
+    };
+    let out = child.stdout.take();
+    let err = child.stderr.take();
+    let out_thread = thread::spawn(move || {
+        if let Some(mut r) = out {
+            stream_pipe(&mut r, false);
+        }
+    });
+    let err_thread = thread::spawn(move || {
+        if let Some(mut r) = err {
+            stream_pipe(&mut r, true);
+        }
+    });
+    let status = match child.wait() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("failed while waiting for child process: {}", e);
+            std::process::exit(1);
+        }
+    };
+    let _ = out_thread.join();
+    let _ = err_thread.join();
+    status
 }
 
 fn resolve_source_with_imports(input: &Path) -> Result<String, String> {
@@ -322,12 +372,18 @@ fn resolve_import_path(base_dir: &Path, project_root: Option<&Path>, module: &st
     } else {
         PathBuf::from(module.replace('.', "/") + ".kor")
     };
-    let candidates = [
+    let mut candidates = vec![
         base_dir.join(&rel),
         project_root.map(|p| p.join("src").join(&rel)).unwrap_or_default(),
         project_root.map(|p| p.join(&rel)).unwrap_or_default(),
     ];
-    candidates.into_iter().find(|p| !p.as_os_str().is_empty() && p.exists())
+    if let Some(repo_root) = find_repo_root() {
+        candidates.push(repo_root.join("src/stdlib/core").join(&rel));
+        candidates.push(repo_root.join("src/runtime/korlang/stdlib").join(&rel));
+    }
+    candidates
+        .into_iter()
+        .find(|p| !p.as_os_str().is_empty() && p.exists())
 }
 
 fn find_project_root_from(start: &Path) -> Option<PathBuf> {
@@ -406,24 +462,145 @@ fn new_project(args: Vec<String>) {
         std::process::exit(1);
     }
     let name = &args[0];
+    let flavor = parse_project_flavor(&args[1..]);
     let root = PathBuf::from(name);
+    if root.exists() {
+        eprintln!("project already exists: {}", root.display());
+        std::process::exit(1);
+    }
     let _ = fs::create_dir_all(root.join("src"));
+    let entry_path = match flavor {
+        ProjectFlavor::App | ProjectFlavor::Ui | ProjectFlavor::Cloud => root.join("src/main.kor"),
+        ProjectFlavor::Lib => root.join("src/lib.kor"),
+    };
     let config = format!(
-        "[package]\nname = \"{}\"\nversion = \"0.1.0\"\n\n[dependencies]\n",
-        name
+        "[package]\nname = \"{}\"\nversion = \"0.1.0\"\ndescription = \"Korlang {}\"\nentry = \"{}\"\n[tool]\nbuilder = \"korlang\"\n",
+        name,
+        flavor.description(),
+        entry_path.strip_prefix(&root).unwrap().display()
     );
     let _ = fs::write(root.join("Korlang.config"), config);
-    let main = "fun main() -> Int {\n  0\n}\n";
-    let _ = fs::write(root.join("src/main.kor"), main);
+    let readme = format!("# {}\n\nA Korlang {} project.\n", name, flavor.description());
+    let _ = fs::write(root.join("README.md"), readme);
+    let entry_template = format!(
+        "{}",
+        flavor.template(name)
+    );
+    let _ = fs::write(&entry_path, entry_template);
+    if matches!(flavor, ProjectFlavor::Ui) {
+        let _ = fs::write(root.join("src/ui.kor"), flavor.help_text());
+    }
     println!("Created {}", root.display());
 }
 
+enum ProjectFlavor {
+    App,
+    Lib,
+    Ui,
+    Cloud,
+}
+
+impl ProjectFlavor {
+    fn description(&self) -> &'static str {
+        match self {
+            ProjectFlavor::App => "application",
+            ProjectFlavor::Lib => "library",
+            ProjectFlavor::Ui => "UI experience",
+            ProjectFlavor::Cloud => "cloud resource",
+        }
+    }
+
+    fn template(&self, project_name: &str) -> String {
+        match self {
+            ProjectFlavor::App => format!(
+                "// Project: {}\nfun main() -> Int {{\n  let value = 0;\n  value\n}}\n",
+                project_name
+            ),
+            ProjectFlavor::Lib => String::from(
+                "fun greet() -> Void { }\n\nfun main() -> Int {\n  greet();\n  0\n}\n"
+            ),
+            ProjectFlavor::Ui => String::from(
+                "fun main() -> Int {\n  0\n}\n"
+            ),
+            ProjectFlavor::Cloud => String::from(
+                "fun main() -> Int {\n  0\n}\n"
+            ),
+        }
+    }
+
+    fn help_text(&self) -> String {
+        match self {
+            ProjectFlavor::Ui => String::from("view AppView() { Text(\"Placeholder UI\"); };"),
+            _ => String::new(),
+        }
+    }
+}
+
+fn parse_project_flavor(args: &[String]) -> ProjectFlavor {
+    for arg in args {
+        match arg.as_str() {
+            "--lib" => return ProjectFlavor::Lib,
+            "--ui" => return ProjectFlavor::Ui,
+            "--cloud" => return ProjectFlavor::Cloud,
+            _ => continue,
+        }
+    }
+    ProjectFlavor::App
+}
+
 fn run_tests() {
-    println!("Running Korlang tests (placeholder)...");
+    println!("Running Korlang tests...");
+    let exe = env::current_exe().unwrap_or_else(|_| PathBuf::from("korlang"));
+    let build_out = PathBuf::from("tests/bin");
+    let _ = fs::create_dir_all(&build_out);
+    let mut cmd = Command::new(&exe);
+    cmd.arg("build")
+        .arg("examples/hello.kor")
+        .arg("-o")
+        .arg(build_out.join("hello"));
+    let status = match cmd.status() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("failed to execute korlang for tests: {}", e);
+            std::process::exit(1);
+        }
+    };
+    if !status.success() {
+        let code = status.code().unwrap_or(1);
+        std::process::exit(code);
+    }
+    println!("Tests completed: examples/hello.kor -> {}", build_out.display());
 }
 
 fn generate_docs() {
-    println!("Generating docs (placeholder)...");
+    println!("Generating docs...");
+    let root = find_repo_root().unwrap_or_else(|| PathBuf::from("."));
+    let docs_md = root.join("docs/grammar.md");
+    let docs_ebnf = root.join("docs/grammar.ebnf");
+    let grammar_md = fs::read_to_string(&docs_md).unwrap_or_else(|e| {
+        eprintln!("failed to read {}: {}", docs_md.display(), e);
+        std::process::exit(1);
+    });
+    let grammar_ebnf = fs::read_to_string(&docs_ebnf).unwrap_or_else(|_| String::from(""));
+    let html = format!(
+        "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>Korlang Docs</title><style>body{{font-family:Helvetica,Arial,sans-serif;background:#111;color:#eee;line-height:1.6;padding:2rem}}pre{{background:#1b1b1b;padding:1rem;border-radius:8px;overflow:auto}}</style></head><body><h1>Korlang Reference</h1><h2>Grammar (Markdown)</h2><pre>{}</pre><h2>Grammar (EBNF)</h2><pre>{}</pre></body></html>",
+        html_escape(&grammar_md),
+        html_escape(&grammar_ebnf)
+    );
+    let out_dir = root.join("dist/docs");
+    let _ = fs::create_dir_all(&out_dir);
+    let out_file = out_dir.join("index.html");
+    if let Err(e) = fs::write(&out_file, html) {
+        eprintln!("failed to write docs {}: {}", out_file.display(), e);
+        std::process::exit(1);
+    }
+    println!("Docs generated at {}", out_file.display());
+}
+
+fn html_escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 fn repl() {
