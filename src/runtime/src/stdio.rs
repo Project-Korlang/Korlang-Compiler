@@ -4,7 +4,9 @@ use std::io::{self, Read, Write};
 pub extern "C" fn korlang_io_print(ptr: *const u8, len: usize) {
     if ptr.is_null() { return; }
     let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
-    let _ = io::stdout().write_all(slice);
+    let mut out = io::stdout();
+    let _ = out.write_all(slice);
+    let _ = out.flush();
 }
 
 #[no_mangle]

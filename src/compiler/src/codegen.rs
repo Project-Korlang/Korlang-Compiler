@@ -15,6 +15,7 @@ pub struct Codegen<'ctx> {
     builder: Builder<'ctx>,
     diags: Vec<Diagnostic>,
     escape_map: HashMap<String, EscapeResult>,
+    local_literals: HashMap<String, Literal>,
 }
 
 impl<'ctx> Codegen<'ctx> {
@@ -27,6 +28,7 @@ impl<'ctx> Codegen<'ctx> {
             builder,
             diags: Vec::new(),
             escape_map: HashMap::new(),
+            local_literals: HashMap::new(),
         }
     }
 
@@ -74,11 +76,20 @@ impl<'ctx> Codegen<'ctx> {
         let entry = self.context.append_basic_block(func, "entry");
         self.builder.position_at_end(entry);
         let mut returned = false;
+        self.local_literals.clear();
 
         // Emit basic statement calls for the self-hosted driver.
         for stmt in &fun.body.stmts {
-            if let Stmt::Expr(Expr::Call { callee, args, .. }, _) = stmt {
-                let _ = self.emit_call(callee, args);
+            match stmt {
+                Stmt::Var(v) => {
+                    if let Expr::Literal(lit, _) = self.fold_expr(&v.value) {
+                        self.local_literals.insert(v.name.clone(), lit);
+                    }
+                }
+                Stmt::Expr(Expr::Call { callee, args, .. }, _) => {
+                    let _ = self.emit_call(callee, args);
+                }
+                _ => {}
             }
         }
 
@@ -108,6 +119,12 @@ impl<'ctx> Codegen<'ctx> {
                 if let Expr::Literal(lit, _) = folded {
                     self.emit_print_literal(&lit, is_ln);
                     return None;
+                }
+                if let Expr::Ident(id, _) = &args[0] {
+                    if let Some(lit) = self.local_literals.get(id).cloned() {
+                        self.emit_print_literal(&lit, is_ln);
+                        return None;
+                    }
                 }
             }
             if name == "@import" {

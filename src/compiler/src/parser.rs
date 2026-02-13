@@ -208,22 +208,22 @@ impl Parser {
         }
         if self.match_keyword("return") {
             let start = self.prev_span();
-            let expr = if self.check_kind(TokenKind::Semi) {
+            let expr = if self.check_kind(TokenKind::Semi) || self.check_kind(TokenKind::RBrace) || self.at_eof() {
                 None
             } else {
                 Some(self.parse_expr()?)
             };
-            let end = self.expect_kind(TokenKind::Semi)?.span;
+            let end = self.consume_stmt_terminator();
             return Ok(Stmt::Return(expr, Span::new(start.start, end.end)));
         }
         if self.match_keyword("break") {
             let start = self.prev_span();
-            let end = self.expect_kind(TokenKind::Semi)?.span;
+            let end = self.consume_stmt_terminator();
             return Ok(Stmt::Break(Span::new(start.start, end.end)));
         }
         if self.match_keyword("continue") {
             let start = self.prev_span();
-            let end = self.expect_kind(TokenKind::Semi)?.span;
+            let end = self.consume_stmt_terminator();
             return Ok(Stmt::Continue(Span::new(start.start, end.end)));
         }
         if self.match_keyword("if") {
@@ -277,8 +277,9 @@ impl Parser {
         }
 
         let expr = self.parse_expr()?;
-        let end = self.expect_kind(TokenKind::Semi)?.span;
-        Ok(Stmt::Expr(expr, Span::new(end.start, end.end)))
+        let expr_span = self.span_of(&expr);
+        let end = self.consume_stmt_terminator();
+        Ok(Stmt::Expr(expr, Span::new(expr_span.start, end.end)))
     }
 
     fn parse_var_decl(&mut self) -> Result<VarDecl, ()> {
@@ -302,12 +303,7 @@ impl Parser {
         };
         self.expect_kind(TokenKind::Eq)?;
         let value = self.parse_expr()?;
-        let end = if self.match_kind(TokenKind::Semi) {
-            self.prev_span()
-        } else {
-            // Allow implicit semicolon to support expression-tail blocks.
-            self.prev_span()
-        };
+        let end = self.consume_stmt_terminator();
         Ok(VarDecl { mutable: !immutable, name, ty, value, span: Span::new(start.start, end.end) })
     }
 
@@ -326,6 +322,12 @@ impl Parser {
             let expr = self.parse_expr()?;
             if self.match_kind(TokenKind::Semi) {
                 stmts.push(Stmt::Expr(expr, self.prev_span()));
+            } else if self.check_kind(TokenKind::RBrace) || self.at_eof() {
+                tail = Some(Box::new(expr));
+                break;
+            } else if self.is_stmt_start_here() || self.is_expr_start_here() {
+                let s = self.span_of(&expr);
+                stmts.push(Stmt::Expr(expr, s));
             } else {
                 tail = Some(Box::new(expr));
                 break;
@@ -899,6 +901,55 @@ impl Parser {
 
     fn check_keyword(&self, kw: &str) -> bool {
         matches!(self.current().kind, TokenKind::Keyword(k) if k == kw)
+    }
+
+    fn is_stmt_start_here(&self) -> bool {
+        self.check_keyword("let")
+            || self.check_keyword("var")
+            || self.check_keyword("return")
+            || self.check_keyword("break")
+            || self.check_keyword("continue")
+            || self.check_keyword("if")
+            || self.check_keyword("while")
+            || self.check_keyword("for")
+            || self.check_keyword("match")
+            || self.check_kind(TokenKind::LBrace)
+    }
+
+    fn can_implicit_stmt_terminator(&self) -> bool {
+        self.check_kind(TokenKind::RBrace)
+            || self.at_eof()
+            || self.is_stmt_start_here()
+            || self.is_expr_start_here()
+    }
+
+    fn is_expr_start_here(&self) -> bool {
+        matches!(
+            self.current().kind,
+            TokenKind::IntLiteral(_)
+                | TokenKind::FloatLiteral(_)
+                | TokenKind::StringLiteral(_)
+                | TokenKind::CharLiteral(_)
+                | TokenKind::BoolLiteral(_)
+                | TokenKind::Identifier(_)
+                | TokenKind::LParen
+                | TokenKind::LBracket
+                | TokenKind::LBrace
+                | TokenKind::Minus
+                | TokenKind::Plus
+                | TokenKind::Not
+        ) || matches!(self.current().kind, TokenKind::Keyword("if" | "match"))
+    }
+
+    fn consume_stmt_terminator(&mut self) -> Span {
+        if self.match_kind(TokenKind::Semi) {
+            self.prev_span()
+        } else if self.can_implicit_stmt_terminator() {
+            self.prev_span()
+        } else {
+            self.error("expected Semi");
+            self.current_span()
+        }
     }
 
     fn expect_keyword(&mut self, kw: &str) -> Result<(), ()> {
