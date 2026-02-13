@@ -31,26 +31,28 @@ This phase contains **500+ granular tasks** to ensure no stone is left unturned.
 - [x] **O.1.18** Verify raw string literals (if supported).
 - [x] **O.1.19** Verify char literal parsing `'a'`.
 - [x] **O.1.20** Verify char escape parsing `'\n'`.
-- [ ] **O.1.21** Verify keyword recognition: `fun`.
-- [ ] **O.1.22** Verify keyword recognition: `let`, `var`.
-- [ ] **O.1.23** Verify keyword recognition: `if`, `else`.
-- [ ] **O.1.24** Verify keyword recognition: `while`, `for`.
-- [ ] **O.1.25** Verify keyword recognition: `match`, `return`.
-- [ ] **O.1.26** Verify keyword recognition: `break`, `continue`.
-- [ ] **O.1.27** Verify keyword recognition: `struct`, `enum`.
-- [ ] **O.1.28** Verify keyword recognition: `class`, `interface`.
-- [ ] **O.1.29** Verify keyword recognition: `import`, `module`.
-- [ ] **O.1.30** Verify keyword recognition: `view`, `resource`, `gpu`.
-- [ ] **O.1.31** Verify operator parsing: `+`, `-`, `*`, `/`, `%`.
-- [ ] **O.1.32** Verify operator parsing: `==`, `!=`, `<`, `<=`, `>`, `>=`.
-- [ ] **O.1.33** Verify operator parsing: `&&`, `||`, `!`.
-- [ ] **O.1.34** Verify operator parsing: `&`, `|`, `^`, `<<`, `>>`.
-- [ ] **O.1.35** Verify operator parsing: `->` (arrow).
-- [ ] **O.1.36** Verify operator parsing: `|>` (pipe).
-- [ ] **O.1.37** Verify operator parsing: `?:` (elvis).
-- [ ] **O.1.38** Verify delimiter parsing: `(`, `)`, `{`, `}`, `[`, `]`.
-- [ ] **O.1.39** Verify delimiter parsing: `,`, `;`, `:`, `.`.
-- [ ] **O.1.40** Verify EOF handling.
+- [x] **O.1.21** Verify keyword recognition: `fun`.
+- [x] **O.1.22** Verify keyword recognition: `let`, `var`.
+- [x] **O.1.23** Verify keyword recognition: `if`, `else`.
+- [x] **O.1.24** Verify keyword recognition: `while`, `for`.
+- [x] **O.1.25** Verify keyword recognition: `match`, `return`.
+- [x] **O.1.26** Verify keyword recognition: `break`, `continue`.
+- [x] **O.1.27** Verify keyword recognition: `struct`, `enum`.
+- [x] **O.1.28** Verify keyword recognition: `class`, `interface`.
+- [x] **O.1.29** Verify keyword recognition: `import`, `module`.
+- [x] **O.1.30** Verify keyword recognition: `view`, `resource`, `gpu`.
+- [x] **O.1.31** Verify operator parsing: `+`, `-`, `*`, `/`, `%`.
+- [x] **O.1.32** Verify operator parsing: `==`, `!=`, `<`, `<=`, `>`, `>=`.
+- [x] **O.1.33** Verify operator parsing: `&&`, `||`, `!`.
+- [x] **O.1.34** Verify operator parsing: `&`, `|`, `^`, `<<`, `>>`.
+- [x] **O.1.35** Verify operator parsing: `->` (arrow).
+- [x] **O.1.36** Verify operator parsing: `|>` (pipe).
+- [x] **O.1.37** Verify operator parsing: `?:` (elvis).
+- [x] **O.1.38** Verify delimiter parsing: `(`, `)`, `{`, `}`, `[`, `]`.
+- [x] **O.1.39** Verify delimiter parsing: `,`, `;`, `:`, `.`.
+- [x] **O.1.40** Verify EOF handling.
+
+*Verification:* `scripts/verify_group1.sh` now covers O.1.1–O.1.40 (including the keywords/operators/delimiters/EOF checks) and passed after running the Group 1 bundle.
 
 ### 1.2 Parser Independence
 - [ ] **O.1.41** Verify `Parser` struct initialization.

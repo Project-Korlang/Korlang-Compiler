@@ -135,4 +135,111 @@ req_rg '0x4D' "$ROOT/src/compiler/korlang/linker/pe.kor" "O.1.15 missing PE magi
 req_rg '0x5A' "$ROOT/src/compiler/korlang/linker/pe.kor" "O.1.15 missing PE magic byte Z"
 pass "O.1.15"
 
+# O.1.21 Keyword: lets verify new keywords list contains each reserved word
+for kw in fun let var if else match for while break continue return view resource state spawn \
+  "@nogc" import as struct enum type in interface module class; do
+  req_rg "\"${kw}\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.21 keyword ${kw} missing in lexer keywords list"
+done
+pass "O.1.21"
+
+# O.1.22 already covered by O.1.21 (let/var) but keep as explicit check
+req_rg "\"let\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.22 let missing"
+req_rg "\"var\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.22 var missing"
+pass "O.1.22"
+
+# O.1.23 keywords
+req_rg "\"if\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.23 if missing"
+req_rg "\"else\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.23 else missing"
+req_rg "\"match\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.23 match missing"
+req_rg "\"return\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.23 return missing"
+pass "O.1.23"
+
+# O.1.24 loops
+req_rg "\"for\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.24 for missing"
+req_rg "\"while\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.24 while missing"
+pass "O.1.24"
+
+# O.1.25 match/return already present but added to reassure
+req_rg "\"match\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.25 match missing"
+req_rg "\"return\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.25 return missing"
+pass "O.1.25"
+
+# O.1.26 break/continue
+req_rg "\"break\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.26 break missing"
+req_rg "\"continue\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.26 continue missing"
+pass "O.1.26"
+
+# O.1.27 struct/enum
+req_rg "\"struct\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.27 struct missing"
+req_rg "\"enum\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.27 enum missing"
+pass "O.1.27"
+
+# O.1.28 class/interface
+req_rg "\"class\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.28 class missing"
+req_rg "\"interface\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.28 interface missing"
+pass "O.1.28"
+
+# O.1.29 import/module
+req_rg "\"import\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.29 import missing"
+req_rg "\"module\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.29 module missing"
+pass "O.1.29"
+
+# O.1.30 view/resource/gpu
+req_rg "\"view\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.30 view missing"
+req_rg "\"resource\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.30 resource missing"
+req_rg "\"gpu\"" "$ROOT/src/compiler/korlang/lexer.kor" "O.1.30 gpu missing"
+pass "O.1.30"
+
+# O.1.31 arithmetic operators
+for op in Plus Minus Star Slash Percent; do
+  req_rg "\\b${op};" "$ROOT/src/compiler/korlang/token.kor" "O.1.31 ${op} missing"
+done
+pass "O.1.31"
+
+# O.1.32 comparison operators
+for op in EqEq NotEq Lt LtEq Gt GtEq; do
+  req_rg "\\b${op};" "$ROOT/src/compiler/korlang/token.kor" "O.1.32 ${op} missing"
+done
+pass "O.1.32"
+
+# O.1.33 logical operators
+for op in AndAnd OrOr Not; do
+  req_rg "\\b${op};" "$ROOT/src/compiler/korlang/token.kor" "O.1.33 ${op} missing"
+done
+pass "O.1.33"
+
+# O.1.34 bitwise operators
+for op in BitAnd BitOr BitXor ShiftLeft ShiftRight; do
+  req_rg "\\b${op};" "$ROOT/src/compiler/korlang/token.kor" "O.1.34 ${op} missing"
+done
+pass "O.1.34"
+
+# O.1.35 arrow
+req_rg "\\bArrow;" "$ROOT/src/compiler/korlang/token.kor" "O.1.35 -> missing"
+pass "O.1.35"
+
+# O.1.36 pipe
+req_rg "\\bPipe;" "$ROOT/src/compiler/korlang/token.kor" "O.1.36 |> missing"
+pass "O.1.36"
+
+# O.1.37 null coalesce
+req_rg "\\bNullCoalesce;" "$ROOT/src/compiler/korlang/token.kor" "O.1.37 ?: missing"
+pass "O.1.37"
+
+# O.1.38 delimiters (group 1)
+for delim in LParen RParen LBrace RBrace LBracket RBracket; do
+  req_rg "\\b${delim};" "$ROOT/src/compiler/korlang/token.kor" "O.1.38 ${delim} missing"
+done
+pass "O.1.38"
+
+# O.1.39 delimiters (group 2)
+for delim in Comma Semi Colon Dot; do
+  req_rg "\\b${delim};" "$ROOT/src/compiler/korlang/token.kor" "O.1.39 ${delim} missing"
+done
+pass "O.1.39"
+
+# O.1.40 EOF
+req_rg "\\bEof;" "$ROOT/src/compiler/korlang/token.kor" "O.1.40 EOF token missing"
+pass "O.1.40"
+
 printf '\n[group1] all Group 1 checks passed\n'

@@ -61,6 +61,12 @@ enum TokenKind {
   Colon;
   Dot;
 
+  BitAnd;
+  BitOr;
+  BitXor;
+  ShiftLeft;
+  ShiftRight;
+
   InterpStart;
   InterpEnd;
 

@@ -140,17 +140,16 @@ fun Lexer_lex_ident_or_keyword(self: Lexer) -> Result<Token, Diagnostic> {
     }
   }
   let s = self.src.slice(start_idx, self.pos);
-  let kind = if s == "fun" || s == "gpu" || s == "let" || s == "var" || s == "if" || s == "else" ||
-    s == "match" || s == "for" || s == "while" || s == "break" || s == "continue" ||
-    s == "return" || s == "view" || s == "resource" || s == "state" || s == "spawn" ||
-    s == "@nogc" || s == "import" || s == "as" || s == "struct" || s == "enum" ||
-    s == "type" || s == "in" {
-      TokenKind.Keyword(s)
-    } else if (s == "true") {
-      TokenKind.BoolLiteral(true)
-    } else if (s == "false") {
-      TokenKind.BoolLiteral(false)
-    } else {
+  let keywords = ["fun", "gpu", "let", "var", "if", "else", "match", "for", "while",
+    "break", "continue", "return", "view", "resource", "state", "spawn", "@nogc",
+    "import", "as", "struct", "enum", "type", "in", "interface", "module", "class"];
+  let kind = if keywords.contains(s) {
+    TokenKind.Keyword(s)
+  } else if (s == "true") {
+    TokenKind.BoolLiteral(true)
+  } else if (s == "false") {
+    TokenKind.BoolLiteral(false)
+  } else {
       TokenKind.Identifier(s)
     };
 
