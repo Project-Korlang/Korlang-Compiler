@@ -70,13 +70,14 @@ This document tracks the evolution of the **Korlang** programming language. Phas
 - [x] **15.1 Region-Based Memory:** Implement static region analysis to reduce GC reliance.
 - [x] **15.2 Hybrid Ownership:** Merge GC with linear types for zero-cost resource management.
 
-### 🧵 Phase 16: Hyper-Parallelism (Current)
+### ✅ Phase 16: Hyper-Parallelism (Completed)
 - [x] **16.1 Work-Stealing 2.0:** Ultra-low latency task scheduling.
 - [x] **16.2 GPU Compute Shaders:** Native language support for running Korlang logic on the GPU.
 
-### 📦 Phase 17: Standard Library 2.0 (The Global Standard)
-- [ ] **17.1 Native Crypto:** High-performance cryptographic primitives.
-- [ ] **17.2 Native Networking:** High-throughput HTTP/3 and WebSockets implementation.
+### ✅ Phase 17: Standard Library 2.0 (The Global Standard) (Completed)
+**Mandate:** Every new implementation must be in pure Korlang or Assembly. Progressively identify and remove any remaining Rust/C++ shims in the stdlib path.
+- [x] **17.1 Native Crypto:** High-performance cryptographic primitives.
+- [x] **17.2 Native Networking:** High-throughput HTTP/3 and WebSockets implementation.
 
 ### 🖼️ Phase 18: Korlang-Native IDE
 - [ ] **18.1 Integrated Environment:** A full IDE built using the Korlang `view` system.

@@ -1,0 +1,77 @@
+// Phase 17.1.2: ChaCha20 stream cipher
+
+module std.crypto.chacha20
+
+fun chacha20_block(key: List<UInt>, counter: UInt, nonce: List<UInt>) -> List<UInt> {
+  let state = init_state(key, counter, nonce);
+  let working = clone_words(state);
+
+  let i = 0;
+  while (i < 10) {
+    // column rounds
+    quarter_round(working, 0, 4, 8, 12);
+    quarter_round(working, 1, 5, 9, 13);
+    quarter_round(working, 2, 6, 10, 14);
+    quarter_round(working, 3, 7, 11, 15);
+    // diagonal rounds
+    quarter_round(working, 0, 5, 10, 15);
+    quarter_round(working, 1, 6, 11, 12);
+    quarter_round(working, 2, 7, 8, 13);
+    quarter_round(working, 3, 4, 9, 14);
+    i = i + 1;
+  }
+
+  let out = List.new();
+  let j = 0;
+  while (j < 16) {
+    out.push((working[j] + state[j]) % 4294967296);
+    j = j + 1;
+  }
+  out
+}
+
+fun init_state(key: List<UInt>, counter: UInt, nonce: List<UInt>) -> List<UInt> {
+  let out = [1634760805, 857760878, 2036477234, 1797285236];
+  let i = 0;
+  while (i < 8 && i < key.len()) { out.push(key[i]); i = i + 1; }
+  out.push(counter);
+  let j = 0;
+  while (j < 3 && j < nonce.len()) { out.push(nonce[j]); j = j + 1; }
+  while (out.len() < 16) { out.push(0); }
+  out
+}
+
+fun quarter_round(st: List<UInt>, a: UInt, b: UInt, c: UInt, d: UInt) {
+  st[a] = (st[a] + st[b]) % 4294967296;
+  st[d] = rot_l(st[d] + st[a], 16);
+
+  st[c] = (st[c] + st[d]) % 4294967296;
+  st[b] = rot_l(st[b] + st[c], 12);
+
+  st[a] = (st[a] + st[b]) % 4294967296;
+  st[d] = rot_l(st[d] + st[a], 8);
+
+  st[c] = (st[c] + st[d]) % 4294967296;
+  st[b] = rot_l(st[b] + st[c], 7);
+}
+
+fun rot_l(x: UInt, n: UInt) -> UInt {
+  let s = n % 32;
+  let lo = (x * pow2(s)) % 4294967296;
+  let hi = x / pow2(32 - s);
+  (lo + hi) % 4294967296
+}
+
+fun pow2(n: UInt) -> UInt {
+  let out = 1;
+  let i = 0;
+  while (i < n) { out = out * 2; i = i + 1; }
+  out
+}
+
+fun clone_words(xs: List<UInt>) -> List<UInt> {
+  let out = List.new();
+  let i = 0;
+  while (i < xs.len()) { out.push(xs[i]); i = i + 1; }
+  out
+}

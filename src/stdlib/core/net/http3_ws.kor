@@ -1,0 +1,58 @@
+// Phase 17.2.3: HTTP/3 and WebSockets with zero-copy buffer model
+
+module std.net.http3_ws
+
+import std.net.tcp_udp
+
+struct ZeroCopyBuffer {
+  ptr: UInt;
+  len: UInt;
+  cap: UInt;
+}
+
+struct Http3Frame {
+  frame_type: UInt;
+  payload: ZeroCopyBuffer;
+}
+
+struct WsFrame {
+  opcode: UInt;
+  fin: Bool;
+  payload: ZeroCopyBuffer;
+}
+
+fun zbuf_from(ptr: UInt, len: UInt, cap: UInt) -> ZeroCopyBuffer {
+  ZeroCopyBuffer { ptr: ptr, len: len, cap: cap }
+}
+
+fun http3_encode_headers(buf: ZeroCopyBuffer, headers_ptr: UInt, headers_len: UInt) -> Http3Frame {
+  let payload = ZeroCopyBuffer { ptr: headers_ptr, len: headers_len, cap: buf.cap };
+  Http3Frame { frame_type: 1, payload: payload }
+}
+
+fun http3_send_frame(sock: Socket, frame: Http3Frame) -> UInt {
+  socket_send(sock, frame.payload.ptr, frame.payload.len, 0)
+}
+
+fun http3_recv_frame(sock: Socket, out_buf: ZeroCopyBuffer) -> Http3Frame {
+  let n = socket_recv(sock, out_buf.ptr, out_buf.cap, 0);
+  let payload = ZeroCopyBuffer { ptr: out_buf.ptr, len: n, cap: out_buf.cap };
+  Http3Frame { frame_type: 0, payload: payload }
+}
+
+fun ws_build_text(buf: ZeroCopyBuffer) -> WsFrame {
+  WsFrame { opcode: 1, fin: true, payload: buf }
+}
+
+fun ws_send(sock: Socket, frame: WsFrame) -> UInt {
+  socket_send(sock, frame.payload.ptr, frame.payload.len, 0)
+}
+
+fun ws_recv(sock: Socket, out: ZeroCopyBuffer) -> WsFrame {
+  let n = socket_recv(sock, out.ptr, out.cap, 0);
+  WsFrame {
+    opcode: 1,
+    fin: true,
+    payload: ZeroCopyBuffer { ptr: out.ptr, len: n, cap: out.cap },
+  }
+}

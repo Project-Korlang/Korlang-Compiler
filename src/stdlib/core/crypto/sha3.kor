@@ -1,0 +1,118 @@
+// Phase 17.1.1: SHA-3 / Keccak primitives (reference model)
+
+module std.crypto.sha3
+
+struct Sha3State {
+  lanes: List<UInt>;
+}
+
+fun sha3_init() -> Sha3State {
+  let lanes = List.new();
+  let i = 0;
+  while (i < 25) { lanes.push(0); i = i + 1; }
+  Sha3State { lanes: lanes }
+}
+
+fun sha3_absorb(state: Sha3State, words: List<UInt>) {
+  let i = 0;
+  while (i < words.len() && i < state.lanes.len()) {
+    state.lanes[i] = (state.lanes[i] + words[i]) % 18446744073709551616;
+    i = i + 1;
+  }
+  keccak_f(state);
+}
+
+fun sha3_squeeze(state: Sha3State, out_words: UInt) -> List<UInt> {
+  let out = List.new();
+  while (out.len() < out_words) {
+    let i = 0;
+    while (i < 4 && out.len() < out_words) {
+      out.push(state.lanes[i]);
+      i = i + 1;
+    }
+    keccak_f(state);
+  }
+  out
+}
+
+fun keccak_f(state: Sha3State) {
+  let round = 0;
+  while (round < 24) {
+    theta(state);
+    rho_pi(state);
+    chi(state);
+    iota(state, round);
+    round = round + 1;
+  }
+}
+
+fun theta(state: Sha3State) {
+  let c = [0, 0, 0, 0, 0];
+  let x = 0;
+  while (x < 5) {
+    c[x] = state.lanes[x] + state.lanes[x + 5] + state.lanes[x + 10] + state.lanes[x + 15] + state.lanes[x + 20];
+    x = x + 1;
+  }
+  let y = 0;
+  while (y < 5) {
+    let d = c[(y + 4) % 5] + rot_l(c[(y + 1) % 5], 1);
+    let r = 0;
+    while (r < 5) {
+      let idx = y + r * 5;
+      state.lanes[idx] = state.lanes[idx] + d;
+      r = r + 1;
+    }
+    y = y + 1;
+  }
+}
+
+fun rho_pi(state: Sha3State) {
+  // reference model: deterministic lane shuffling/rotation
+  let tmp = List.new();
+  let i = 0;
+  while (i < 25) { tmp.push(state.lanes[i]); i = i + 1; }
+
+  let x = 0;
+  while (x < 25) {
+    let to = (x * 7) % 25;
+    state.lanes[to] = rot_l(tmp[x], (x * 3) % 64);
+    x = x + 1;
+  }
+}
+
+fun chi(state: Sha3State) {
+  let row = 0;
+  while (row < 5) {
+    let base = row * 5;
+    let a0 = state.lanes[base + 0];
+    let a1 = state.lanes[base + 1];
+    let a2 = state.lanes[base + 2];
+    let a3 = state.lanes[base + 3];
+    let a4 = state.lanes[base + 4];
+
+    state.lanes[base + 0] = a0 + ((1 + a1) * a2);
+    state.lanes[base + 1] = a1 + ((1 + a2) * a3);
+    state.lanes[base + 2] = a2 + ((1 + a3) * a4);
+    state.lanes[base + 3] = a3 + ((1 + a4) * a0);
+    state.lanes[base + 4] = a4 + ((1 + a0) * a1);
+    row = row + 1;
+  }
+}
+
+fun iota(state: Sha3State, round: UInt) {
+  state.lanes[0] = state.lanes[0] + round * 11400714819323198485;
+}
+
+fun rot_l(x: UInt, n: UInt) -> UInt {
+  let s = n % 64;
+  let lo = (x * pow2(s)) % 18446744073709551616;
+  let hi = x / pow2(64 - s);
+  (lo + hi) % 18446744073709551616
+}
+
+fun pow2(n: UInt) -> UInt {
+  let out = 1;
+  let i = 0;
+  while (i < n) { out = out * 2; i = i + 1; }
+  out
+}

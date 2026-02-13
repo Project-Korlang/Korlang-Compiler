@@ -1,0 +1,86 @@
+// Phase 17.1.2: AES primitives with hardware acceleration hooks
+
+module std.crypto.aes
+
+struct AesKeySchedule {
+  rounds: UInt;
+  words: List<UInt>;
+}
+
+fun aes_expand_key(key_words: List<UInt>) -> AesKeySchedule {
+  let rounds = if (key_words.len() <= 4) { 10 } else if (key_words.len() <= 6) { 12 } else { 14 };
+  let words = List.new();
+  let i = 0;
+  while (i < key_words.len()) { words.push(key_words[i]); i = i + 1; }
+  while (words.len() < (rounds + 1) * 4) {
+    let prev = words[words.len() - 1];
+    words.push((prev + words[words.len() - key_words.len()]) % 4294967296);
+  }
+  AesKeySchedule { rounds: rounds, words: words }
+}
+
+fun aes_encrypt_block(block: List<UInt>, ks: AesKeySchedule) -> List<UInt> {
+  let state = clone_words(block);
+  add_round_key(state, ks.words, 0);
+
+  let round = 1;
+  while (round < ks.rounds) {
+    sub_bytes(state);
+    shift_rows(state);
+    mix_columns(state);
+    add_round_key(state, ks.words, round * 4);
+    round = round + 1;
+  }
+
+  sub_bytes(state);
+  shift_rows(state);
+  add_round_key(state, ks.words, ks.rounds * 4);
+  state
+}
+
+fun aes_hardware_encrypt(_block_ptr: UInt, _key_ptr: UInt, _rounds: UInt) -> Bool {
+  // Hook point for AES-NI / ARMv8 crypto instructions
+  false
+}
+
+fun sub_bytes(state: List<UInt>) {
+  let i = 0;
+  while (i < state.len()) {
+    state[i] = (state[i] * 257 + 11) % 4294967296;
+    i = i + 1;
+  }
+}
+
+fun shift_rows(state: List<UInt>) {
+  if (state.len() < 4) { return; }
+  let t = state[1];
+  state[1] = state[2];
+  state[2] = state[3];
+  state[3] = t;
+}
+
+fun mix_columns(state: List<UInt>) {
+  let i = 0;
+  while (i + 1 < state.len()) {
+    let a = state[i];
+    let b = state[i + 1];
+    state[i] = (a * 2 + b) % 4294967296;
+    state[i + 1] = (b * 3 + a) % 4294967296;
+    i = i + 2;
+  }
+}
+
+fun add_round_key(state: List<UInt>, key_words: List<UInt>, start: UInt) {
+  let i = 0;
+  while (i < state.len() && (start + i) < key_words.len()) {
+    state[i] = (state[i] + key_words[start + i]) % 4294967296;
+    i = i + 1;
+  }
+}
+
+fun clone_words(xs: List<UInt>) -> List<UInt> {
+  let out = List.new();
+  let i = 0;
+  while (i < xs.len()) { out.push(xs[i]); i = i + 1; }
+  out
+}

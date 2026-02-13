@@ -1,0 +1,62 @@
+// Phase 17.2.1: TCP/UDP core wrappers via syscall dispatcher
+
+module std.net.tcp_udp
+
+import runtime.syscall.dispatcher
+
+// Linux x86_64 baseline
+const SYS_SOCKET: UInt = 41;
+const SYS_CONNECT: UInt = 42;
+const SYS_ACCEPT: UInt = 43;
+const SYS_SENDTO: UInt = 44;
+const SYS_RECVFROM: UInt = 45;
+const SYS_BIND: UInt = 49;
+const SYS_LISTEN: UInt = 50;
+const SYS_CLOSE: UInt = 3;
+
+const AF_INET: UInt = 2;
+const SOCK_STREAM: UInt = 1;
+const SOCK_DGRAM: UInt = 2;
+
+struct Socket {
+  fd: UInt;
+}
+
+fun tcp_socket() -> Socket {
+  let fd = dispatcher.syscall3(SYS_SOCKET, AF_INET, SOCK_STREAM, 0);
+  Socket { fd: fd }
+}
+
+fun udp_socket() -> Socket {
+  let fd = dispatcher.syscall3(SYS_SOCKET, AF_INET, SOCK_DGRAM, 0);
+  Socket { fd: fd }
+}
+
+fun socket_bind(s: Socket, addr_ptr: UInt, addr_len: UInt) -> UInt {
+  dispatcher.syscall3(SYS_BIND, s.fd, addr_ptr, addr_len)
+}
+
+fun socket_listen(s: Socket, backlog: UInt) -> UInt {
+  dispatcher.syscall2(SYS_LISTEN, s.fd, backlog)
+}
+
+fun socket_accept(s: Socket, addr_ptr: UInt, addr_len_ptr: UInt) -> Socket {
+  let fd = dispatcher.syscall3(SYS_ACCEPT, s.fd, addr_ptr, addr_len_ptr);
+  Socket { fd: fd }
+}
+
+fun socket_connect(s: Socket, addr_ptr: UInt, addr_len: UInt) -> UInt {
+  dispatcher.syscall3(SYS_CONNECT, s.fd, addr_ptr, addr_len)
+}
+
+fun socket_send(s: Socket, buf_ptr: UInt, len: UInt, flags: UInt) -> UInt {
+  dispatcher.syscall6(SYS_SENDTO, s.fd, buf_ptr, len, flags, 0, 0)
+}
+
+fun socket_recv(s: Socket, buf_ptr: UInt, len: UInt, flags: UInt) -> UInt {
+  dispatcher.syscall6(SYS_RECVFROM, s.fd, buf_ptr, len, flags, 0, 0)
+}
+
+fun socket_close(s: Socket) -> UInt {
+  dispatcher.syscall1(SYS_CLOSE, s.fd)
+}

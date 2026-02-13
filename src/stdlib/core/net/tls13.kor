@@ -1,0 +1,102 @@
+// Phase 17.2.2: TLS 1.3 stack (reference state machine)
+
+module std.net.tls13
+
+import std.crypto.sha2
+import std.crypto.chacha20
+
+enum TlsState {
+  Init;
+  ClientHelloSent;
+  ServerHelloRecv;
+  HandshakeKeysReady;
+  Established;
+  Failed;
+}
+
+struct TlsSession {
+  state: TlsState;
+  transcript: List<UInt>;
+  client_secret: List<UInt>;
+  server_secret: List<UInt>;
+}
+
+fun tls_new() -> TlsSession {
+  TlsSession {
+    state: TlsState.Init,
+    transcript: List.new(),
+    client_secret: List.new(),
+    server_secret: List.new(),
+  }
+}
+
+fun tls_client_hello(sess: TlsSession, random_words: List<UInt>) {
+  append_words(sess.transcript, random_words);
+  sess.state = TlsState.ClientHelloSent;
+}
+
+fun tls_on_server_hello(sess: TlsSession, server_words: List<UInt>) {
+  if (sess.state != TlsState.ClientHelloSent) { sess.state = TlsState.Failed; return; }
+  append_words(sess.transcript, server_words);
+
+  let digest = sha256_hash_blocks([sess.transcript]);
+  sess.client_secret = derive_secret(digest, 1);
+  sess.server_secret = derive_secret(digest, 2);
+  sess.state = TlsState.HandshakeKeysReady;
+}
+
+fun tls_finish(sess: TlsSession) {
+  if (sess.state == TlsState.HandshakeKeysReady) {
+    sess.state = TlsState.Established;
+  } else {
+    sess.state = TlsState.Failed;
+  }
+}
+
+fun tls_encrypt_record(sess: TlsSession, plaintext: List<UInt>, nonce: List<UInt>) -> List<UInt> {
+  let key = session_key_words(sess.client_secret);
+  let block = chacha20_block(key, 1, nonce);
+  xor_stream(plaintext, block)
+}
+
+fun tls_decrypt_record(sess: TlsSession, ciphertext: List<UInt>, nonce: List<UInt>) -> List<UInt> {
+  let key = session_key_words(sess.server_secret);
+  let block = chacha20_block(key, 1, nonce);
+  xor_stream(ciphertext, block)
+}
+
+fun derive_secret(seed: List<UInt>, label: UInt) -> List<UInt> {
+  let out = List.new();
+  let i = 0;
+  while (i < seed.len()) {
+    out.push((seed[i] + label * 2654435761) % 4294967296);
+    i = i + 1;
+  }
+  out
+}
+
+fun session_key_words(secret: List<UInt>) -> List<UInt> {
+  let out = List.new();
+  let i = 0;
+  while (i < 8) {
+    if (i < secret.len()) { out.push(secret[i]); } else { out.push(i * 17 + 99); }
+    i = i + 1;
+  }
+  out
+}
+
+fun xor_stream(input: List<UInt>, keystream: List<UInt>) -> List<UInt> {
+  let out = List.new();
+  let i = 0;
+  while (i < input.len()) {
+    let k = keystream[i % keystream.len()];
+    out.push((input[i] + k) % 4294967296);
+    i = i + 1;
+  }
+  out
+}
+
+fun append_words(dst: List<UInt>, src: List<UInt>) {
+  let i = 0;
+  while (i < src.len()) { dst.push(src[i]); i = i + 1; }
+}

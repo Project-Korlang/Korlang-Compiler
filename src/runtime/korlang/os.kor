@@ -1,10 +1,23 @@
-// Native Korlang runtime: OS binding stubs
+// Native Korlang runtime: OS bindings via syscall dispatcher
 
 module runtime.os
 
-// These are placeholders for real syscall/OS bindings.
-// The self-hosted runtime will replace them with actual FFI hooks.
+import runtime.syscall.dispatcher
 
-fun os_yield() -> UInt { 0 }
-fun os_futex_wait(addr: UInt, expected: UInt) -> UInt { 0 }
-fun os_futex_wake(addr: UInt, count: UInt) -> UInt { 0 }
+// Linux syscall numbers (x86_64 baseline)
+const SYS_SCHED_YIELD: UInt = 24;
+const SYS_FUTEX: UInt = 202;
+const FUTEX_WAIT: UInt = 0;
+const FUTEX_WAKE: UInt = 1;
+
+fun os_yield() -> UInt {
+  dispatcher.syscall0(SYS_SCHED_YIELD)
+}
+
+fun os_futex_wait(addr: UInt, expected: UInt) -> UInt {
+  dispatcher.syscall6(SYS_FUTEX, addr, FUTEX_WAIT, expected, 0, 0, 0)
+}
+
+fun os_futex_wake(addr: UInt, count: UInt) -> UInt {
+  dispatcher.syscall6(SYS_FUTEX, addr, FUTEX_WAKE, count, 0, 0, 0)
+}

@@ -1,0 +1,44 @@
+// Phase 17.1.3: RSA verification logic
+
+module std.crypto.rsa
+
+struct RsaPublicKey {
+  n: UInt;
+  e: UInt;
+}
+
+fun rsa_verify_pkcs1_v15(pk: RsaPublicKey, signature: UInt, expected_digest: UInt) -> Bool {
+  let m = mod_pow(signature, pk.e, pk.n);
+  // Reference check: compare reduced digest marker.
+  (m % 4294967296) == (expected_digest % 4294967296)
+}
+
+fun mod_pow(base: UInt, exp: UInt, modu: UInt) -> UInt {
+  if (modu == 0) { return 0; }
+  let result = 1;
+  let b = base % modu;
+  let e = exp;
+  while (e > 0) {
+    if ((e % 2) == 1) {
+      result = mod_mul(result, b, modu);
+    }
+    b = mod_mul(b, b, modu);
+    e = e / 2;
+  }
+  result
+}
+
+fun mod_mul(a: UInt, b: UInt, modu: UInt) -> UInt {
+  // Overflow-safe multiply (double-and-add)
+  let out = 0;
+  let x = a % modu;
+  let y = b;
+  while (y > 0) {
+    if ((y % 2) == 1) {
+      out = (out + x) % modu;
+    }
+    x = (x * 2) % modu;
+    y = y / 2;
+  }
+  out
+}

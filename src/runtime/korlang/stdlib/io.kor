@@ -1,8 +1,8 @@
-// Native Korlang runtime stdlib: basic IO via syscalls (Linux x86_64 numbers)
+// Native Korlang runtime stdlib: basic IO via assembly syscall dispatcher
 
 module runtime.std.io
 
-import runtime.syscall
+import runtime.syscall.dispatcher
 
 const SYS_READ: UInt = 0;
 const SYS_WRITE: UInt = 1;
@@ -13,17 +13,17 @@ const FD_STDOUT: UInt = 1;
 const FD_STDERR: UInt = 2;
 
 fun write_stdout(ptr: UInt, len: UInt) -> UInt {
-  syscall3(SYS_WRITE, FD_STDOUT, ptr, len)
+  dispatcher.syscall3(SYS_WRITE, FD_STDOUT, ptr, len)
 }
 
 fun write_stderr(ptr: UInt, len: UInt) -> UInt {
-  syscall3(SYS_WRITE, FD_STDERR, ptr, len)
+  dispatcher.syscall3(SYS_WRITE, FD_STDERR, ptr, len)
 }
 
 fun read_stdin(ptr: UInt, len: UInt) -> UInt {
-  syscall3(SYS_READ, FD_STDIN, ptr, len)
+  dispatcher.syscall3(SYS_READ, FD_STDIN, ptr, len)
 }
 
 fun exit(code: UInt) -> UInt {
-  syscall1(SYS_EXIT, code)
+  dispatcher.syscall1(SYS_EXIT, code)
 }

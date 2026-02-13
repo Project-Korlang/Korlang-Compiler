@@ -1,11 +1,13 @@
-// Native Korlang runtime: syscall wrappers (stubs)
+// Native Korlang runtime: syscall wrappers routed to assembly dispatcher
 
 module runtime.syscall
 
-fun syscall0(n: UInt) -> UInt { n }
-fun syscall1(n: UInt, a1: UInt) -> UInt { n + a1 }
-fun syscall2(n: UInt, a1: UInt, a2: UInt) -> UInt { n + a1 + a2 }
-fun syscall3(n: UInt, a1: UInt, a2: UInt, a3: UInt) -> UInt { n + a1 + a2 + a3 }
-fun syscall4(n: UInt, a1: UInt, a2: UInt, a3: UInt, a4: UInt) -> UInt { n + a1 + a2 + a3 + a4 }
-fun syscall5(n: UInt, a1: UInt, a2: UInt, a3: UInt, a4: UInt, a5: UInt) -> UInt { n + a1 + a2 + a3 + a4 + a5 }
-fun syscall6(n: UInt, a1: UInt, a2: UInt, a3: UInt, a4: UInt, a5: UInt, a6: UInt) -> UInt { n + a1 + a2 + a3 + a4 + a5 + a6 }
+import runtime.syscall.dispatcher
+
+fun syscall0(n: UInt) -> UInt { dispatcher.syscall0(n) }
+fun syscall1(n: UInt, a1: UInt) -> UInt { dispatcher.syscall1(n, a1) }
+fun syscall2(n: UInt, a1: UInt, a2: UInt) -> UInt { dispatcher.syscall2(n, a1, a2) }
+fun syscall3(n: UInt, a1: UInt, a2: UInt, a3: UInt) -> UInt { dispatcher.syscall3(n, a1, a2, a3) }
+fun syscall4(n: UInt, a1: UInt, a2: UInt, a3: UInt, a4: UInt) -> UInt { dispatcher.syscall4(n, a1, a2, a3, a4) }
+fun syscall5(n: UInt, a1: UInt, a2: UInt, a3: UInt, a4: UInt, a5: UInt) -> UInt { dispatcher.syscall5(n, a1, a2, a3, a4, a5) }
+fun syscall6(n: UInt, a1: UInt, a2: UInt, a3: UInt, a4: UInt, a5: UInt, a6: UInt) -> UInt { dispatcher.syscall6(n, a1, a2, a3, a4, a5, a6) }

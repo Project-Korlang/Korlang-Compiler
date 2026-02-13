@@ -1,0 +1,64 @@
+// Phase 17.1.1: BLAKE3 primitives (reference model)
+
+module std.crypto.blake3
+
+struct Blake3Chunk {
+  words: List<UInt>;
+  counter: UInt;
+  block_len: UInt;
+  flags: UInt;
+}
+
+fun blake3_init_cv() -> List<UInt> {
+  [1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225]
+}
+
+fun blake3_compress(cv: List<UInt>, chunk: Blake3Chunk) -> List<UInt> {
+  let state = List.new();
+  let i = 0;
+  while (i < 8) { state.push(cv[i]); i = i + 1; }
+  while (i < 16) { state.push(chunk.words[(i - 8) % chunk.words.len()]); i = i + 1; }
+
+  let round = 0;
+  while (round < 7) {
+    g_mix(state, 0, 4, 8, 12, chunk.words[(round + 0) % chunk.words.len()], chunk.words[(round + 1) % chunk.words.len()]);
+    g_mix(state, 1, 5, 9, 13, chunk.words[(round + 2) % chunk.words.len()], chunk.words[(round + 3) % chunk.words.len()]);
+    g_mix(state, 2, 6, 10, 14, chunk.words[(round + 4) % chunk.words.len()], chunk.words[(round + 5) % chunk.words.len()]);
+    g_mix(state, 3, 7, 11, 15, chunk.words[(round + 6) % chunk.words.len()], chunk.words[(round + 7) % chunk.words.len()]);
+    round = round + 1;
+  }
+
+  let out = List.new();
+  let k = 0;
+  while (k < 8) {
+    out.push((state[k] + state[k + 8]) % 4294967296);
+    k = k + 1;
+  }
+  out
+}
+
+fun g_mix(state: List<UInt>, a: UInt, b: UInt, c: UInt, d: UInt, mx: UInt, my: UInt) {
+  state[a] = (state[a] + state[b] + mx) % 4294967296;
+  state[d] = rot_r(state[d] + state[a], 16);
+  state[c] = (state[c] + state[d]) % 4294967296;
+  state[b] = rot_r(state[b] + state[c], 12);
+
+  state[a] = (state[a] + state[b] + my) % 4294967296;
+  state[d] = rot_r(state[d] + state[a], 8);
+  state[c] = (state[c] + state[d]) % 4294967296;
+  state[b] = rot_r(state[b] + state[c], 7);
+}
+
+fun rot_r(x: UInt, n: UInt) -> UInt {
+  let s = n % 32;
+  let lo = x / pow2(s);
+  let hi = (x * pow2(32 - s)) % 4294967296;
+  (lo + hi) % 4294967296
+}
+
+fun pow2(n: UInt) -> UInt {
+  let out = 1;
+  let i = 0;
+  while (i < n) { out = out * 2; i = i + 1; }
+  out
+}

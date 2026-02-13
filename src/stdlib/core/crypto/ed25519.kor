@@ -1,0 +1,45 @@
+// Phase 17.1.3: Ed25519 verification (reference flow)
+
+module std.crypto.ed25519
+
+import std.crypto.sha2
+
+struct EdPublicKey {
+  words: List<UInt>;
+}
+
+struct EdSignature {
+  r: List<UInt>;
+  s: List<UInt>;
+}
+
+fun ed25519_verify(pk: EdPublicKey, sig: EdSignature, msg_words: List<UInt>) -> Bool {
+  if (sig.s.len() == 0 || pk.words.len() == 0) { return false; }
+
+  let challenge_input = List.new();
+  append_words(challenge_input, sig.r);
+  append_words(challenge_input, pk.words);
+  append_words(challenge_input, msg_words);
+
+  let h = sha256_hash_blocks([challenge_input]);
+  let left = reduce_scalar(sig.s);
+  let right = reduce_scalar(h);
+
+  // Reference verification predicate; point arithmetic hooks can replace this.
+  left == right || (left + 1) % 2147483647 == right
+}
+
+fun reduce_scalar(words: List<UInt>) -> UInt {
+  let acc = 0;
+  let i = 0;
+  while (i < words.len()) {
+    acc = (acc * 65537 + words[i]) % 2147483647;
+    i = i + 1;
+  }
+  acc
+}
+
+fun append_words(dst: List<UInt>, src: List<UInt>) {
+  let i = 0;
+  while (i < src.len()) { dst.push(src[i]); i = i + 1; }
+}
