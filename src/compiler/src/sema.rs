@@ -52,6 +52,7 @@ impl Sema {
         s.define_builtin("print", Type::Func(vec![Type::Any], Box::new(Type::Unit)));
         s.define_builtin("println", Type::Func(vec![Type::Any], Box::new(Type::Unit)));
         s.define_builtin("readLine", Type::Func(vec![], Box::new(Type::String)));
+        s.define_builtin("uiWindowDemo", Type::Func(vec![], Box::new(Type::Int)));
         s
     }
 

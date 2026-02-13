@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::process::Command;
 
 pub type ViewId = u64;
 
@@ -98,3 +99,23 @@ fn find_path(node: &ViewNode, target: &str, out: &mut Vec<ViewId>) -> bool {
 pub mod components;
 pub mod style;
 pub mod render;
+
+#[no_mangle]
+pub extern "C" fn korlang_ui_demo_window() -> i64 {
+    let py = r#"
+import tkinter as tk
+root = tk.Tk()
+root.title('Korlang UI')
+root.geometry('420x180')
+label = tk.Label(root, text='Korlang UI is running', font=('Arial', 16))
+label.pack(expand=True)
+root.after(3000, root.destroy)
+root.mainloop()
+"#;
+
+    match Command::new("python3").arg("-c").arg(py).status() {
+        Ok(status) if status.success() => 0,
+        Ok(_) => -1,
+        Err(_) => -1,
+    }
+}

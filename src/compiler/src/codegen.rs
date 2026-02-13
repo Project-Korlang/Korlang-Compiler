@@ -135,8 +135,55 @@ impl<'ctx> Codegen<'ctx> {
                     return None;
                 }
             }
+            if name == "uiWindowDemo" {
+                let ty = self.context.i64_type().fn_type(&[], false);
+                let f = self
+                    .module
+                    .get_function("korlang_ui_demo_window")
+                    .unwrap_or_else(|| self.module.add_function("korlang_ui_demo_window", ty, None));
+                let call = self.builder.build_call(f, &[], "ui_demo").ok()?;
+                return call.try_as_basic_value().left();
+            }
+
+            // Regular function calls for user-defined functions and externs.
+            if let Some(f) = self.module.get_function(name) {
+                let mut arg_values = Vec::new();
+                for a in args {
+                    if let Some(v) = self.emit_arg_value(a) {
+                        arg_values.push(v.into());
+                    } else {
+                        return None;
+                    }
+                }
+                let call = self.builder.build_call(f, &arg_values, "call").ok()?;
+                return call.try_as_basic_value().left();
+            }
         }
         None
+    }
+
+    fn emit_arg_value(&self, expr: &Expr) -> Option<BasicValueEnum<'ctx>> {
+        match self.fold_expr(expr) {
+            Expr::Literal(lit, _) => self.emit_literal_for_call(lit),
+            Expr::Ident(id, _) => self.local_literals.get(&id).and_then(|lit| self.emit_literal_for_call(lit.clone())),
+            _ => None,
+        }
+    }
+
+    fn emit_literal_for_call(&self, lit: Literal) -> Option<BasicValueEnum<'ctx>> {
+        match lit {
+            Literal::Int(v) => Some(self.context.i64_type().const_int(v as u64, true).as_basic_value_enum()),
+            Literal::Float(v) => Some(self.context.f64_type().const_float(v).as_basic_value_enum()),
+            Literal::Bool(v) => Some(self.context.bool_type().const_int(v as u64, false).as_basic_value_enum()),
+            Literal::Char(c) => Some(self.context.i32_type().const_int(c as u64, false).as_basic_value_enum()),
+            Literal::String(s) => Some(
+                self.builder
+                    .build_global_string_ptr(&s, "arg_str")
+                    .expect("global string")
+                    .as_pointer_value()
+                    .as_basic_value_enum(),
+            ),
+        }
     }
 
     fn emit_print_literal(&mut self, lit: &Literal, newline: bool) {
