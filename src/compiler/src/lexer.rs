@@ -282,19 +282,42 @@ impl<'a> Lexer<'a> {
                     return Err(Diagnostic::new("unterminated escape", Span::new(start, self.position())));
                 }
                 let esc = self.peek();
-                let real = match esc {
-                    'n' => '\n',
-                    'r' => '\r',
-                    't' => '\t',
-                    '0' => '\0',
-                    '\\' => '\\',
-                    '"' => '"',
-                    '{' => '{',
-                    '}' => '}',
+                let (real, consume) = match esc {
+                    'n' => ('\n', true),
+                    'r' => ('\r', true),
+                    't' => ('\t', true),
+                    '0' => ('\0', true),
+                    '\\' => ('\\', true),
+                    '"' => ('"', true),
+                    '{' => ('{', true),
+                    '}' => ('}', true),
+                    'u' => {
+                        self.advance();
+                        if self.is_eof() || self.peek() != '{' {
+                            return Err(Diagnostic::new("invalid unicode escape", Span::new(start, self.position())));
+                        }
+                        self.advance();
+                        let hex_start = self.pos;
+                        while !self.is_eof() && self.peek().is_ascii_hexdigit() {
+                            self.advance();
+                        }
+                        if self.is_eof() || self.peek() != '}' {
+                            return Err(Diagnostic::new("invalid unicode escape", Span::new(start, self.position())));
+                        }
+                        let hex: String = self.chars[hex_start..self.pos].iter().collect();
+                        self.advance();
+                        let code = u32::from_str_radix(&hex, 16)
+                            .map_err(|_| Diagnostic::new("invalid unicode escape", Span::new(start, self.position())))?;
+                        let ch = std::char::from_u32(code)
+                            .ok_or_else(|| Diagnostic::new("invalid unicode escape", Span::new(start, self.position())))?;
+                        (ch, false)
+                    }
                     _ => return Err(Diagnostic::new("invalid escape", Span::new(start, self.position()))),
                 };
                 out.push(real);
-                self.advance();
+                if consume {
+                    self.advance();
+                }
                 continue;
             }
             if c == '{' {
@@ -335,6 +358,26 @@ impl<'a> Lexer<'a> {
                 '0' => '\0',
                 '\\' => '\\',
                 '\'' => '\'',
+                'u' => {
+                    self.advance();
+                    if self.is_eof() || self.peek() != '{' {
+                        return Err(Diagnostic::new("invalid unicode escape", Span::new(start, self.position())));
+                    }
+                    self.advance();
+                    let hex_start = self.pos;
+                    while !self.is_eof() && self.peek().is_ascii_hexdigit() {
+                        self.advance();
+                    }
+                    if self.is_eof() || self.peek() != '}' {
+                        return Err(Diagnostic::new("invalid unicode escape", Span::new(start, self.position())));
+                    }
+                    let hex: String = self.chars[hex_start..self.pos].iter().collect();
+                    self.advance();
+                    let code = u32::from_str_radix(&hex, 16)
+                        .map_err(|_| Diagnostic::new("invalid unicode escape", Span::new(start, self.position())))?;
+                    std::char::from_u32(code)
+                        .ok_or_else(|| Diagnostic::new("invalid unicode escape", Span::new(start, self.position())))?
+                }
                 _ => return Err(Diagnostic::new("invalid escape", Span::new(start, self.position()))),
             };
             self.advance();
@@ -375,6 +418,20 @@ impl<'a> Lexer<'a> {
                 top.depth += 1;
             }
             return Ok(Token { kind: TokenKind::LBrace, span: Span::new(start, self.position()) });
+        }
+        if c == '@' && next == '"' {
+            self.advance();
+            self.advance();
+            let mut raw = String::new();
+            while !self.is_eof() && self.peek() != '"' {
+                raw.push(self.peek());
+                self.advance();
+            }
+            if self.is_eof() {
+                return Err(Diagnostic::new("unterminated raw string", Span::new(start, self.position())));
+            }
+            self.advance();
+            return Ok(Token { kind: TokenKind::StringLiteral(raw), span: Span::new(start, self.position()) });
         }
         if (c == '@' && next.is_ascii_alphabetic()) || (c == '@' && next == '_') {
             self.advance();
@@ -630,6 +687,15 @@ mod tests {
         tokens.iter().any(|t| matches!(t.kind, TokenKind::StringLiteral(ref s) if s == value))
     }
 
+    fn has_char_literal(tokens: &[Token], value: char) -> bool {
+        tokens.iter().any(|t| matches!(t.kind, TokenKind::CharLiteral(v) if v == value))
+    }
+
+    fn has_interp_tokens(tokens: &[Token]) -> bool {
+        tokens.iter().any(|t| matches!(t.kind, TokenKind::InterpStart))
+            && tokens.iter().any(|t| matches!(t.kind, TokenKind::InterpEnd))
+    }
+
     #[test]
     fn skip_multiline_comment() {
         let tokens = tokens("/* comment */ fun main() -> Int {}");
@@ -689,4 +755,35 @@ mod tests {
         let tokens = tokens("\"line\\n\\t\\r\\\\\\\"end\"");
         assert!(has_string_literal(&tokens, "line\n\t\r\\\"end"));
     }
+
+    #[test]
+    fn unicode_escape_sequence() {
+        let tokens = tokens("\"emoji\\u{1F600}\"");
+        assert!(has_string_literal(&tokens, "emoji😀"));
+    }
+
+    #[test]
+    fn string_interpolation_tokens() {
+        let tokens = tokens("\"value @{num}\"");
+        assert!(has_interp_tokens(&tokens));
+    }
+
+    #[test]
+    fn raw_string_literal() {
+        let tokens = tokens("@\"C:\\path\\file\"");
+        assert!(has_string_literal(&tokens, "C:\\path\\file"));
+    }
+
+    #[test]
+    fn char_literal_parsing() {
+        let tokens = tokens("'a'");
+        assert!(has_char_literal(&tokens, 'a'));
+    }
+
+    #[test]
+    fn char_escape_parsing() {
+        let tokens = tokens("'\\n'");
+        assert!(has_char_literal(&tokens, '\n'));
+    }
+
 }

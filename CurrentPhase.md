@@ -26,11 +26,11 @@ This phase contains **500+ granular tasks** to ensure no stone is left unturned.
 - [x] **O.1.13** Verify float literal parsing (scientific `1e10`).
 - [x] **O.1.14** Verify string literal parsing (basic `""`).
 - [x] **O.1.15** Verify string escape sequences `\n`, `\t`, `\r`, `\\`, `\"`.
-- [ ] **O.1.16** Verify unicode escape sequences `\u{XXXX}`.
-- [ ] **O.1.17** Verify string interpolation `"{var}"` lexing logic.
-- [ ] **O.1.18** Verify raw string literals (if supported).
-- [ ] **O.1.19** Verify char literal parsing `'a'`.
-- [ ] **O.1.20** Verify char escape parsing `'\n'`.
+- [x] **O.1.16** Verify unicode escape sequences `\u{XXXX}`.
+- [x] **O.1.17** Verify string interpolation `"{var}"` lexing logic.
+- [x] **O.1.18** Verify raw string literals (if supported).
+- [x] **O.1.19** Verify char literal parsing `'a'`.
+- [x] **O.1.20** Verify char escape parsing `'\n'`.
 - [ ] **O.1.21** Verify keyword recognition: `fun`.
 - [ ] **O.1.22** Verify keyword recognition: `let`, `var`.
 - [ ] **O.1.23** Verify keyword recognition: `if`, `else`.
