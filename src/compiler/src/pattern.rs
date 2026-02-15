@@ -1,5 +1,6 @@
 use crate::ast::Pattern;
 use crate::sema::{Type, Sema};
+use crate::diag::Span;
 
 pub struct PatternChecker<'a> {
     sema: &'a mut Sema,

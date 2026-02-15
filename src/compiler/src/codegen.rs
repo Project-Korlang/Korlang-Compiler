@@ -357,7 +357,7 @@ impl<'ctx> Codegen<'ctx> {
 
     fn emit_zero(&self, ret: &TypeRef) -> Option<BasicValueEnum<'ctx>> {
         match ret {
-            TypeRef::Named(name, _) => match name.as_str() {
+            TypeRef::Named(name, _, _) => match name.as_str() {
                 "Int" | "UInt" => Some(self.context.i64_type().const_int(0, false).as_basic_value_enum()),
                 "Float" => Some(self.context.f64_type().const_float(0.0).as_basic_value_enum()),
                 "Bool" => Some(self.context.bool_type().const_int(0, false).as_basic_value_enum()),
@@ -369,7 +369,7 @@ impl<'ctx> Codegen<'ctx> {
 
     fn llvm_type(&self, ty: &TypeRef) -> BasicTypeEnum<'ctx> {
         match ty {
-            TypeRef::Named(name, _) => match name.as_str() {
+            TypeRef::Named(name, _, _) => match name.as_str() {
                 "Int" => self.context.i64_type().as_basic_type_enum(),
                 "UInt" => self.context.i64_type().as_basic_type_enum(),
                 "Float" => self.context.f64_type().as_basic_type_enum(),

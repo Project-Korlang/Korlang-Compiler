@@ -59,6 +59,7 @@ pub struct FunDecl {
     pub ret: Option<TypeRef>,
     pub body: Block,
     pub nogc: bool,
+    pub is_async: bool,
     pub span: Span,
 }
 

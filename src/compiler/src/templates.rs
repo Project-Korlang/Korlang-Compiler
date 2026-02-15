@@ -16,7 +16,7 @@ impl TemplateSystem {
 
     pub fn instantiate_type(&mut self, base_ty: &Type, args: &[Type], params: &[GenericParam]) -> Type {
         // Simple substitution for now
-        let mut subst = HashMap::new();
+        let mut subst: HashMap<String, Type> = HashMap::new();
         for (p, a) in params.iter().zip(args.iter()) {
             subst.insert(p.name.clone(), a.clone());
         }

@@ -5,7 +5,7 @@ use crate::lifetime::LifetimeChecker;
 use crate::moveck::MoveChecker;
 use std::collections::HashMap;
 
-use crate::types::Type;
+pub use crate::types::Type;
 use crate::interface::InterfaceSystem;
 
 #[derive(Default)]
@@ -216,7 +216,7 @@ impl Sema {
         self.check_stmt_with(stmt, false)
     }
 
-    fn check_stmt_with(&mut self, stmt: &Stmt, nogc: bool) -> Type {
+    pub fn check_stmt_with(&mut self, stmt: &Stmt, nogc: bool) -> Type {
         match stmt {
             Stmt::Var(v) => {
                 let ty = self.check_expr_with(&v.value, nogc);
@@ -315,7 +315,7 @@ impl Sema {
         self.check_expr_with(expr, false)
     }
 
-    fn check_expr_with(&mut self, expr: &Expr, nogc: bool) -> Type {
+    pub fn check_expr_with(&mut self, expr: &Expr, nogc: bool) -> Type {
         match expr {
             Expr::Literal(l, span) => {
                 if nogc {
@@ -394,7 +394,7 @@ impl Sema {
 
                 // Handle Optional: T can be assigned to T?
                 if let Type::Optional(inner) = lt.clone() {
-                    if &**inner == &rt || rt == Type::Nothing {
+                    if *inner == rt || rt == Type::Nothing {
                         return lt.clone();
                     }
                 }
@@ -597,7 +597,8 @@ impl Sema {
                     self.bind_pattern(&f.1);
                 }
             }
-            Pattern::Literal(_, _) | Pattern::Wildcard(_) => {}
+            Pattern::Literal(_, _) | Pattern::Wildcard(_) => {},
+            Pattern::Is(_, _, _) => {},
         }
     }
 
@@ -766,7 +767,7 @@ impl Sema {
         }
     }
 
-    fn is_nogc_function(&self, name: &str) -> bool {
+    pub fn is_nogc_function(&self, name: &str) -> bool {
         self.nogc_functions.get(name).copied().unwrap_or(false)
     }
 
