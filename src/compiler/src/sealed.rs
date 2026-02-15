@@ -1,5 +1,6 @@
 use crate::ast::{SealedDecl, Item};
-use crate::sema::{Sema, Type};
+use crate::diag::Span;
+use crate::sema::Sema;
 use std::collections::HashSet;
 
 pub struct SealedEnforcer<'a> {

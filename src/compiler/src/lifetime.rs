@@ -88,9 +88,9 @@ impl<'a> LifetimeChecker<'a> {
             }
             Expr::Call { args, .. } => {
                 // Return minimum lifetime of arguments for now
-                let mut min_life = Lifetime::Static;
+                let min_life = Lifetime::Static;
                 for arg in args {
-                    let life = self.check_expr(arg);
+                    let _life = self.check_expr(arg);
                     // logic to find shortest lifetime...
                 }
                 min_life

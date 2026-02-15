@@ -47,7 +47,7 @@ impl<'a> PatternChecker<'a> {
                     self.check_pattern(p, &Type::Any);
                 }
             }
-            Pattern::Is(ty_ref, inner_pat, span) => {
+            Pattern::Is(ty_ref, inner_pat, _span) => {
                 let target_ty = self.sema.type_from_ref(ty_ref);
                 // check if expected_ty can be cast to target_ty
                 // for simplicity, we assume success if they are named types or related

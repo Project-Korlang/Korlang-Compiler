@@ -442,17 +442,21 @@ impl Sema {
                 // Handle Generic Function Instantiation
                 if let Type::Generic(name, gen_args) = ct.clone() {
                     // 1. Check constraints if we have a definition
+                    let mut constraints_to_check = Vec::new();
                     if let Some(f_decl) = self.lookup_fun_decl(&name) {
                         if f_decl.generic_params.len() != gen_args.len() {
                             self.diags.push(Diagnostic::error(format!("generic argument count mismatch for '{}'", name), *span));
                         } else {
                             for (param, arg) in f_decl.generic_params.iter().zip(gen_args.iter()) {
                                 for constraint in &param.constraints {
-                                    let constraint_ty = self.type_from_ref(constraint);
-                                    self.check_satisfies(arg, &constraint_ty, self.span_of(callee));
+                                    constraints_to_check.push((arg.clone(), constraint.clone()));
                                 }
                             }
                         }
+                    }
+                    for (arg, constraint) in constraints_to_check {
+                        let constraint_ty = self.type_from_ref(&constraint);
+                        self.check_satisfies(&arg, &constraint_ty, self.span_of(callee));
                     }
                     
                     if let Some(f_ty) = self.functions.get(&name) {
@@ -777,7 +781,7 @@ impl Sema {
 
     fn check_satisfies(&mut self, ty: &Type, constraint: &Type, span: Span) {
         if let Type::Named(name) = constraint {
-            if let Some(interface) = self.interface_system.interfaces.get(name) {
+            if let Some(_interface) = self.interface_system.interfaces.get(name) {
                 // In a real implementation, we would check if ty implements all methods in interface
                 // For now, assume it works if we have a struct definition for ty
                 if let Type::Named(s_name) = ty {
