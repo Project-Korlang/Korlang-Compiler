@@ -20,46 +20,113 @@ use inkwell::targets::{InitializationConfig, Target, TargetMachine, FileType};
 fn main() {
     let mut args = env::args().skip(1);
     let cmd = args.next().unwrap_or_default();
+    
+    // Add verbose mode support
+    let verbose = args.any(|a| a == "--verbose" || a == "-v");
+    if verbose {
+        println!("Korlang CLI v0.1.0 - Verbose Mode");
+        println!("=====================================");
+    }
+    
     match cmd.as_str() {
-        "build" => build(args.collect(), false),
-        "run" => build(args.collect(), true),
+        "build" => build(args.collect(), false, verbose),
+        "run" => build(args.collect(), true, verbose),
         "new" => new_project(args.collect()),
         "test" => run_tests(),
         "doc" => generate_docs(),
         "bootstrap" => bootstrap(),
         "repl" => repl(),
+        "--version" => {
+            println!("Korlang Compiler v0.1.0");
+            println!("Target: {}-{}", std::env::consts::OS, std::env::consts::ARCH);
+        }
+        "--help" | "-h" => {
+            println!("Korlang Compiler - Build and run Korlang programs");
+            println!("");
+            println!("USAGE:");
+            println!("    korlang <COMMAND> [OPTIONS] [ARGS]");
+            println!("");
+            println!("COMMANDS:");
+            println!("    build <file>     Compile a Korlang file");
+            println!("    run <file>       Compile and run a Korlang file");
+            println!("    new <project>    Create a new Korlang project");
+            println!("    test             Run the test suite");
+            println!("    doc              Generate documentation");
+            println!("    bootstrap        Bootstrap the compiler");
+            println!("    repl             Start interactive REPL");
+            println!("");
+            println!("OPTIONS:");
+            println!("    -o <output>      Output file name");
+            println!("    --static         Static linking");
+            println!("    --lto            Link-time optimization");
+            println!("    --thinlto        Thin LTO");
+            println!("    --pgo-generate   Generate PGO profile");
+            println!("    --pgo-use <file> Use PGO profile");
+            println!("    --verbose, -v    Verbose output");
+            println!("    --version        Show version");
+            println!("    --help, -h       Show this help");
+        }
         _ => {
-            eprintln!("Usage: korlang <build|run|new|test|doc|bootstrap|repl> <file.kor> [-o out] [--static] [--lto|--thinlto] [--pgo-generate] [--pgo-use file]");
+            eprintln!("Error: Unknown command '{}'", cmd);
+            eprintln!("");
+            eprintln!("Usage: korlang <build|run|new|test|doc|bootstrap|repl> <file.kor> [-o out] [--static] [--lto|--thinlto] [--pgo-generate] [--pgo-use file] [--verbose]");
             eprintln!("       korlang build --native-selfhost");
             eprintln!("       korlang run file.kor -- arg1 arg2");
+            eprintln!("       korlang --help");
             std::process::exit(1);
         }
     }
 }
 
-fn build(args: Vec<String>, run: bool) {
+fn build(args: Vec<String>, run: bool, verbose: bool) {
+    if verbose {
+        println!("Build command: run={}, args={:?}", run, args);
+    }
+    
     if args.iter().any(|a| a == "--native-selfhost") {
         build_native_selfhosted();
         return;
     }
 
-    let (build_args, run_args) = split_run_args(&args);
+    // Filter out verbose flag from build args
+    let build_args: Vec<String> = args.into_iter().filter(|a| a != "--verbose" && a != "-v").collect();
+    let (build_args, run_args) = split_run_args(&build_args);
+    
+    if verbose {
+        println!("Build args: {:?}", build_args);
+        println!("Run args: {:?}", run_args);
+    }
+
     let input = if build_args.is_empty() {
         if run {
             let default = PathBuf::from("src/main.kor");
             if default.exists() {
+                if verbose {
+                    println!("Using default input file: {}", default.display());
+                }
                 default
             } else {
-                eprintln!("missing input file (expected src/main.kor)");
+                eprintln!("Error: missing input file (expected src/main.kor)");
+                eprintln!("Current directory: {}", env::current_dir().unwrap_or_else(|_| PathBuf::from("unknown")).display());
                 std::process::exit(1);
             }
         } else {
-            eprintln!("missing input file");
+            eprintln!("Error: missing input file");
+            eprintln!("Usage: korlang build <file.kor>");
             std::process::exit(1);
         }
     } else {
-        PathBuf::from(&build_args[0])
+        let input_path = PathBuf::from(&build_args[0]);
+        if verbose {
+            println!("Input file: {}", input_path.display());
+        }
+        if !input_path.exists() {
+            eprintln!("Error: input file does not exist: {}", input_path.display());
+            std::process::exit(1);
+        }
+        input_path
     };
+    
     let mut output = PathBuf::from("a.out");
     let mut static_link = false;
     let mut lto = None;
@@ -70,38 +137,72 @@ fn build(args: Vec<String>, run: bool) {
     while i < build_args.len() {
         if build_args[i] == "-o" && i + 1 < build_args.len() {
             output = PathBuf::from(&build_args[i + 1]);
+            if verbose {
+                println!("Output file: {}", output.display());
+            }
             i += 2;
         } else if build_args[i] == "--static" {
             static_link = true;
+            if verbose {
+                println!("Static linking enabled");
+            }
             i += 1;
         } else if build_args[i] == "--lto" {
             lto = Some(LtoMode::Full);
+            if verbose {
+                println!("Full LTO enabled");
+            }
             i += 1;
         } else if build_args[i] == "--thinlto" {
             lto = Some(LtoMode::Thin);
+            if verbose {
+                println!("Thin LTO enabled");
+            }
             i += 1;
         } else if build_args[i] == "--pgo-generate" {
             pgo_generate = true;
+            if verbose {
+                println!("PGO profile generation enabled");
+            }
             i += 1;
         } else if build_args[i] == "--pgo-use" && i + 1 < build_args.len() {
             pgo_use = Some(PathBuf::from(&build_args[i + 1]));
+            if verbose {
+                println!("PGO profile use: {}", build_args[i + 1]);
+            }
             i += 2;
         } else {
             i += 1;
         }
     }
 
+    if verbose {
+        println!("Reading source file...");
+    }
+    
     let src = match resolve_source_with_imports(&input) {
-        Ok(s) => s,
+        Ok(s) => {
+            if verbose {
+                println!("Source file read successfully, {} bytes", s.len());
+            }
+            s
+        }
         Err(e) => {
-            eprintln!("failed to resolve source {}: {}", input.display(), e);
+            eprintln!("Error: failed to resolve source {}: {}", input.display(), e);
             std::process::exit(1);
         }
     };
+    
     let target_dir = PathBuf::from(".korlang/target");
     let _ = fs::create_dir_all(&target_dir);
     let cache_dir = target_dir.join("cache");
     let _ = fs::create_dir_all(&cache_dir);
+    
+    if verbose {
+        println!("Target directory: {}", target_dir.display());
+        println!("Cache directory: {}", cache_dir.display());
+    }
+    
     let lto_tag = match lto {
         Some(LtoMode::Full) => "full",
         Some(LtoMode::Thin) => "thin",
@@ -123,13 +224,18 @@ fn build(args: Vec<String>, run: bool) {
     );
     let output_key = output.to_string_lossy().to_string();
     let cache_file = cache_dir.join(format!("{}.cache", hash_str(&output_key)));
+    
     if cache_file.exists() && output.exists() {
         if let Ok(prev) = fs::read_to_string(&cache_file) {
             if prev == cache_key {
+                if verbose {
+                    println!("Using incremental cache for {}", output.display());
+                }
                 println!("Inputs unchanged; using incremental cache for {}", output.display());
                 if run {
                     let run_status = run_cached_binary(&output, &run_args);
                     if !run_status.success() {
+                        eprintln!("Error: cached binary execution failed");
                         std::process::exit(run_status.code().unwrap_or(1));
                     }
                 } else {
@@ -139,42 +245,98 @@ fn build(args: Vec<String>, run: bool) {
             }
         }
     }
+    
     let out_ll = target_dir.join(output.with_extension("ll").file_name().unwrap());
     let out_obj = target_dir.join(output.with_extension("o").file_name().unwrap());
+    
+    if verbose {
+        println!("Starting compilation pipeline...");
+        println!("LLVM IR output: {}", out_ll.display());
+        println!("Object file output: {}", out_obj.display());
+    }
+    
+    // Lexing phase
+    if verbose {
+        println!("Phase 1: Lexing...");
+    }
     let tokens = match Lexer::new(&src).tokenize() {
-        Ok(t) => t,
+        Ok(t) => {
+            if verbose {
+                println!("  Lexing successful, {} tokens", t.len());
+            }
+            t
+        }
         Err(diags) => {
+            eprintln!("Error: Lexing failed");
             print_diags("lex", &input, &diags);
             std::process::exit(1);
         }
     };
+    
+    // Parsing phase
+    if verbose {
+        println!("Phase 2: Parsing...");
+    }
     let program = match Parser::new(tokens).parse_program() {
-        Ok(p) => p,
+        Ok(p) => {
+            if verbose {
+                println!("  Parsing successful, {} AST nodes", p.items.len());
+            }
+            p
+        }
         Err(diags) => {
+            eprintln!("Error: Parsing failed");
             print_diags("parse", &input, &diags);
             std::process::exit(1);
         }
     };
+    
+    // Semantic analysis phase
+    if verbose {
+        println!("Phase 3: Semantic analysis...");
+    }
     if let Err(diags) = Sema::new().check_program(&program) {
+        eprintln!("Error: Semantic analysis failed");
         print_diags("sema", &input, &diags);
         std::process::exit(1);
     }
+    if verbose {
+        println!("  Semantic analysis successful");
+    }
 
+    // Code generation phase
+    if verbose {
+        println!("Phase 4: Code generation...");
+    }
     let context = Context::create();
     let codegen = Codegen::new(&context, "main");
     let module = match codegen.emit_program(&program) {
-        Ok(m) => m,
+        Ok(m) => {
+            if verbose {
+                println!("  Code generation successful");
+            }
+            m
+        }
         Err(diags) => {
+            eprintln!("Error: Code generation failed");
             print_diags("codegen", &input, &diags);
             std::process::exit(1);
         }
     };
+    
     if let Err(e) = module.print_to_file(&out_ll) {
-        eprintln!("failed to write IR {}: {}", out_ll.display(), e);
+        eprintln!("Error: failed to write LLVM IR {}: {}", out_ll.display(), e);
         std::process::exit(1);
+    }
+    if verbose {
+        println!("  LLVM IR written to: {}", out_ll.display());
     }
 
     let runtime_lib = locate_runtime().unwrap_or_else(|| PathBuf::from("../../runtime/target/debug/libkorlang_rt.a"));
+    if verbose {
+        println!("Runtime library: {}", runtime_lib.display());
+    }
+    
     let mut extra_args = Vec::new();
     if static_link {
         extra_args.push("-static".to_string());
@@ -184,9 +346,15 @@ fn build(args: Vec<String>, run: bool) {
     }
 
     // Compile IR to object using LLVM target machine (no external clang).
+    if verbose {
+        println!("Phase 5: LLVM IR to object compilation...");
+    }
     if !compile_ir_to_obj(&module, &out_obj) {
-        eprintln!("Failed to compile LLVM IR to object.");
+        eprintln!("Error: Failed to compile LLVM IR to object file");
         return;
+    }
+    if verbose {
+        println!("  Object file created: {}", out_obj.display());
     }
 
     if let Some(parent) = output.parent() {
@@ -206,27 +374,63 @@ fn build(args: Vec<String>, run: bool) {
         println!("Compiling: {}", input.display());
     } else {
         println!("LLVM IR written to: {}", out_ll.display());
-        println!("Link with: {}", link.join(" "));
+        if verbose {
+            println!("Link command: {}", link.join(" "));
+        } else {
+            println!("Link with: {}", link.join(" "));
+        }
     }
 
-    let status = Command::new(&link[0])
+    // Linking phase
+    if verbose {
+        println!("Phase 6: Linking...");
+        println!("  Link command: {} {}", link[0], link[1..].join(" "));
+    }
+    
+    let link_result = Command::new(&link[0])
         .args(&link[1..])
-        .status();
+        .output();  // Use output() instead of status() to get stdout/stderr
 
-    match status {
-        Ok(s) if s.success() => {
-            if run {
-                let run_status = run_cached_binary(&output, &run_args);
-                if !run_status.success() {
-                    std::process::exit(run_status.code().unwrap_or(1));
+    match link_result {
+        Ok(link_output) => {
+            if link_output.status.success() {
+                if verbose {
+                    println!("  Linking successful");
+                    if !link_output.stdout.is_empty() {
+                        println!("  Linker stdout: {}", String::from_utf8_lossy(&link_output.stdout));
+                    }
+                    if !link_output.stderr.is_empty() {
+                        println!("  Linker stderr: {}", String::from_utf8_lossy(&link_output.stderr));
+                    }
                 }
-            }
-            if let Err(e) = fs::write(&cache_file, cache_key.clone()) {
-                eprintln!("warning: failed to update cache {}: {}", cache_file.display(), e);
+                
+                if run {
+                    let run_status = run_cached_binary(&output, &run_args);
+                    if !run_status.success() {
+                        eprintln!("Error: program execution failed");
+                        std::process::exit(run_status.code().unwrap_or(1));
+                    }
+                } else {
+                    println!("✓ Compilation successful: {}", output.display());
+                }
+                
+                if let Err(e) = fs::write(&cache_file, cache_key.clone()) {
+                    eprintln!("Warning: failed to update cache {}: {}", cache_file.display(), e);
+                }
+            } else {
+                eprintln!("Error: Linking failed");
+                eprintln!("Linker exit code: {:?}", link_output.status.code());
+                if !link_output.stdout.is_empty() {
+                    eprintln!("Linker stdout: {}", String::from_utf8_lossy(&link_output.stdout));
+                }
+                if !link_output.stderr.is_empty() {
+                    eprintln!("Linker stderr: {}", String::from_utf8_lossy(&link_output.stderr));
+                }
+                std::process::exit(1);
             }
         }
-        _ => {
-            eprintln!("link failed; binary not executed");
+        Err(e) => {
+            eprintln!("Error: Failed to execute linker: {}", e);
             std::process::exit(1);
         }
     }
@@ -404,15 +608,38 @@ fn print_diags(stage: &str, file: &PathBuf, diags: &[Diagnostic]) {
     let cyan = "\x1b[36m";
     let yellow = "\x1b[33m";
     let reset = "\x1b[0m";
+
+    let content = fs::read_to_string(file).ok();
+    let lines: Vec<&str> = content
+        .as_ref()
+        .map(|s| s.lines().collect())
+        .unwrap_or_default();
+
     eprintln!("{red}error{reset}: {stage} failed for {}", file.display());
     for d in diags {
+        let line_num = d.span.start.line;
+        let col_num = d.span.start.column;
+
         eprintln!(
             "{cyan}--> {reset}{}:{}:{}",
             file.display(),
-            d.span.start.line,
-            d.span.start.column
+            line_num,
+            col_num
         );
-        eprintln!("  {yellow}|{reset} {}", d.message);
+
+        if line_num > 0 && line_num <= lines.len() {
+            let line_content = lines[line_num - 1];
+            eprintln!(" {cyan}{:3} |{reset} {}", line_num, line_content);
+
+            let padding = " ".repeat(col_num.saturating_sub(1));
+            eprintln!(
+                "     {cyan}|{reset} {red}{}^--- {}{reset}",
+                padding,
+                d.message
+            );
+        } else {
+            eprintln!("  {yellow}|{reset} {}", d.message);
+        }
     }
 }
 

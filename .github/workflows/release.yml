@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: korlang
+            asset_name: korlang-${{ github.ref_name }}-linux-x86_64.tar.gz
+          - os: windows-latest
+            artifact_name: korlang.exe
+            asset_name: korlang-${{ github.ref_name }}-windows-x86_64.zip
+          - os: macos-latest
+            artifact_name: korlang
+            asset_name: korlang-${{ github.ref_name }}-macos-x86_64.tar.gz
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        
+      - name: Install LLVM (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-16-dev libclang-16-dev
+          
+      - name: Install LLVM (macOS)
+        if: runner.os == 'macOS'
+        run: brew install llvm@16
+        
+      - name: Build CLI
+        run: cargo build --release --manifest-path Korlang-Compiler/src/tools/cli/Cargo.toml
+        
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd Korlang-Compiler/src/tools/cli/target/release
+          tar -czf ../../../../../${{ matrix.asset_name }} ${{ matrix.artifact_name }}
+          
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd Korlang-Compiler/src/tools/cli/target/release
+          Compress-Archive -Path ${{ matrix.artifact_name }} -DestinationPath ../../../../../${{ matrix.asset_name }}
+          
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ matrix.asset_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
