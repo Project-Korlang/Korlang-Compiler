@@ -440,6 +440,17 @@ fn resolve_import_path(base_dir: &Path, project_root: Option<&Path>, module: &st
         project_root.map(|p| p.join("src").join(&rel)).unwrap_or_default(),
         project_root.map(|p| p.join(&rel)).unwrap_or_default(),
     ];
+    
+    // Support distributed installation
+    if let Ok(exe) = env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.join("../stdlib").join(&rel));
+        }
+    }
+    if let Ok(home) = env::var("KORLANG_HOME") {
+        candidates.push(PathBuf::from(home).join("stdlib").join(&rel));
+    }
+
     if let Some(repo_root) = find_repo_root() {
         candidates.push(repo_root.join("src/stdlib/core").join(&rel));
         candidates.push(repo_root.join("src/runtime/korlang/stdlib").join(&rel));
@@ -475,13 +486,19 @@ fn compile_ir_to_obj(module: &inkwell::module::Module, obj: &PathBuf) -> bool {
 }
 
 fn locate_runtime() -> Option<PathBuf> {
+    let lib_name = if cfg!(windows) { "korlang_rt.lib" } else { "libkorlang_rt.a" };
+    
     if let Ok(home) = env::var("KORLANG_HOME") {
-        let p = PathBuf::from(home).join("lib").join("libkorlang_rt.a");
+        let p = PathBuf::from(home).join("lib").join(lib_name);
         if p.exists() { return Some(p); }
     }
     if let Ok(exe) = env::current_exe() {
         if let Some(dir) = exe.parent() {
-            let p = dir.join("../lib/libkorlang_rt.a");
+            let p = dir.join("../lib").join(lib_name);
+            if p.exists() { return Some(p); }
+            
+            // Fallback for development/CI layout
+            let p = dir.join(lib_name);
             if p.exists() { return Some(p); }
         }
     }
