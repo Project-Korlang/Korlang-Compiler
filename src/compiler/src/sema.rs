@@ -611,17 +611,10 @@ impl Sema {
         }
     }
 
-    pub fn is_nogc_function(&self, name: &str) -> bool {
-        self.nogc_functions.get(name).copied().unwrap_or(false)
-    }
 
     pub fn type_from_ref(&self, tr: &TypeRef) -> Type {
         match tr {
-                "Any" => Type::Any,
-                "Nothing" => Type::Nothing,
-                _ => Type::Named(name.clone()),
-            },
-            TypeRef::Named(name, args, span) => {
+            TypeRef::Named(name, args, _span) => {
                 if args.is_empty() {
                     match name.as_str() {
                         "Int" => Type::Int,
@@ -817,6 +810,10 @@ impl Sema {
                     {
                         let mut ngck = crate::nogc::NoGcChecker::new(self);
                         ngck.check_fun(f);
+                    }
+                    if f.is_async {
+                        let mut ack = crate::async_pass::AsyncCompiler::new(self);
+                        ack.check_async_fun(f);
                     }
                 }
             }

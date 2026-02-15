@@ -3,7 +3,7 @@ pub mod types;
 pub mod interface;
 pub mod sealed;
 pub mod extension;
-pub mod async;
+pub mod async_pass;
 pub mod nogc;
 pub mod lexer;
 pub mod parser;
