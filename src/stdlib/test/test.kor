@@ -1,0 +1,25 @@
+module std.test
+
+import std.io
+
+struct TestContext {
+    name: String,
+    passed: Int,
+    failed: Int
+}
+
+fun TestContext.assert(self, condition: Bool, message: String) {
+    if (condition) {
+        self.passed = self.passed + 1;
+    } else {
+        self.failed = self.failed + 1;
+        io.echo("ASSERTION FAILED [" + self.name + "]: " + message);
+    }
+}
+
+fun run_test(name: String, test_fn: (TestContext) -> Void) {
+    let ctx = TestContext { name: name, passed: 0, failed: 0 };
+    io.echo("RUNNING TEST: " + name);
+    test_fn(ctx);
+    io.echo("RESULT [" + name + "]: " + ctx.passed.to_string() + " PASSED, " + ctx.failed.to_string() + " FAILED");
+}

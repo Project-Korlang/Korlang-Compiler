@@ -9,6 +9,9 @@ pub struct SpscChannel<T> {
     buffer: Vec<UnsafeCell<MaybeUninit<T>>>,
     head: AtomicUsize,
     tail: AtomicUsize,
+    // Monitoring
+    sent_count: AtomicUsize,
+    recv_count: AtomicUsize,
 }
 
 unsafe impl<T: Send> Send for SpscChannel<T> {}
@@ -26,6 +29,8 @@ impl<T> SpscChannel<T> {
             buffer: buf,
             head: AtomicUsize::new(0),
             tail: AtomicUsize::new(0),
+            sent_count: AtomicUsize::new(0),
+            recv_count: AtomicUsize::new(0),
         }
     }
 
@@ -38,6 +43,7 @@ impl<T> SpscChannel<T> {
         }
         unsafe { (*self.buffer[head].get()).write(value); }
         self.head.store(next, Ordering::Release);
+        self.sent_count.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }
 
@@ -49,7 +55,12 @@ impl<T> SpscChannel<T> {
         }
         let val = unsafe { (*self.buffer[tail].get()).assume_init_read() };
         self.tail.store((tail + 1) & self.mask, Ordering::Release);
+        self.recv_count.fetch_add(1, Ordering::Relaxed);
         Some(val)
+    }
+
+    pub fn get_metrics(&self) -> (usize, usize) {
+        (self.sent_count.load(Ordering::Relaxed), self.recv_count.load(Ordering::Relaxed))
     }
 }
 
@@ -57,6 +68,9 @@ impl<T> SpscChannel<T> {
 pub struct MpmcChannel<T> {
     q: Mutex<Vec<T>>,
     cv: Condvar,
+    // Monitoring
+    sent_count: AtomicUsize,
+    recv_count: AtomicUsize,
 }
 
 #[cfg(test)]
@@ -108,12 +122,15 @@ impl<T> MpmcChannel<T> {
         Self {
             q: Mutex::new(Vec::new()),
             cv: Condvar::new(),
+            sent_count: AtomicUsize::new(0),
+            recv_count: AtomicUsize::new(0),
         }
     }
 
     pub fn send(&self, value: T) {
         let mut q = self.q.lock().unwrap();
         q.push(value);
+        self.sent_count.fetch_add(1, Ordering::Relaxed);
         self.cv.notify_one();
     }
 
@@ -121,9 +138,14 @@ impl<T> MpmcChannel<T> {
         let mut q = self.q.lock().unwrap();
         loop {
             if let Some(v) = q.pop() {
+                self.recv_count.fetch_add(1, Ordering::Relaxed);
                 return v;
             }
             q = self.cv.wait(q).unwrap();
         }
+    }
+
+    pub fn get_metrics(&self) -> (usize, usize) {
+        (self.sent_count.load(Ordering::Relaxed), self.recv_count.load(Ordering::Relaxed))
     }
 }

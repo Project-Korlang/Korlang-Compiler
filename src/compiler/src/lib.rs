@@ -12,3 +12,7 @@ pub mod borrowck;
 pub mod lifetime;
 pub mod moveck;
 pub mod collections;
+pub mod templates;
+pub mod concepts;
+pub mod specialization;
+pub mod constexpr;

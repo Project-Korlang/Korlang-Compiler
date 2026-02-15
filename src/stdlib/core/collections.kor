@@ -16,6 +16,29 @@ fun List.new<T>() -> List<T> {
     }
 }
 
+fun List.isEmpty<T>(self) -> Bool {
+    self.size == 0
+}
+
+fun List.first<T>(self) -> T? {
+    if (self.size == 0) { return null; }
+    self.data[0]
+}
+
+fun List.last<T>(self) -> T? {
+    if (self.size == 0) { return null; }
+    self.data[self.size - 1]
+}
+
+fun List.benchmark_push(iterations: Int) {
+    let l = List.new<Int>();
+    let i = 0;
+    while (i < iterations) {
+        l.push(i);
+        i = i + 1;
+    }
+}
+
 fun List.push<T>(self, item: T) {
     if (self.size == self.capacity) {
         self.reserve(self.capacity * 2);
@@ -136,6 +159,19 @@ fun Map.new<K, V>() -> Map<K, V> {
         buckets: [null; 16],
         size: 0,
         num_buckets: 16
+    }
+}
+
+fun Map.isEmpty<K, V>(self) -> Bool {
+    self.size == 0
+}
+
+fun Map.benchmark_put(iterations: Int) {
+    let m = Map.new<Int, Int>();
+    let i = 0;
+    while (i < iterations) {
+        m.put(i, i * 2);
+        i = i + 1;
     }
 }
 

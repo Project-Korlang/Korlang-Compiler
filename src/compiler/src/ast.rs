@@ -22,7 +22,15 @@ pub enum Item {
 #[derive(Debug, Clone)]
 pub struct InterfaceDecl {
     pub name: String,
+    pub generic_params: Vec<GenericParam>,
     pub methods: Vec<FunSig>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub struct GenericParam {
+    pub name: String,
+    pub constraints: Vec<TypeRef>,
     pub span: Span,
 }
 
@@ -45,6 +53,7 @@ pub struct SealedDecl {
 pub struct FunDecl {
     pub receiver: Option<TypeRef>,
     pub name: String,
+    pub generic_params: Vec<GenericParam>,
     pub params: Vec<Param>,
     pub ret: Option<TypeRef>,
     pub body: Block,
@@ -62,6 +71,7 @@ pub struct Param {
 #[derive(Debug, Clone)]
 pub struct StructDecl {
     pub name: String,
+    pub generic_params: Vec<GenericParam>,
     pub fields: Vec<FieldDecl>,
     pub implements: Vec<TypeRef>,
     pub span: Span,
@@ -77,6 +87,7 @@ pub struct FieldDecl {
 #[derive(Debug, Clone)]
 pub struct EnumDecl {
     pub name: String,
+    pub generic_params: Vec<GenericParam>,
     pub variants: Vec<VariantDecl>,
     pub span: Span,
 }
@@ -91,6 +102,7 @@ pub struct VariantDecl {
 #[derive(Debug, Clone)]
 pub struct TypeAliasDecl {
     pub name: String,
+    pub generic_params: Vec<GenericParam>,
     pub target: TypeRef,
     pub span: Span,
 }
@@ -253,7 +265,7 @@ pub enum Pattern {
 
 #[derive(Debug, Clone)]
 pub enum TypeRef {
-    Named(String, Span),
+    Named(String, Vec<TypeRef>, Span),
     Tuple(Vec<TypeRef>, Span),
     Array(Box<TypeRef>, Span),
     Tensor { elem: Box<TypeRef>, shape: Vec<ShapeDim>, span: Span },

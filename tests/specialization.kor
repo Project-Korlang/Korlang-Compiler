@@ -1,0 +1,14 @@
+fun typeName<T>() -> String {
+    "Generic"
+}
+
+// Specialization for Int (pseudo-syntax/concept for now)
+fun typeName<Int>() -> String {
+    "Integer"
+}
+
+fun main() -> Int {
+    println(typeName<Float>());
+    println(typeName<Int>());
+    0
+}

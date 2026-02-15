@@ -1,0 +1,26 @@
+interface Printable {
+    fun print();
+}
+
+fun display<T: Printable>(item: T) {
+    item.print();
+}
+
+struct Point {
+    x: Int,
+    y: Int
+}
+
+fun Point.print() {
+    print("Point(");
+    print(self.x);
+    print(", ");
+    print(self.y);
+    print(")");
+}
+
+fun main() -> Int {
+    let p = Point { x: 10, y: 20 };
+    display<Point>(p);
+    0
+}

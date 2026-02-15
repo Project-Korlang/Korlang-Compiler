@@ -1,14 +1,48 @@
-// Phase Reality: Group 2.3 - JSON Implementation
-module json
+module std.json
 
-// R.2.37: json.parse
-fun parse(s: String) -> Any {
-    // Placeholder for native JSON parser
-    echo("Status: JSON parsing @{s}");
-    null
+import std.collections
+
+enum JsonValue {
+    Null,
+    Bool(Bool),
+    Number(Float),
+    String(String),
+    Array(List<JsonValue>),
+    Object(Map<String, JsonValue>)
 }
 
-// R.2.38: json.str
-fun str(obj: Any) -> String {
-    obj.to_string()
+fun parse(json: String) -> JsonValue {
+    // Stub for JSON parser
+    JsonValue.Null
+}
+
+fun JsonValue.stringify(self) -> String {
+    match (self) {
+        JsonValue.Null => "null",
+        JsonValue.Bool(b) => b.to_string(),
+        JsonValue.Number(n) => n.to_string(),
+        JsonValue.String(s) => "\"" + s + "\"",
+        JsonValue.Array(a) => {
+            let res = "[";
+            let i = 0;
+            while (i < a.len()) {
+                res = res + a.get(i).stringify();
+                if (i < a.len() - 1) { res = res + ", "; }
+                i = i + 1;
+            }
+            res + "]"
+        },
+        JsonValue.Object(o) => {
+            let res = "{";
+            let keys = o.keys();
+            let i = 0;
+            while (i < keys.len()) {
+                let k = keys.get(i);
+                res = res + "\"" + k + "\": " + o.get(k).stringify();
+                if (i < keys.len() - 1) { res = res + ", "; }
+                i = i + 1;
+            }
+            res + "}"
+        }
+    }
 }

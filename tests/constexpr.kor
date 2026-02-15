@@ -1,0 +1,6 @@
+fun main() -> Int {
+    let x = 1 + 2 * 3;
+    let y: [Int, 7] = [0, 0, 0, 0, 0, 0, 0];
+    print(x);
+    0
+}

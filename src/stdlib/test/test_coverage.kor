@@ -1,0 +1,35 @@
+module std.test_coverage
+
+import std.collections
+
+struct CoverageTracker {
+    files: Map<String, List<Bool>>
+}
+
+fun CoverageTracker.mark_visited(self, file: String, line: Int) {
+    if (!self.files.has(file)) {
+        self.files.put(file, List.new<Bool>());
+    }
+    let lines = self.files.get(file);
+    while (lines.len() <= line) {
+        lines.push(false);
+    }
+    lines.data[line] = true;
+}
+
+fun CoverageTracker.report(self) {
+    let files = self.files.keys();
+    let i = 0;
+    while (i < files.len()) {
+        let f = files.get(i);
+        let lines = self.files.get(f);
+        let visited = 0;
+        let j = 0;
+        while (j < lines.len()) {
+            if (lines.get(j)) { visited = visited + 1; }
+            j = j + 1;
+        }
+        println("Coverage for " + f + ": " + visited.to_string() + "/" + lines.len().to_string());
+        i = i + 1;
+    }
+}

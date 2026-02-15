@@ -1,5 +1,7 @@
-// Phase Reality: Group 2.1 - Core I/O Implementation (Bootstrap Compatible)
-module io
+module std.io
+
+import syscall.dispatcher
+import syscall.linux
 
 // R.2.1: print
 fun print(val: Any) {
@@ -13,29 +15,55 @@ fun echo(val: Any) {
     print("\n");
 }
 
-// R.2.3: input
-fun input() -> Any {
-    return "";
+// Error type for I/O operations
+enum IoError {
+    NotFound,
+    PermissionDenied,
+    AlreadyExists,
+    WouldBlock,
+    Other(Int)
 }
 
-// R.2.4: input with prompt
-fun input_prompt(msg: String) -> String {
-    print(msg);
-    input()
+struct IoResult<T> {
+    ok: T?,
+    err: IoError?
 }
 
-// R.2.5: write (alias for print)
-fun write(val: Any) {
-    print(val);
+fun IoResult.unwrap<T>(self) -> T {
+    if (self.err != null) {
+        panic("IoError: " + self.err.to_string());
+    }
+    self.ok
 }
 
-// R.2.6: error
-fun error(val: Any) {
-    let s = val.to_string();
-    @import("native_write")(2, s.ptr, s.length());
+struct File {
+    fd: Int
 }
 
-// R.2.7: clear
-fun clear() {
-    echo("Status: Screen cleared.");
+fun open(path: String, mode: Int) -> IoResult<File> {
+    let fd = dispatcher.syscall3(linux.SYS_OPEN, path.ptr, mode, 0);
+    if (fd < 0) {
+        return IoResult { ok: null, err: IoError.Other(-fd) };
+    }
+    IoResult { ok: File { fd: fd }, err: null }
+}
+
+fun File.read(self, buffer: [u8]) -> IoResult<Int> {
+    let n = dispatcher.syscall3(linux.SYS_READ, self.fd, buffer.ptr, buffer.len);
+    if (n < 0) {
+        return IoResult { ok: null, err: IoError.Other(-n) };
+    }
+    IoResult { ok: n, err: null }
+}
+
+fun File.write(self, data: [u8]) -> IoResult<Int> {
+    let n = dispatcher.syscall3(linux.SYS_WRITE, self.fd, data.ptr, data.len);
+    if (n < 0) {
+        return IoResult { ok: null, err: IoError.Other(-n) };
+    }
+    IoResult { ok: n, err: null }
+}
+
+fun File.close(self) {
+    dispatcher.syscall1(linux.SYS_CLOSE, self.fd);
 }

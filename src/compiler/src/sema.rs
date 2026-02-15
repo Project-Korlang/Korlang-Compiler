@@ -22,6 +22,8 @@ pub enum Type {
     Named(String),
     Func(Vec<Type>, Box<Type>),
     Optional(Box<Type>),
+    Generic(String, Vec<Type>), // Generic name, type arguments
+    Parameter(String), // Generic parameter name
     Unknown,
 }
 
@@ -39,6 +41,7 @@ pub struct Sema {
     pub(crate) sealed_types: HashMap<String, SealedDecl>,
     pub(crate) structs: HashMap<String, StructDecl>,
     pub(crate) nogc_functions: HashMap<String, bool>,
+    pub(crate) templates: crate::templates::TemplateSystem,
     pub(crate) permissive: bool,
 }
 
@@ -53,6 +56,7 @@ impl Sema {
             sealed_types: HashMap::new(),
             structs: HashMap::new(),
             nogc_functions: HashMap::new(),
+            templates: crate::templates::TemplateSystem::new(),
             permissive: std::env::var("KORLANG_SEMA_PERMISSIVE").ok().as_deref() == Some("1"),
         };
         s.push_scope();
@@ -423,7 +427,17 @@ impl Sema {
                     return Type::Unknown;
                 }
 
-                let ct = self.check_expr_with(callee, nogc);
+                let mut ct = self.check_expr_with(callee, nogc);
+
+                // Handle Generic Function Instantiation
+                if let Type::Generic(name, gen_args) = ct.clone() {
+                    if let Some(f_ty) = self.functions.get(&name) {
+                        // find FunDecl for params
+                        // For now, this is a placeholder for actual monomorphization
+                        ct = f_ty.clone();
+                    }
+                }
+
                 match ct {
                     Type::Func(params, ret) => {
                         if params.len() != args.len() {
@@ -580,18 +594,29 @@ impl Sema {
 
     fn type_from_ref(&self, tr: &TypeRef) -> Type {
         match tr {
-            TypeRef::Named(name, _) => match name.as_str() {
-                "Int" => Type::Int,
-                "UInt" => Type::UInt,
-                "Float" => Type::Float,
-                "Bool" => Type::Bool,
-                "Char" => Type::Char,
-                "String" => Type::String,
-                "Void" | "Unit" => Type::Unit,
                 "Any" => Type::Any,
                 "Nothing" => Type::Nothing,
                 _ => Type::Named(name.clone()),
             },
+            TypeRef::Named(name, args, span) => {
+                if args.is_empty() {
+                    match name.as_str() {
+                        "Int" => Type::Int,
+                        "UInt" => Type::UInt,
+                        "Float" => Type::Float,
+                        "Bool" => Type::Bool,
+                        "Char" => Type::Char,
+                        "String" => Type::String,
+                        "Void" | "Unit" => Type::Unit,
+                        "Any" => Type::Any,
+                        "Nothing" => Type::Nothing,
+                        _ => Type::Named(name.clone()),
+                    }
+                } else {
+                    let arg_tys = args.iter().map(|a| self.type_from_ref(a)).collect();
+                    Type::Generic(name.clone(), arg_tys)
+                }
+            }
             TypeRef::Tuple(elems, _) => Type::Tuple(elems.iter().map(|e| self.type_from_ref(e)).collect()),
             TypeRef::Array(inner, _) => Type::Array(Box::new(self.type_from_ref(inner))),
             TypeRef::Tensor { elem, .. } => Type::Tensor(Box::new(self.type_from_ref(elem))),
@@ -600,9 +625,14 @@ impl Sema {
         }
     }
 
-    fn fun_sig(&self, f: &FunDecl) -> Type {
+    fn fun_sig(&mut self, f: &FunDecl) -> Type {
+        self.push_scope();
+        for p in &f.generic_params {
+            self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+        }
         let params = f.params.iter().map(|p| self.type_from_ref(&p.ty)).collect();
         let ret = f.ret.as_ref().map(|t| self.type_from_ref(t)).unwrap_or(Type::Unit);
+        self.pop_scope();
         Type::Func(params, Box::new(ret))
     }
 

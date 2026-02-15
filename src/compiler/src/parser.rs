@@ -75,6 +75,11 @@ impl Parser {
     fn parse_interface(&mut self) -> Result<InterfaceDecl, ()> {
         let start = self.prev_span();
         let name = self.expect_ident()?;
+        let generic_params = if self.match_kind(TokenKind::Lt) {
+            self.parse_generic_params()?
+        } else {
+            Vec::new()
+        };
         self.expect_kind(TokenKind::LBrace)?;
         let mut methods = Vec::new();
         while !self.check_kind(TokenKind::RBrace) && !self.at_eof() {
@@ -90,7 +95,7 @@ impl Parser {
             methods.push(FunSig { name: m_name, params, ret, span: self.prev_span() });
         }
         let end = self.expect_kind(TokenKind::RBrace)?.span;
-        Ok(InterfaceDecl { name, methods, span: Span::new(start.start, end.end) })
+        Ok(InterfaceDecl { name, generic_params, methods, span: Span::new(start.start, end.end) })
     }
 
     fn parse_sealed(&mut self) -> Result<SealedDecl, ()> {
@@ -114,9 +119,15 @@ impl Parser {
         let mut receiver = None;
         let mut name = self.expect_ident()?;
         if self.match_kind(TokenKind::Dot) {
-            receiver = Some(TypeRef::Named(name, self.prev_span()));
+            receiver = Some(TypeRef::Named(name, Vec::new(), self.prev_span()));
             name = self.expect_ident()?;
         }
+
+        let generic_params = if self.match_kind(TokenKind::Lt) {
+            self.parse_generic_params()?
+        } else {
+            Vec::new()
+        };
 
         let params = self.parse_param_list()?;
         let ret = if self.match_kind(TokenKind::Arrow) {
@@ -126,12 +137,17 @@ impl Parser {
         };
         let body = self.parse_block()?;
         let end = body.span.end;
-        Ok(FunDecl { receiver, name, params, ret, body, nogc, span: Span::new(start.start, end) })
+        Ok(FunDecl { receiver, name, generic_params, params, ret, body, nogc, span: Span::new(start.start, end) })
     }
 
     fn parse_struct(&mut self) -> Result<StructDecl, ()> {
         let start = self.prev_span();
         let name = self.expect_ident()?;
+        let generic_params = if self.match_kind(TokenKind::Lt) {
+            self.parse_generic_params()?
+        } else {
+            Vec::new()
+        };
         self.expect_kind(TokenKind::LBrace)?;
         let mut fields = Vec::new();
         while !self.check_kind(TokenKind::RBrace) && !self.at_eof() {
@@ -158,12 +174,17 @@ impl Parser {
         }
 
         let end = self.prev_span();
-        Ok(StructDecl { name, fields, implements, span: Span::new(start.start, end.end) })
+        Ok(StructDecl { name, generic_params, fields, implements, span: Span::new(start.start, end.end) })
     }
 
     fn parse_enum(&mut self) -> Result<EnumDecl, ()> {
         let start = self.prev_span();
         let name = self.expect_ident()?;
+        let generic_params = if self.match_kind(TokenKind::Lt) {
+            self.parse_generic_params()?
+        } else {
+            Vec::new()
+        };
         self.expect_kind(TokenKind::LBrace)?;
         let mut variants = Vec::new();
         while !self.check_kind(TokenKind::RBrace) && !self.at_eof() {
@@ -182,16 +203,21 @@ impl Parser {
             variants.push(VariantDecl { name: vname, payload, span: semi.span });
         }
         let end = self.expect_kind(TokenKind::RBrace)?.span;
-        Ok(EnumDecl { name, variants, span: Span::new(start.start, end.end) })
+        Ok(EnumDecl { name, generic_params, variants, span: Span::new(start.start, end.end) })
     }
 
     fn parse_type_alias(&mut self) -> Result<TypeAliasDecl, ()> {
         let start = self.prev_span();
         let name = self.expect_ident()?;
+        let generic_params = if self.match_kind(TokenKind::Lt) {
+            self.parse_generic_params()?
+        } else {
+            Vec::new()
+        };
         self.expect_kind(TokenKind::Eq)?;
         let target = self.parse_type_ref()?;
         let end = self.expect_kind(TokenKind::Semi)?.span;
-        Ok(TypeAliasDecl { name, target, span: Span::new(start.start, end.end) })
+        Ok(TypeAliasDecl { name, generic_params, target, span: Span::new(start.start, end.end) })
     }
 
     fn parse_view(&mut self) -> Result<ViewDecl, ()> {
@@ -783,8 +809,18 @@ impl Parser {
                 let shape = self.parse_shape_ref()?;
                 let end = self.expect_kind(TokenKind::Gt)?.span;
                 TypeRef::Tensor { elem: Box::new(elem), shape, span: Span::new(span.start, end.end) }
+            } else if self.match_kind(TokenKind::Lt) {
+                let mut args = Vec::new();
+                if !self.check_kind(TokenKind::Gt) {
+                    args.push(self.parse_type_ref()?);
+                    while self.match_kind(TokenKind::Comma) {
+                        args.push(self.parse_type_ref()?);
+                    }
+                }
+                let end = self.expect_kind(TokenKind::Gt)?.span;
+                TypeRef::Named(name, args, Span::new(span.start, end.end))
             } else {
-                TypeRef::Named(name, span)
+                TypeRef::Named(name, Vec::new(), span)
             }
         };
 
@@ -853,6 +889,31 @@ impl Parser {
         self.expect_kind(TokenKind::Colon)?;
         let ty = self.parse_type_ref()?;
         Ok(Param { name, ty, span: Span::new(start.start, self.prev_span().end) })
+    }
+
+    fn parse_generic_params(&mut self) -> Result<Vec<GenericParam>, ()> {
+        let mut params = Vec::new();
+        if !self.check_kind(TokenKind::Gt) {
+            params.push(self.parse_generic_param()?);
+            while self.match_kind(TokenKind::Comma) {
+                params.push(self.parse_generic_param()?);
+            }
+        }
+        self.expect_kind(TokenKind::Gt)?;
+        Ok(params)
+    }
+
+    fn parse_generic_param(&mut self) -> Result<GenericParam, ()> {
+        let start = self.current_span();
+        let name = self.expect_ident()?;
+        let mut constraints = Vec::new();
+        if self.match_kind(TokenKind::Colon) {
+            constraints.push(self.parse_type_ref()?);
+            while self.match_kind(TokenKind::Plus) {
+                constraints.push(self.parse_type_ref()?);
+            }
+        }
+        Ok(GenericParam { name, constraints, span: Span::new(start.start, self.prev_span().end) })
     }
 
     fn parse_qualified_ident(&mut self) -> Result<String, ()> {
