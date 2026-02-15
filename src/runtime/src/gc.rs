@@ -7,6 +7,8 @@ use crate::profiler::PROFILER;
 
 pub mod tuner;
 pub mod cross_heap;
+pub mod tiered;
+pub mod pressure;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Color {

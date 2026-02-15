@@ -101,6 +101,11 @@ impl Parser {
     fn parse_sealed(&mut self) -> Result<SealedDecl, ()> {
         let start = self.prev_span();
         let name = self.expect_ident()?;
+        let generic_params = if self.match_kind(TokenKind::Lt) {
+            self.parse_generic_params()?
+        } else {
+            Vec::new()
+        };
         self.expect_kind(TokenKind::LBrace)?;
         let mut items = Vec::new();
         while !self.check_kind(TokenKind::RBrace) && !self.at_eof() {
@@ -109,7 +114,7 @@ impl Parser {
             self.match_kind(TokenKind::Semi);
         }
         let end = self.expect_kind(TokenKind::RBrace)?.span;
-        Ok(SealedDecl { name, items, span: Span::new(start.start, end.end) })
+        Ok(SealedDecl { name, generic_params, items, span: Span::new(start.start, end.end) })
     }
 
     fn parse_fun(&mut self, nogc: bool) -> Result<FunDecl, ()> {
@@ -626,6 +631,17 @@ impl Parser {
             TokenKind::Identifier(ref name) if name == "_" => {
                 self.advance();
                 Ok(Pattern::Wildcard(tok.span))
+            }
+            TokenKind::Identifier(ref name) if name == "is" => {
+                self.advance();
+                let ty = self.parse_type_ref()?;
+                let inner = if self.check_kind(TokenKind::LParen) {
+                    // is Success(v)
+                    self.parse_pattern()?
+                } else {
+                    Pattern::Wildcard(self.prev_span())
+                };
+                Ok(Pattern::Is(ty, Box::new(inner), Span::new(tok.span.start, self.prev_span().end)))
             }
             TokenKind::Identifier(mut name) => {
                 self.advance();

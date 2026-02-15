@@ -1,4 +1,10 @@
 pub mod diag;
+pub mod types;
+pub mod interface;
+pub mod sealed;
+pub mod extension;
+pub mod async;
+pub mod nogc;
 pub mod lexer;
 pub mod parser;
 pub mod ast;
@@ -16,3 +22,5 @@ pub mod templates;
 pub mod concepts;
 pub mod specialization;
 pub mod constexpr;
+pub mod backend;
+pub mod ffi;

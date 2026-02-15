@@ -1,5 +1,36 @@
-// Phase Reality: Group 2.2 - High-Performance Collections
 module std.collections
+
+// Hashing extensions
+fun Int.hash(self) -> Int {
+    self
+}
+
+fun Int.to_float(self) -> Float {
+    self as Float
+}
+
+fun Int.to_string(self) -> String {
+    // Native conversion or simple loop
+    @import("native_int_to_str")(self)
+}
+
+fun Float.to_string(self) -> String {
+    @import("native_float_to_str")(self)
+}
+
+fun Bool.to_string(self) -> String {
+    if (self) { "true" } else { "false" }
+}
+
+fun String.hash(self) -> Int {
+    let h = 0;
+    let i = 0;
+    while (i < self.length()) {
+        h = (h * 31) + (self.char_at(i) as Int);
+        i = i + 1;
+    }
+    h
+}
 
 // R.2.20: List<T> Implementation
 struct List<T> {
@@ -225,4 +256,33 @@ fun Map.remove<K, V>(self, key: K) {
         prev = entry;
         entry = entry.next;
     }
+}
+
+// R.2.22: Set<T> Implementation
+struct Set<T> {
+    items: Map<T, Bool>
+}
+
+fun Set.new<T>() -> Set<T> {
+    Set { items: Map.new<T, Bool>() }
+}
+
+fun Set.add<T>(self, item: T) {
+    self.items.put(item, true);
+}
+
+fun Set.contains<T>(self, item: T) -> Bool {
+    self.items.has(item)
+}
+
+fun Set.remove<T>(self, item: T) {
+    self.items.remove(item);
+}
+
+fun Set.len<T>(self) -> Int {
+    self.items.size
+}
+
+fun Set.elements<T>(self) -> List<T> {
+    self.items.keys()
 }

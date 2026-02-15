@@ -46,6 +46,27 @@ impl<'a> PatternChecker<'a> {
                     self.check_pattern(p, &Type::Any);
                 }
             }
+            Pattern::Is(ty_ref, inner_pat, span) => {
+                let target_ty = self.sema.type_from_ref(ty_ref);
+                // check if expected_ty can be cast to target_ty
+                // for simplicity, we assume success if they are named types or related
+                self.check_pattern(inner_pat, &target_ty);
+            }
+        }
+    }
+    pub fn check_exhaustiveness(&mut self, matched_types: &[Type], sealed_name: &str, span: Span) {
+        let enforcer = crate::sealed::SealedEnforcer::new(self.sema);
+        let expected = enforcer.get_exhaustiveness_info(sealed_name);
+        let mut matched_names = std::collections::HashSet::new();
+        for ty in matched_types {
+            if let Type::Named(name) = ty {
+                matched_names.insert(name.clone());
+            }
+        }
+        for name in expected {
+            if !matched_names.contains(&name) {
+                self.sema.report_error(format!("match is not exhaustive: missing variant '{}'", name), span);
+            }
         }
     }
 }

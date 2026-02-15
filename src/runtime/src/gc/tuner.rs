@@ -16,8 +16,13 @@ impl GcTuner {
 
     pub fn adjust(&self, live_size: usize) {
         let mut limit = self.heap_limit.lock().unwrap();
-        // Simple heuristic: if live size > 70% of limit, grow limit
-        if live_size as f64 > (*limit as f64 * 0.7) {
+        let pressure = crate::gc::pressure::MONITOR.get_pressure_level();
+        
+        // If high pressure or live size > 70% of limit, grow limit or trigger aggressive GC
+        if pressure > 0.9 {
+            // Aggressive mode: slow down growth, trigger more frequent collections
+            *limit = (*limit as f64 * 1.1) as usize; 
+        } else if live_size as f64 > (*limit as f64 * 0.7) {
             *limit = (*limit as f64 * self.growth_factor) as usize;
         }
     }

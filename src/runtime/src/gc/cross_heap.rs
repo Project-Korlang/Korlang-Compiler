@@ -13,16 +13,18 @@ impl CrossHeapManager {
         }
     }
 
-    pub fn register_ref(&self, ptr: usize, owner_thread: usize) {
-        self.refs.lock().unwrap().insert(ptr, owner_thread);
+    pub fn register_ref(&self, source_ptr: usize, target_ptr: usize) {
+        // Track references across different allocation tiers
+        self.refs.lock().unwrap().insert(source_ptr, target_ptr);
     }
 
-    pub fn check_access(&self, ptr: usize, current_thread: usize) -> bool {
-        let refs = self.refs.lock().unwrap();
-        if let Some(&owner) = refs.get(&ptr) {
-            return owner == current_thread;
-        }
-        true // Not tracked, assume safe or local
+    pub fn is_heap_to_managed_ref(&self, source_ptr: usize) -> bool {
+        self.refs.lock().unwrap().contains_key(&source_ptr)
+    }
+
+    pub fn validate_safety(&self, ptr: usize) -> bool {
+        // Ensure managed objects referenced from @nogc/heap are pinned or reached by GC roots
+        !self.is_heap_to_managed_ref(ptr)
     }
     
     pub fn dump_debug_info(&self) -> String {

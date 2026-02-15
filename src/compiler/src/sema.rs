@@ -5,27 +5,8 @@ use crate::lifetime::LifetimeChecker;
 use crate::moveck::MoveChecker;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Type {
-    Int,
-    UInt,
-    Float,
-    Bool,
-    Char,
-    String,
-    Unit,
-    Any,
-    Nothing,
-    Tuple(Vec<Type>),
-    Array(Box<Type>),
-    Tensor(Box<Type>),
-    Named(String),
-    Func(Vec<Type>, Box<Type>),
-    Optional(Box<Type>),
-    Generic(String, Vec<Type>), // Generic name, type arguments
-    Parameter(String), // Generic parameter name
-    Unknown,
-}
+use crate::types::Type;
+use crate::interface::InterfaceSystem;
 
 #[derive(Default)]
 pub(crate) struct Scope {
@@ -37,9 +18,10 @@ pub struct Sema {
     pub(crate) diags: Vec<Diagnostic>,
     pub(crate) functions: HashMap<String, Type>,
     pub(crate) extensions: HashMap<String, Vec<(Type, Type)>>, // Receiver type -> Vec<(Method Name, Method Sig)>
-    pub(crate) interfaces: HashMap<String, InterfaceDecl>,
+    pub(crate) interface_system: InterfaceSystem,
     pub(crate) sealed_types: HashMap<String, SealedDecl>,
     pub(crate) structs: HashMap<String, StructDecl>,
+    pub(crate) fun_decls: HashMap<String, FunDecl>,
     pub(crate) nogc_functions: HashMap<String, bool>,
     pub(crate) templates: crate::templates::TemplateSystem,
     pub(crate) permissive: bool,
@@ -52,9 +34,10 @@ impl Sema {
             diags: Vec::new(),
             functions: HashMap::new(),
             extensions: HashMap::new(),
-            interfaces: HashMap::new(),
+            interface_system: InterfaceSystem::new(),
             sealed_types: HashMap::new(),
             structs: HashMap::new(),
+            fun_decls: HashMap::new(),
             nogc_functions: HashMap::new(),
             templates: crate::templates::TemplateSystem::new(),
             permissive: std::env::var("KORLANG_SEMA_PERMISSIVE").ok().as_deref() == Some("1"),
@@ -83,12 +66,23 @@ impl Sema {
                 Item::Enum(e) => self.define_builtin(&e.name, Type::Named(e.name.clone())),
                 Item::TypeAlias(t) => self.define_builtin(&t.name, Type::Named(t.name.clone())),
                 Item::Interface(i) => {
-                    self.interfaces.insert(i.name.clone(), i.clone());
+                    self.interface_system.interfaces.insert(i.name.clone(), i.clone());
                     self.define_builtin(&i.name, Type::Named(i.name.clone()));
                 }
                 Item::Sealed(s) => {
                     self.sealed_types.insert(s.name.clone(), s.clone());
                     self.define_builtin(&s.name, Type::Named(s.name.clone()));
+                    // Pre-register items inside sealed class
+                    for nested in &s.items {
+                        match nested {
+                            Item::Struct(st) => {
+                                self.structs.insert(st.name.clone(), st.clone());
+                                self.define_builtin(&st.name, Type::Named(st.name.clone()));
+                            }
+                            Item::Enum(e) => self.define_builtin(&e.name, Type::Named(e.name.clone())),
+                            _ => {}
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -102,6 +96,7 @@ impl Sema {
                     entry.push((recv_ty, sig));
                 } else {
                     self.functions.insert(f.name.clone(), sig);
+                    self.fun_decls.insert(f.name.clone(), f.clone());
                     self.nogc_functions.insert(f.name.clone(), f.nogc);
                 }
             }
@@ -148,10 +143,14 @@ impl Sema {
     }
 
     fn check_struct(&mut self, s: &StructDecl) {
+        self.push_scope();
+        for p in &s.generic_params {
+            self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+        }
         for interface_ref in &s.implements {
             let interface_ty = self.type_from_ref(interface_ref);
             if let Type::Named(name) = interface_ty {
-                if let Some(interface) = self.interfaces.get(&name).cloned() {
+                if let Some(interface) = self.interface_system.interfaces.get(&name).cloned() {
                     for method in &interface.methods {
                         // Check if struct has this method as an extension
                         let has_method = self.extensions.get(&method.name).map(|exts| {
@@ -167,14 +166,31 @@ impl Sema {
                 }
             }
         }
+        self.pop_scope();
     }
 
-    fn check_interface(&mut self, _i: &InterfaceDecl) {
-        // Basic interface validation
+    fn check_interface(&mut self, i: &InterfaceDecl) {
+        self.push_scope();
+        for p in &i.generic_params {
+            self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+        }
+        // In a more complete implementation, we would also validate parameters/returns of method signatures here
+        self.pop_scope();
     }
 
-    fn check_sealed(&mut self, _s: &SealedDecl) {
-        // Basic sealed type validation
+    fn check_sealed(&mut self, s: &SealedDecl) {
+        self.push_scope();
+        for p in &s.generic_params {
+            self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+        }
+        
+        let mut enforcer = crate::sealed::SealedEnforcer::new(self);
+        enforcer.validate_sealed_decl(s);
+
+        for item in &s.items {
+            self.check_item(item);
+        }
+        self.pop_scope();
     }
 
     fn check_fun(&mut self, fun: &FunDecl) {
@@ -383,7 +399,7 @@ impl Sema {
                     }
                 }
 
-                self.unify(&lt;, &rt, *span);
+                self.unify(&lt, &rt, *span);
                 lt
             }
             Expr::Call { callee, args, span } => {
@@ -403,22 +419,16 @@ impl Sema {
                 // Handle Extension Functions / Methods
                 if let Expr::Member { target, name, span: m_span } = &**callee {
                     let target_ty = self.check_expr_with(target, nogc);
-                    let methods = self.extensions.get(name).cloned();
-                    
-                    if let Some(methods) = methods {
-                        for (recv_ty, sig) in methods {
-                            if recv_ty == target_ty {
-                                if let Type::Func(params, ret) = sig {
-                                    if params.len() != args.len() {
-                                        self.diags.push(Diagnostic::error("argument count mismatch", *span));
-                                    }
-                                    for (arg, p) in args.iter().zip(params.iter()) {
-                                        let at = self.check_expr_with(arg, nogc);
-                                        self.unify(p, &at, self.span_of(arg));
-                                    }
-                                    return *ret;
-                                }
+                    if let Some(sig) = crate::extension::resolve_extension_method(self, &target_ty, name) {
+                        if let Type::Func(params, ret) = sig {
+                            if params.len() != args.len() {
+                                self.diags.push(Diagnostic::error("argument count mismatch", *span));
                             }
+                            for (arg, p) in args.iter().zip(params.iter()) {
+                                let at = self.check_expr_with(arg, nogc);
+                                self.unify(p, &at, self.span_of(arg));
+                            }
+                            return *ret;
                         }
                     }
                     if !self.permissive {
@@ -431,8 +441,21 @@ impl Sema {
 
                 // Handle Generic Function Instantiation
                 if let Type::Generic(name, gen_args) = ct.clone() {
+                    // 1. Check constraints if we have a definition
+                    if let Some(f_decl) = self.lookup_fun_decl(&name) {
+                        if f_decl.generic_params.len() != gen_args.len() {
+                            self.diags.push(Diagnostic::error(format!("generic argument count mismatch for '{}'", name), *span));
+                        } else {
+                            for (param, arg) in f_decl.generic_params.iter().zip(gen_args.iter()) {
+                                for constraint in &param.constraints {
+                                    let constraint_ty = self.type_from_ref(constraint);
+                                    self.check_satisfies(arg, &constraint_ty, self.span_of(callee));
+                                }
+                            }
+                        }
+                    }
+                    
                     if let Some(f_ty) = self.functions.get(&name) {
-                        // find FunDecl for params
                         // For now, this is a placeholder for actual monomorphization
                         ct = f_ty.clone();
                     }
@@ -459,8 +482,9 @@ impl Sema {
             Expr::Member { target, name, span } => {
                 let mut target_ty = self.check_expr_with(target, nogc);
                 
-                // If target is Optional, check the inner type
+                // If target is Optional, check the inner type and warn
                 if let Type::Optional(inner) = target_ty {
+                    self.diags.push(Diagnostic::warning("accessing member of optional type; should check for null first", *span));
                     target_ty = *inner;
                 }
 
@@ -473,14 +497,9 @@ impl Sema {
                     }
                 }
 
-                let methods = self.extensions.get(name).cloned();
                 // 2. Check if it's an extension function reference
-                if let Some(methods) = methods {
-                    for (recv_ty, sig) in methods {
-                        if recv_ty == target_ty {
-                            return sig;
-                        }
-                    }
+                if let Some(sig) = crate::extension::resolve_extension_method(self, &target_ty, name) {
+                    return sig;
                 }
                 if !self.permissive {
                     self.diags.push(Diagnostic::error(format!("unknown member '{}' for type {:?}", name, target_ty), *span));
@@ -592,7 +611,11 @@ impl Sema {
         }
     }
 
-    fn type_from_ref(&self, tr: &TypeRef) -> Type {
+    pub fn is_nogc_function(&self, name: &str) -> bool {
+        self.nogc_functions.get(name).copied().unwrap_or(false)
+    }
+
+    pub fn type_from_ref(&self, tr: &TypeRef) -> Type {
         match tr {
                 "Any" => Type::Any,
                 "Nothing" => Type::Nothing,
@@ -694,9 +717,9 @@ impl Sema {
         if a == b {
             a
         } else if a == Type::Nothing {
-            b
+            if matches!(b, Type::Optional(_)) { b } else { Type::Optional(Box::new(b)) }
         } else if b == Type::Nothing {
-            a
+            if matches!(a, Type::Optional(_)) { a } else { Type::Optional(Box::new(a)) }
         } else {
             Type::Any
         }
@@ -754,6 +777,27 @@ impl Sema {
         self.nogc_functions.get(name).copied().unwrap_or(false)
     }
 
+    fn lookup_fun_decl(&self, name: &str) -> Option<&FunDecl> {
+        self.fun_decls.get(name)
+    }
+
+    fn check_satisfies(&mut self, ty: &Type, constraint: &Type, span: Span) {
+        if let Type::Named(name) = constraint {
+            if let Some(interface) = self.interface_system.interfaces.get(name) {
+                // In a real implementation, we would check if ty implements all methods in interface
+                // For now, assume it works if we have a struct definition for ty
+                if let Type::Named(s_name) = ty {
+                    if self.structs.contains_key(s_name) {
+                        return;
+                    }
+                }
+            }
+        }
+        if ty != constraint && !matches!(constraint, Type::Any) {
+            self.diags.push(Diagnostic::error(format!("type {:?} does not satisfy constraint {:?}", ty, constraint), span));
+        }
+    }
+
     fn validate_nogc(&mut self, program: &Program) {
         for item in &program.items {
             if let Item::Fun(f) = item {
@@ -769,6 +813,10 @@ impl Sema {
                     {
                         let mut lck = LifetimeChecker::new(self);
                         lck.check_block(&f.body);
+                    }
+                    {
+                        let mut ngck = crate::nogc::NoGcChecker::new(self);
+                        ngck.check_fun(f);
                     }
                 }
             }

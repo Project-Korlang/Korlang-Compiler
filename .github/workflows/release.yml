@@ -38,25 +38,39 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install llvm@16
         
-      - name: Build CLI
-        run: cargo build --release --manifest-path Korlang-Compiler/src/tools/cli/Cargo.toml
+      - name: Build Compiler
+        run: cargo build --release --manifest-path src/compiler/Cargo.toml
         
       - name: Package (Unix)
         if: runner.os != 'Windows'
         run: |
-          cd Korlang-Compiler/src/tools/cli/target/release
-          tar -czf ../../../../../${{ matrix.asset_name }} ${{ matrix.artifact_name }}
+          mkdir -p korlang-sdk
+          cp src/compiler/target/release/korlang korlang-sdk/
+          cp -r src/stdlib korlang-sdk/
+          cp -r src/runtime korlang-sdk/
+          tar -czf ${{ matrix.asset_name }} korlang-sdk/
           
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          cd Korlang-Compiler/src/tools/cli/target/release
-          Compress-Archive -Path ${{ matrix.artifact_name }} -DestinationPath ../../../../../${{ matrix.asset_name }}
+          New-Item -ItemType Directory -Path korlang-sdk
+          Copy-Item "src/compiler/target/release/korlang.exe" -Destination "korlang-sdk/"
+          Copy-Item -Recurse "src/stdlib" -Destination "korlang-sdk/"
+          Copy-Item -Recurse "src/runtime" -Destination "korlang-sdk/"
+          Compress-Archive -Path korlang-sdk -DestinationPath ${{ matrix.asset_name }}
           
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ matrix.asset_name }}
+          body: |
+            Korlang Phase 2 Final Release
+            
+            Included:
+            - Korlang Compiler with improved diagnostics
+            - Standard Library (Month 13-15)
+            - High-performance Runtime with Coroutines & Lock-free structures
+            - FFI & Ecosystem Interop foundations
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

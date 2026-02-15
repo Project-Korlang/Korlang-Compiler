@@ -22,6 +22,7 @@ mod gc_barrier;
 mod lockfree;
 mod coroutine;
 mod async_rt;
+mod spawn;
 
 #[no_mangle]
 pub extern "C" fn korlang_alloc(size: usize, align: usize) -> *mut u8 {

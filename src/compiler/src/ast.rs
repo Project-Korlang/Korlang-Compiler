@@ -45,6 +45,7 @@ pub struct FunSig {
 #[derive(Debug, Clone)]
 pub struct SealedDecl {
     pub name: String,
+    pub generic_params: Vec<GenericParam>,
     pub items: Vec<Item>,
     pub span: Span,
 }
@@ -261,6 +262,7 @@ pub enum Pattern {
     Tuple(Vec<Pattern>, Span),
     Variant { name: String, args: Vec<Pattern>, span: Span },
     Struct { name: String, fields: Vec<(String, Pattern)>, span: Span },
+    Is(TypeRef, Box<Pattern>, Span),
 }
 
 #[derive(Debug, Clone)]

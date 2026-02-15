@@ -1,0 +1,45 @@
+module std.generators
+
+// Interface for Iterators
+interface Iterator<T> {
+    fun next() -> T?;
+}
+
+// Range Iterator
+struct RangeIterator {
+    current: Int,
+    end: Int,
+    step: Int
+}
+
+fun RangeIterator.next(self) -> Int? {
+    if (self.current >= self.end) { return null; }
+    let val = self.current;
+    self.current = self.current + self.step;
+    val
+}
+
+fun range(start: Int, end: Int) -> RangeIterator {
+    RangeIterator { current: start, end: end, step: 1 }
+}
+
+fun range_step(start: Int, end: Int, step: Int) -> RangeIterator {
+    RangeIterator { current: start, end: end, step: step }
+}
+
+// List Iterator
+struct ListIterator<T> {
+    list: List<T>,
+    index: Int
+}
+
+fun ListIterator.next<T>(self) -> T? {
+    if (self.index >= self.list.len()) { return null; }
+    let val = self.list.get(self.index);
+    self.index = self.index + 1;
+    val
+}
+
+fun List.iterator<T>(self) -> ListIterator<T> {
+    ListIterator { list: self, index: 0 }
+}

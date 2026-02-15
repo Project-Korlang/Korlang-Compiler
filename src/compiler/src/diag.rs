@@ -81,4 +81,35 @@ impl Diagnostic {
             span,
         }
     }
+
+    pub fn report(&self, source: &str, file_name: &str) {
+        let color = match self.level {
+            DiagnosticLevel::Error => "\x1b[31;1m", // Bold Red
+            DiagnosticLevel::Warning => "\x1b[33;1m", // Bold Yellow
+            DiagnosticLevel::Note => "\x1b[36;1m", // Bold Cyan
+            DiagnosticLevel::Bug => "\x1b[35;1m", // Bold Magenta
+        };
+        let reset = "\x1b[0m";
+
+        eprintln!("{}[{}]{}: {}", color, self.level.to_str(), reset, self.message);
+        eprintln!("  --> {}:{}:{}", file_name, self.span.start.line, self.span.start.column);
+
+        let lines: Vec<&str> = source.lines().collect();
+        if self.span.start.line > 0 && self.span.start.line <= lines.len() {
+            let line_idx = self.span.start.line - 1;
+            let line = lines[line_idx];
+            eprintln!("   |");
+            eprintln!("{:3} | {}", self.span.start.line, line);
+            
+            let padding = " ".repeat(self.span.start.column.saturating_sub(1));
+            let highlight_len = if self.span.end.offset > self.span.start.offset {
+                self.span.end.offset - self.span.start.offset
+            } else {
+                1
+            };
+            let highlight = "^".repeat(highlight_len);
+            eprintln!("   | {}{}{}{}", padding, color, highlight, reset);
+        }
+        eprintln!();
+    }
 }

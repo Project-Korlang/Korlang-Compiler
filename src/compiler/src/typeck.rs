@@ -9,6 +9,10 @@ pub fn check_nullability(sema: &mut Sema, expected: &Type, actual: &Type, span: 
     }
 }
 
+pub fn check_extension_member(sema: &mut Sema, receiver_ty: &Type, name: &str, span: Span) -> Type {
+    crate::extension::check_extension_dispatch(sema, receiver_ty, name, span)
+}
+
 impl Sema {
     pub fn report_error(&mut self, msg: impl Into<String>, span: Span) {
         self.diags.push(Diagnostic::error(msg, span));
