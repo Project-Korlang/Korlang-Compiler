@@ -1,0 +1,234 @@
+// Phase 15.3: zero-cost smart pointer semantics (compile-time only)
+
+module compiler.smartptr
+
+import compiler.ast
+import compiler.diag
+
+struct PtrBinding {
+  name: String;
+  ptr_kind: String; // "Unique" | "Shared"
+}
+
+struct PtrCtx {
+  binds: List<PtrBinding>;
+}
+
+fun smartptr_validate_program(prog: Program) -> List<Diagnostic>
+
+fun smartptr_check_item(ctx: PtrCtx, item: Item, diags: List<Diagnostic>)
+fun smartptr_check_stmt(ctx: PtrCtx, stmt: Stmt, diags: List<Diagnostic>)
+fun smartptr_check_expr(ctx: PtrCtx, expr: Expr, diags: List<Diagnostic>)
+
+fun smartptr_decl_ptr_kind(v: VarDecl) -> String?
+fun smartptr_infer_ctor_kind(ctx: PtrCtx, expr: Expr) -> String?
+fun smartptr_add_ptr_bind(ctx: PtrCtx, name: String, kind: String)
+fun smartptr_lookup_ptr_bind(ctx: PtrCtx, name: String) -> String?
+
+fun smartptr_validate_program(prog: Program) -> List<Diagnostic> {
+  let diags = List.new();
+  let ctx = PtrCtx { binds: List.new() };
+
+  let i = 0;
+  while (i < prog.items.len()) {
+    smartptr_check_item(ctx, prog.items[i], diags);
+    i = i + 1;
+  }
+  diags
+}
+
+fun smartptr_check_item(ctx: PtrCtx, item: Item, diags: List<Diagnostic>) {
+  match (item) {
+    Item.Fun(f) => {
+      let saved = ctx.binds;
+      ctx.binds = List.new();
+      let i = 0;
+      while (i < f.body.stmts.len()) { smartptr_check_stmt(ctx, f.body.stmts[i], diags); i = i + 1; }
+      if (f.body.tail != null) { smartptr_check_expr(ctx, f.body.tail, diags); }
+      ctx.binds = saved;
+    }
+    Item.Const(v) => {
+      let dk = smartptr_decl_ptr_kind(v);
+      let ck = smartptr_infer_ctor_kind(ctx, v.value);
+      if (dk != null) {
+        if (ck != null && dk != ck) {
+          diags.push(Diagnostic_new("smart pointer kind mismatch in declaration", v.span));
+        }
+        smartptr_add_ptr_bind(ctx, v.name, dk);
+      }
+      smartptr_check_expr(ctx, v.value, diags);
+    }
+    Item.Stmt(s) => smartptr_check_stmt(ctx, s, diags)
+    _ => {}
+  }
+}
+
+fun smartptr_check_stmt(ctx: PtrCtx, stmt: Stmt, diags: List<Diagnostic>) {
+  match (stmt) {
+    Stmt.Var(v) => {
+      let dk = smartptr_decl_ptr_kind(v);
+      let ck = smartptr_infer_ctor_kind(ctx, v.value);
+      if (dk != null) {
+        if (ck != null && dk != ck) {
+          diags.push(Diagnostic_new("smart pointer kind mismatch in declaration", v.span));
+        }
+        smartptr_add_ptr_bind(ctx, v.name, dk);
+      }
+      smartptr_check_expr(ctx, v.value, diags);
+    }
+    Stmt.Expr(e, _) => smartptr_check_expr(ctx, e, diags)
+    Stmt.Return(e, _) => { if (e != null) { smartptr_check_expr(ctx, e, diags); } }
+    Stmt.If(c, tb, es, _) => {
+      smartptr_check_expr(ctx, c, diags);
+      let i = 0; while (i < tb.stmts.len()) { smartptr_check_stmt(ctx, tb.stmts[i], diags); i = i + 1; }
+      if (tb.tail != null) { smartptr_check_expr(ctx, tb.tail, diags); }
+      if (es != null) { smartptr_check_stmt(ctx, es, diags); }
+    }
+    Stmt.While(c, b, _) => {
+      smartptr_check_expr(ctx, c, diags);
+      let i = 0; while (i < b.stmts.len()) { smartptr_check_stmt(ctx, b.stmts[i], diags); i = i + 1; }
+      if (b.tail != null) { smartptr_check_expr(ctx, b.tail, diags); }
+    }
+    Stmt.For(_, iter, b, _) => {
+      smartptr_check_expr(ctx, iter, diags);
+      let i = 0; while (i < b.stmts.len()) { smartptr_check_stmt(ctx, b.stmts[i], diags); i = i + 1; }
+      if (b.tail != null) { smartptr_check_expr(ctx, b.tail, diags); }
+    }
+    Stmt.Match(e, arms, _) => {
+      smartptr_check_expr(ctx, e, diags);
+      let i = 0; while (i < arms.len()) { smartptr_check_expr(ctx, arms[i].body, diags); i = i + 1; }
+    }
+    Stmt.Block(b) => {
+      let i = 0; while (i < b.stmts.len()) { smartptr_check_stmt(ctx, b.stmts[i], diags); i = i + 1; }
+      if (b.tail != null) { smartptr_check_expr(ctx, b.tail, diags); }
+    }
+    _ => {}
+  }
+}
+
+fun smartptr_check_expr(ctx: PtrCtx, expr: Expr, diags: List<Diagnostic>) {
+  match (expr) {
+    Expr.Assign(left, _, right, span) => {
+      smartptr_check_expr(ctx, left, diags);
+      smartptr_check_expr(ctx, right, diags);
+      match (left) {
+        Expr.Ident(lname, _) => {
+          let lk = smartptr_lookup_ptr_bind(ctx, lname);
+          if (lk != null) {
+            let rk = smartptr_infer_ctor_kind(ctx, right);
+            if (rk != null && rk != lk) {
+              diags.push(Diagnostic_new("smart pointer assignment kind mismatch", span));
+            }
+          }
+        }
+        _ => {}
+      }
+    }
+    Expr.Call(callee, args, span) => {
+      match (callee) {
+        Expr.Ident(name, _) => {
+          if (name == "unique_from_raw" || name == "shared_from_raw") {
+            if (args.len() != 1) {
+              diags.push(Diagnostic_new("*_from_raw expects one pointer argument", span));
+            }
+          }
+          if (name == "unique_into_raw" && args.len() != 1) {
+            diags.push(Diagnostic_new("unique_into_raw expects one argument", span));
+          }
+          if (name == "shared_clone" && args.len() != 1) {
+            diags.push(Diagnostic_new("shared_clone expects one argument", span));
+          }
+        }
+        _ => {}
+      }
+
+      smartptr_check_expr(ctx, callee, diags);
+      let i = 0;
+      while (i < args.len()) { smartptr_check_expr(ctx, args[i], diags); i = i + 1; }
+    }
+    Expr.Unary(_, e, _) => smartptr_check_expr(ctx, e, diags)
+    Expr.Binary(l, _, r, _) => { smartptr_check_expr(ctx, l, diags); smartptr_check_expr(ctx, r, diags); }
+    Expr.Member(t, _, _) => smartptr_check_expr(ctx, t, diags)
+    Expr.Index(t, i, _) => { smartptr_check_expr(ctx, t, diags); smartptr_check_expr(ctx, i, diags); }
+    Expr.If(c, tb, eb, _) => {
+      smartptr_check_expr(ctx, c, diags);
+      let i = 0; while (i < tb.stmts.len()) { smartptr_check_stmt(ctx, tb.stmts[i], diags); i = i + 1; }
+      if (tb.tail != null) { smartptr_check_expr(ctx, tb.tail, diags); }
+      let j = 0; while (j < eb.stmts.len()) { smartptr_check_stmt(ctx, eb.stmts[j], diags); j = j + 1; }
+      if (eb.tail != null) { smartptr_check_expr(ctx, eb.tail, diags); }
+    }
+    Expr.Match(e, arms, _) => {
+      smartptr_check_expr(ctx, e, diags);
+      let i = 0; while (i < arms.len()) { smartptr_check_expr(ctx, arms[i].body, diags); i = i + 1; }
+    }
+    Expr.Block(b) => {
+      let i = 0; while (i < b.stmts.len()) { smartptr_check_stmt(ctx, b.stmts[i], diags); i = i + 1; }
+      if (b.tail != null) { smartptr_check_expr(ctx, b.tail, diags); }
+    }
+    Expr.Array(items, _) => {
+      let i = 0; while (i < items.len()) { smartptr_check_expr(ctx, items[i], diags); i = i + 1; }
+    }
+    Expr.Tensor(rows, _) => {
+      let r = 0;
+      while (r < rows.len()) {
+        let c = 0;
+        while (c < rows[r].len()) { smartptr_check_expr(ctx, rows[r][c], diags); c = c + 1; }
+        r = r + 1;
+      }
+    }
+    Expr.Interpolated(parts, _) => {
+      let i = 0; while (i < parts.len()) { smartptr_check_expr(ctx, parts[i], diags); i = i + 1; }
+    }
+    _ => {}
+  }
+}
+
+fun smartptr_decl_ptr_kind(v: VarDecl) -> String? {
+  if (v.ty == null) { return null; }
+  match (v.ty) {
+    TypeRef.Named(name, _) => {
+      if (name == "Unique") { return "Unique"; }
+      if (name == "Shared") { return "Shared"; }
+      null
+    }
+    _ => null
+  }
+}
+
+fun smartptr_infer_ctor_kind(ctx: PtrCtx, expr: Expr) -> String? {
+  match (expr) {
+    Expr.Call(callee, _, _) => {
+      match (callee) {
+        Expr.Ident(name, _) => {
+          if (name == "unique_new" || name == "unique_from_raw" || name == "unique_into_raw") { return "Unique"; }
+          if (name == "shared_new" || name == "shared_from_raw" || name == "shared_clone") { return "Shared"; }
+          null
+        }
+        _ => null
+      }
+    }
+    Expr.Ident(name, _) => smartptr_lookup_ptr_bind(ctx, name)
+    _ => null
+  }
+}
+
+fun smartptr_add_ptr_bind(ctx: PtrCtx, name: String, kind: String) {
+  let i = 0;
+  while (i < ctx.binds.len()) {
+    if (ctx.binds[i].name == name) {
+      ctx.binds[i].ptr_kind = kind;
+      return;
+    }
+    i = i + 1;
+  }
+  ctx.binds.push(PtrBinding { name: name, ptr_kind: kind });
+}
+
+fun smartptr_lookup_ptr_bind(ctx: PtrCtx, name: String) -> String? {
+  let i = 0;
+  while (i < ctx.binds.len()) {
+    if (ctx.binds[i].name == name) { return ctx.binds[i].ptr_kind; }
+    i = i + 1;
+  }
+  null
+}

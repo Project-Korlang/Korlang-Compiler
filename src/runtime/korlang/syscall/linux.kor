@@ -7,7 +7,41 @@ import runtime.syscall.errors
 
 const SYS_READ: UInt = 0;
 const SYS_WRITE: UInt = 1;
+const SYS_OPEN: UInt = 2;
+const SYS_CLOSE: UInt = 3;
+const SYS_STAT: UInt = 4;
+const SYS_LSEEK: UInt = 8;
+const SYS_MMAP: UInt = 9;
+const SYS_MUNMAP: UInt = 11;
+const SYS_RT_SIGACTION: UInt = 13;
+const SYS_PTRACE: UInt = 101;
+const SYS_PIPE: UInt = 22;
+const SYS_BRK: UInt = 12;
+const SYS_FORK: UInt = 57;
+const SYS_EXECVE: UInt = 59;
+const SYS_WAIT4: UInt = 61;
+const SYS_CHMOD: UInt = 90;
+const SYS_CHOWN: UInt = 92;
+const SYS_MKDIR: UInt = 83;
+const SYS_UNLINK: UInt = 87;
+const SYS_GETDENTS64: UInt = 217;
 const SYS_EXIT: UInt = 60;
+
+const O_RDONLY: UInt = 0;
+const O_WRONLY: UInt = 1;
+const O_RDWR: UInt = 2;
+const O_CREAT: UInt = 64;
+const O_TRUNC: UInt = 512;
+const O_DIRECTORY: UInt = 65536;
+
+const SEEK_SET: UInt = 0;
+const SEEK_CUR: UInt = 1;
+const SEEK_END: UInt = 2;
+
+const PROT_READ: UInt = 1;
+const PROT_WRITE: UInt = 2;
+const MAP_PRIVATE: UInt = 2;
+const MAP_ANONYMOUS: UInt = 32;
 
 fun read(fd: UInt, ptr: UInt, len: UInt) -> UInt {
   dispatcher.syscall3(SYS_READ, fd, ptr, len)

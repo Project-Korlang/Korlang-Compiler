@@ -1,0 +1,31 @@
+// Phase Reality: Group 2.4 - OS & Process Management
+module os
+
+import syscall.dispatcher
+import syscall.linux
+
+// R.2.86: os.chmod
+fun chmod(path: String, mode: Int) {
+    dispatcher.syscall2(linux.SYS_CHMOD, path.ptr, mode as UInt);
+}
+
+// R.2.87: os.chown
+fun chown(path: String, uid: Int, gid: Int) {
+    dispatcher.syscall3(linux.SYS_CHOWN, path.ptr, uid as UInt, gid as UInt);
+}
+
+// R.2.88: os.fork
+fun fork() -> Int {
+    dispatcher.syscall0(linux.SYS_FORK) as Int
+}
+
+// R.2.89: os.exec
+fun exec(path: String, args: List<String>) {
+    // Simplified: in real implementation, convert List<String> to char**
+    dispatcher.syscall3(linux.SYS_EXECVE, path.ptr, 0, 0);
+}
+
+// R.2.90: os.wait
+fun wait(pid: Int) -> Int {
+    dispatcher.syscall4(linux.SYS_WAIT4, pid as UInt, 0, 0, 0) as Int
+}

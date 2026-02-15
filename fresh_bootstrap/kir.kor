@@ -1,0 +1,271 @@
+// Self-hosted compiler IR: KIR definitions and lowering
+
+module compiler.kir
+
+import compiler.ast
+import compiler.types
+
+struct KirModule {
+  functions: List<KirFunction>;
+}
+
+struct KirFunction {
+  name: String;
+  params: List<KirParam>;
+  ret: KirType;
+  blocks: List<KirBlock>;
+}
+
+struct KirParam {
+  name: String;
+  ty: KirType;
+}
+
+struct KirBlock {
+  label: String;
+  instrs: List<KirInstr>;
+}
+
+enum KirInstr {
+  Let(String, KirType, KirValue);
+  Assign(String, KirValue);
+  Return(KirValue?);
+  Branch(String);
+  CondBranch(KirValue, String, String);
+  Call(String, List<KirValue>);
+  Phi(String, KirType, List<KirValue>);
+  Load(KirValue);
+  Store(KirValue, KirValue);
+  Borrow(KirValue);
+  Move(KirValue);
+  Drop(KirValue);
+}
+
+enum KirValue {
+  Reg(String, KirType);
+  Const(Literal, KirType);
+}
+
+enum KirType {
+  Int;
+  UInt;
+  Float;
+  Bool;
+  Char;
+  String;
+  Ptr(KirType);
+  Array(KirType);
+  Tuple(List<KirType>);
+  Struct(String);
+  Void;
+}
+
+struct Binding {
+  name: String;
+  reg: String;
+  ty: KirType;
+}
+
+struct LowerCtx {
+  next_reg: Int;
+  bindings: List<Binding>;
+  blocks: List<KirBlock>;
+  current: Int;
+}
+
+fun lower_program(prog: Program) -> KirModule
+
+// internal
+fun lower_fun(f: FunDecl) -> KirFunction
+fun lower_block(ctx: LowerCtx, block: Block)
+fun lower_stmt(ctx: LowerCtx, stmt: Stmt)
+fun lower_expr(ctx: LowerCtx, expr: Expr) -> KirValue
+fun kir_type_from(t: Type) -> KirType
+fun new_reg(ctx: LowerCtx) -> String
+fun bind(ctx: LowerCtx, name: String, reg: String, ty: KirType)
+fun lookup(ctx: LowerCtx, name: String) -> KirValue
+fun current_block(ctx: LowerCtx) -> KirBlock
+fun push_instr(ctx: LowerCtx, instr: KirInstr)
+
+fun lower_program(prog: Program) -> KirModule {
+  let funs = List.new();
+  let i = 0;
+  while (i < prog.items.len()) {
+    match (prog.items[i]) {
+      Item.Fun(f) => funs.push(lower_fun(f))
+      _ => {}
+    }
+    i = i + 1;
+  }
+  KirModule { functions: funs }
+}
+
+fun lower_fun(f: FunDecl) -> KirFunction {
+  let params = List.new();
+  let i = 0;
+  while (i < f.params.len()) {
+    let p = f.params[i];
+    params.push(KirParam { name: p.name, ty: kir_type_from(type_from_ref(p.ty)) });
+    i = i + 1;
+  }
+
+  let ctx = LowerCtx {
+    next_reg: 0,
+    bindings: List.new(),
+    blocks: List.new(),
+    current: 0,
+  };
+  ctx.blocks.push(KirBlock { label: "entry", instrs: List.new() });
+
+  let j = 0;
+  while (j < params.len()) {
+    bind(ctx, params[j].name, params[j].name, params[j].ty);
+    j = j + 1;
+  }
+
+  lower_block(ctx, f.body);
+
+  KirFunction {
+    name: f.name,
+    params: params,
+    ret: if (f.ret != null) { kir_type_from(type_from_ref(f.ret)) } else { KirType.Void },
+    blocks: ctx.blocks,
+  }
+}
+
+fun lower_block(ctx: LowerCtx, block: Block) {
+  let i = 0;
+  while (i < block.stmts.len()) {
+    lower_stmt(ctx, block.stmts[i]);
+    i = i + 1;
+  }
+  if (block.tail != null) {
+    let v = lower_expr(ctx, block.tail);
+    push_instr(ctx, KirInstr.Return(v));
+  }
+}
+
+fun lower_stmt(ctx: LowerCtx, stmt: Stmt) {
+  match (stmt) {
+    Stmt.Var(v) => {
+      let val = lower_expr(ctx, v.value);
+      let reg = new_reg(ctx);
+      push_instr(ctx, KirInstr.Let(reg, val.ty(), val));
+      bind(ctx, v.name, reg, val.ty());
+    }
+    Stmt.Expr(e, _) => { let _ = lower_expr(ctx, e); }
+    Stmt.Return(e, _) => {
+      if (e != null) { push_instr(ctx, KirInstr.Return(lower_expr(ctx, e))); }
+      else { push_instr(ctx, KirInstr.Return(null)); }
+    }
+    Stmt.Block(b) => { lower_block(ctx, b); }
+    _ => {}
+  }
+}
+
+fun lower_expr(ctx: LowerCtx, expr: Expr) -> KirValue {
+  match (expr) {
+    Expr.Literal(l, _) => {
+      let t = match (l) {
+        Literal.Int(_) => KirType.Int
+        Literal.Float(_) => KirType.Float
+        Literal.String(_) => KirType.String
+        Literal.Char(_) => KirType.Char
+        Literal.Bool(_) => KirType.Bool
+      };
+      KirValue.Const(l, t)
+    }
+    Expr.Ident(name, _) => lookup(ctx, name)
+    Expr.Binary(left, _, right, _) => {
+      let _ = lower_expr(ctx, left);
+      let r = lower_expr(ctx, right);
+      r
+    }
+    Expr.Assign(left, _, right, _) => {
+      let r = lower_expr(ctx, right);
+      match (left) {
+        Expr.Ident(name, _) => {
+          let reg = lookup(ctx, name);
+          push_instr(ctx, KirInstr.Assign(reg.reg_name(), r));
+          reg
+        }
+        _ => r
+      }
+    }
+    Expr.Call(callee, args, _) => {
+      let call_args = List.new();
+      let i = 0; while (i < args.len()) { call_args.push(lower_expr(ctx, args[i])); i = i + 1; }
+      let name = match (callee) { Expr.Ident(n, _) => n _ => "<lambda>" };
+      push_instr(ctx, KirInstr.Call(name, call_args));
+      KirValue.Reg(new_reg(ctx), KirType.Int)
+    }
+    Expr.Array(items, _) => {
+      let i = 0; while (i < items.len()) { lower_expr(ctx, items[i]); i = i + 1; }
+      KirValue.Reg(new_reg(ctx), KirType.Array(KirType.Int))
+    }
+    Expr.Block(b) => { lower_block(ctx, b); KirValue.Reg(new_reg(ctx), KirType.Int) }
+    _ => KirValue.Reg(new_reg(ctx), KirType.Int)
+  }
+}
+
+fun kir_type_from(t: Type) -> KirType {
+  match (t) {
+    Type.Int => KirType.Int
+    Type.UInt => KirType.UInt
+    Type.Float => KirType.Float
+    Type.Bool => KirType.Bool
+    Type.Char => KirType.Char
+    Type.String => KirType.String
+    Type.Array(inner) => KirType.Array(kir_type_from(inner))
+    Type.Tuple(elems) => {
+      let out = List.new();
+      let i = 0; while (i < elems.len()) { out.push(kir_type_from(elems[i])); i = i + 1; }
+      KirType.Tuple(out)
+    }
+    Type.Func(_, _) => KirType.Ptr(KirType.Int)
+    _ => KirType.Int
+  }
+}
+
+fun new_reg(ctx: LowerCtx) -> String {
+  let name = "%" + ctx.next_reg.to_string();
+  ctx.next_reg = ctx.next_reg + 1;
+  name
+}
+
+fun bind(ctx: LowerCtx, name: String, reg: String, ty: KirType) {
+  ctx.bindings.push(Binding { name: name, reg: reg, ty: ty });
+}
+
+fun lookup(ctx: LowerCtx, name: String) -> KirValue {
+  let i = 0;
+  while (i < ctx.bindings.len()) {
+    if (ctx.bindings[i].name == name) {
+      return KirValue.Reg(ctx.bindings[i].reg, ctx.bindings[i].ty);
+    }
+    i = i + 1;
+  }
+  KirValue.Reg("%undef", KirType.Int)
+}
+
+fun current_block(ctx: LowerCtx) -> KirBlock { ctx.blocks[ctx.current] }
+
+fun push_instr(ctx: LowerCtx, instr: KirInstr) {
+  let b = current_block(ctx);
+  b.instrs.push(instr);
+}
+
+// helpers on KirValue
+fun KirValue_ty(self: KirValue) -> KirType {
+  match (self) {
+    KirValue.Reg(_, t) => t
+    KirValue.Const(_, t) => t
+  }
+}
+
+fun KirValue_reg_name(self: KirValue) -> String {
+  match (self) {
+    KirValue.Reg(n, _) => n
+    _ => "%const"
+  }
+}

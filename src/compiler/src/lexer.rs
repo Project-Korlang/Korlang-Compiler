@@ -151,7 +151,7 @@ impl<'a> Lexer<'a> {
         }
 
         if self.in_interpolation() {
-            diags.push(Diagnostic::new(
+            diags.push(Diagnostic::error(
                 "unterminated interpolation",
                 Span::new(self.position(), self.position()),
             ));
@@ -184,7 +184,7 @@ impl<'a> Lexer<'a> {
             "fun" | "gpu" | "let" | "var" | "if" | "else" | "match" | "for" | "while" |
             "break" | "continue" | "return" | "view" | "resource" | "state" |
             "spawn" | "@nogc" | "import" | "as" | "struct" | "enum" | "type" |
-            "in" => TokenKind::Keyword(Box::leak(s.into_boxed_str())),
+            "in" | "mut" | "interface" | "sealed" | "implements" | "class" => TokenKind::Keyword(Box::leak(s.into_boxed_str())),
             "true" => TokenKind::BoolLiteral(true),
             "false" => TokenKind::BoolLiteral(false),
             _ => TokenKind::Identifier(s),
@@ -203,11 +203,11 @@ impl<'a> Lexer<'a> {
                 self.advance();
             }
             if hex_start == self.pos {
-                return Err(Diagnostic::new("invalid hex literal", Span::new(start_pos, self.position())));
+                return Err(Diagnostic::error("invalid hex literal", Span::new(start_pos, self.position())));
             }
             let s: String = self.chars[hex_start..self.pos].iter().collect();
             let v = i64::from_str_radix(&s, 16)
-                .map_err(|_| Diagnostic::new("invalid hex literal", Span::new(start_pos, self.position())))?;
+                .map_err(|_| Diagnostic::error("invalid hex literal", Span::new(start_pos, self.position())))?;
             return Ok(Token { kind: TokenKind::IntLiteral(v), span: Span::new(start_pos, self.position()) });
         }
         if self.peek() == '0' && (self.peek_next() == 'b' || self.peek_next() == 'B') {
@@ -218,11 +218,11 @@ impl<'a> Lexer<'a> {
                 self.advance();
             }
             if bin_start == self.pos {
-                return Err(Diagnostic::new("invalid binary literal", Span::new(start_pos, self.position())));
+                return Err(Diagnostic::error("invalid binary literal", Span::new(start_pos, self.position())));
             }
             let s: String = self.chars[bin_start..self.pos].iter().collect();
             let v = i64::from_str_radix(&s, 2)
-                .map_err(|_| Diagnostic::new("invalid binary literal", Span::new(start_pos, self.position())))?;
+                .map_err(|_| Diagnostic::error("invalid binary literal", Span::new(start_pos, self.position())))?;
             return Ok(Token { kind: TokenKind::IntLiteral(v), span: Span::new(start_pos, self.position()) });
         }
         while !self.is_eof() && self.peek().is_ascii_digit() {
@@ -252,11 +252,11 @@ impl<'a> Lexer<'a> {
         let s: String = self.chars[start..self.pos].iter().collect();
         if is_float {
             let v = s.parse::<f64>()
-                .map_err(|_| Diagnostic::new("invalid float literal", Span::new(start_pos, self.position())))?;
+                .map_err(|_| Diagnostic::error("invalid float literal", Span::new(start_pos, self.position())))?;
             Ok(Token { kind: TokenKind::FloatLiteral(v), span: Span::new(start_pos, self.position()) })
         } else {
             let v = s.parse::<i64>()
-                .map_err(|_| Diagnostic::new("invalid int literal", Span::new(start_pos, self.position())))?;
+                .map_err(|_| Diagnostic::error("invalid int literal", Span::new(start_pos, self.position())))?;
             Ok(Token { kind: TokenKind::IntLiteral(v), span: Span::new(start_pos, self.position()) })
         }
     }
@@ -279,7 +279,7 @@ impl<'a> Lexer<'a> {
             if c == '\\' {
                 self.advance();
                 if self.is_eof() {
-                    return Err(Diagnostic::new("unterminated escape", Span::new(start, self.position())));
+                    return Err(Diagnostic::error("unterminated escape", Span::new(start, self.position())));
                 }
                 let esc = self.peek();
                 let (real, consume) = match esc {
@@ -294,7 +294,7 @@ impl<'a> Lexer<'a> {
                     'u' => {
                         self.advance();
                         if self.is_eof() || self.peek() != '{' {
-                            return Err(Diagnostic::new("invalid unicode escape", Span::new(start, self.position())));
+                            return Err(Diagnostic::error("invalid unicode escape", Span::new(start, self.position())));
                         }
                         self.advance();
                         let hex_start = self.pos;
@@ -302,17 +302,17 @@ impl<'a> Lexer<'a> {
                             self.advance();
                         }
                         if self.is_eof() || self.peek() != '}' {
-                            return Err(Diagnostic::new("invalid unicode escape", Span::new(start, self.position())));
+                            return Err(Diagnostic::error("invalid unicode escape", Span::new(start, self.position())));
                         }
                         let hex: String = self.chars[hex_start..self.pos].iter().collect();
                         self.advance();
                         let code = u32::from_str_radix(&hex, 16)
-                            .map_err(|_| Diagnostic::new("invalid unicode escape", Span::new(start, self.position())))?;
+                            .map_err(|_| Diagnostic::error("invalid unicode escape", Span::new(start, self.position())))?;
                         let ch = std::char::from_u32(code)
-                            .ok_or_else(|| Diagnostic::new("invalid unicode escape", Span::new(start, self.position())))?;
+                            .ok_or_else(|| Diagnostic::error("invalid unicode escape", Span::new(start, self.position())))?;
                         (ch, false)
                     }
-                    _ => return Err(Diagnostic::new("invalid escape", Span::new(start, self.position()))),
+                    _ => return Err(Diagnostic::error("invalid escape", Span::new(start, self.position()))),
                 };
                 out.push(real);
                 if consume {
@@ -338,14 +338,14 @@ impl<'a> Lexer<'a> {
             out.push(c);
             self.advance();
         }
-        Err(Diagnostic::new("unterminated string", Span::new(start, self.position())))
+        Err(Diagnostic::error("unterminated string", Span::new(start, self.position())))
     }
 
     fn lex_char(&mut self) -> Result<Token, Diagnostic> {
         let start = self.position();
         self.advance();
         if self.is_eof() {
-            return Err(Diagnostic::new("unterminated char", Span::new(start, self.position())));
+            return Err(Diagnostic::error("unterminated char", Span::new(start, self.position())));
         }
         let c = self.peek();
         let ch = if c == '\\' {
@@ -361,7 +361,7 @@ impl<'a> Lexer<'a> {
                 'u' => {
                     self.advance();
                     if self.is_eof() || self.peek() != '{' {
-                        return Err(Diagnostic::new("invalid unicode escape", Span::new(start, self.position())));
+                        return Err(Diagnostic::error("invalid unicode escape", Span::new(start, self.position())));
                     }
                     self.advance();
                     let hex_start = self.pos;
@@ -369,16 +369,16 @@ impl<'a> Lexer<'a> {
                         self.advance();
                     }
                     if self.is_eof() || self.peek() != '}' {
-                        return Err(Diagnostic::new("invalid unicode escape", Span::new(start, self.position())));
+                        return Err(Diagnostic::error("invalid unicode escape", Span::new(start, self.position())));
                     }
                     let hex: String = self.chars[hex_start..self.pos].iter().collect();
                     self.advance();
                     let code = u32::from_str_radix(&hex, 16)
-                        .map_err(|_| Diagnostic::new("invalid unicode escape", Span::new(start, self.position())))?;
+                        .map_err(|_| Diagnostic::error("invalid unicode escape", Span::new(start, self.position())))?;
                     std::char::from_u32(code)
-                        .ok_or_else(|| Diagnostic::new("invalid unicode escape", Span::new(start, self.position())))?
+                        .ok_or_else(|| Diagnostic::error("invalid unicode escape", Span::new(start, self.position())))?
                 }
-                _ => return Err(Diagnostic::new("invalid escape", Span::new(start, self.position()))),
+                _ => return Err(Diagnostic::error("invalid escape", Span::new(start, self.position()))),
             };
             self.advance();
             real
@@ -387,7 +387,7 @@ impl<'a> Lexer<'a> {
             c
         };
         if self.is_eof() || self.peek() != '\'' {
-            return Err(Diagnostic::new("unterminated char", Span::new(start, self.position())));
+            return Err(Diagnostic::error("unterminated char", Span::new(start, self.position())));
         }
         self.advance();
         Ok(Token { kind: TokenKind::CharLiteral(ch), span: Span::new(start, self.position()) })
@@ -428,7 +428,7 @@ impl<'a> Lexer<'a> {
                 self.advance();
             }
             if self.is_eof() {
-                return Err(Diagnostic::new("unterminated raw string", Span::new(start, self.position())));
+                return Err(Diagnostic::error("unterminated raw string", Span::new(start, self.position())));
             }
             self.advance();
             return Ok(Token { kind: TokenKind::StringLiteral(raw), span: Span::new(start, self.position()) });
@@ -501,7 +501,7 @@ impl<'a> Lexer<'a> {
                     ';' => TokenKind::Semi,
                     ':' => TokenKind::Colon,
                     '.' => TokenKind::Dot,
-                    _ => return Err(Diagnostic::new("unexpected character", Span::new(start, self.position()))),
+                    _ => return Err(Diagnostic::error("unexpected character", Span::new(start, self.position()))),
                 }
             }
         };

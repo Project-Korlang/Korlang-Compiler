@@ -1,0 +1,239 @@
+// Self-hosted frontend AST
+
+module ast
+
+import diag
+
+struct Program {
+  items: List<Item>;
+}
+
+enum Visibility {
+  Public;
+  Internal;
+  Private;
+}
+
+struct Attribute {
+  name: String;
+  args: List<Expr>;
+  span: Span;
+}
+
+enum Item {
+  Fun(FunDecl, List<Attribute>, Visibility);
+  Struct(StructDecl, List<Attribute>, Visibility);
+  Enum(EnumDecl, List<Attribute>, Visibility);
+  TypeAlias(TypeAliasDecl, List<Attribute>, Visibility);
+  View(ViewDecl, List<Attribute>, Visibility);
+  Resource(ResourceDecl, List<Attribute>, Visibility);
+  Const(VarDecl, List<Attribute>, Visibility);
+  Stmt(Stmt);
+}
+
+struct FunDecl {
+  name: String;
+  generics: List<String>;
+  params: List<Param>;
+  ret: TypeRef?;
+  body: Block;
+  nogc: Bool;
+  span: Span;
+}
+
+struct Param {
+  name: String;
+  ty: TypeRef;
+  span: Span;
+}
+
+struct StructDecl {
+  name: String;
+  generics: List<String>;
+  fields: List<FieldDecl>;
+  span: Span;
+}
+
+struct FieldDecl {
+  name: String;
+  ty: TypeRef;
+  span: Span;
+}
+
+struct EnumDecl {
+  name: String;
+  variants: List<VariantDecl>;
+  span: Span;
+}
+
+struct VariantDecl {
+  name: String;
+  payload: List<TypeRef>;
+  span: Span;
+}
+
+struct TypeAliasDecl {
+  name: String;
+  target: TypeRef;
+  span: Span;
+}
+
+struct ViewDecl {
+  name: String;
+  params: List<Param>;
+  body: List<ViewNode>;
+  span: Span;
+}
+
+struct ViewNode {
+  name: String;
+  args: List<ViewArg>;
+  children: List<ViewNode>;
+  span: Span;
+}
+
+struct ViewArg {
+  name: String?;
+  value: Expr;
+  span: Span;
+}
+
+struct ResourceDecl {
+  name: String;
+  resource_type: String;
+  entries: List<ResourceEntry>;
+  span: Span;
+}
+
+struct ResourceEntry {
+  key: String;
+  value: Expr;
+  span: Span;
+}
+
+struct VarDecl {
+  mutable: Bool;
+  name: String;
+  ty: TypeRef?;
+  value: Expr;
+  span: Span;
+}
+
+enum Stmt {
+  Var(VarDecl);
+  Expr(Expr, Span);
+  Return(Expr?, Span);
+  Break(Span);
+  Continue(Span);
+  If(Expr, Block, Stmt?, Span);
+  While(Expr, Block, Span);
+  For(String, Expr, Block, Span);
+  Match(Expr, List<MatchArm>, Span);
+  Block(Block);
+}
+
+struct Block {
+  stmts: List<Stmt>;
+  tail: Expr?;
+  span: Span;
+}
+
+struct MatchArm {
+  pat: Pattern;
+  body: Expr;
+  span: Span;
+}
+
+enum Expr {
+  Literal(Literal, Span);
+  Ident(String, Span);
+  Unary(UnaryOp, Expr, Span);
+  Binary(Expr, BinaryOp, Expr, Span);
+  Assign(Expr, AssignOp, Expr, Span);
+  Call(Expr, List<Expr>, Span);
+  Member(Expr, String, Span);
+  Index(Expr, Expr, Span);
+  If(Expr, Block, Block, Span);
+  Match(Expr, List<MatchArm>, Span);
+  Block(Block);
+  Array(List<Expr>, Span);
+  Tensor(List<List<Expr>>, Span);
+  Interpolated(List<Expr>, Span);
+}
+
+enum Literal {
+  Int(Int);
+  Float(Float);
+  String(String);
+  Char(Char);
+  Bool(Bool);
+}
+
+enum UnaryOp {
+  Not;
+  Neg;
+  Pos;
+  BitNot;
+}
+
+enum BinaryOp {
+  Add;
+  Sub;
+  Mul;
+  Div;
+  Mod;
+  DotAdd;
+  DotSub;
+  DotMul;
+  DotDiv;
+  MatMul;
+  Eq;
+  NotEq;
+  Lt;
+  LtEq;
+  Gt;
+  GtEq;
+  And;
+  Or;
+  NullCoalesce;
+  Pipe;
+  Arrow;
+}
+
+enum AssignOp {
+  Assign;
+  AddAssign;
+  SubAssign;
+  MulAssign;
+  DivAssign;
+  ModAssign;
+}
+
+struct FieldPattern {
+  name: String;
+  pat: Pattern;
+}
+
+enum Pattern {
+  Ident(String, Span);
+  Wildcard(Span);
+  Literal(Literal, Span);
+  Tuple(List<Pattern>, Span);
+  Variant(String, List<Pattern>, Span);
+  Struct(String, List<FieldPattern>, Span);
+}
+
+enum TypeRef {
+  Named(String, List<TypeRef>, Span);
+  Tuple(List<TypeRef>, Span);
+  Array(TypeRef, Span);
+  Tensor(TypeRef, List<ShapeDim>, Span);
+  Optional(TypeRef, Span);
+  NonNull(TypeRef, Span);
+}
+
+enum ShapeDim {
+  Int(Int);
+  Ident(String);
+  Unknown;
+}

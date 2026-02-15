@@ -1,0 +1,41 @@
+// Test suite for Core Type System features (Month 3-5)
+
+interface Drawable {
+    fun draw() -> Void;
+}
+
+struct Shape {
+    id: Int
+} implements Drawable;
+
+// Extension function for Shape to implement Drawable.draw
+fun Shape.draw() -> Void {
+    println("Drawing shape");
+}
+
+// Sealed hierarchy
+sealed ShapeType {
+    struct Circle { radius: Float }
+    struct Square { side: Float }
+}
+
+fun test_nullability() -> Int {
+    let x: Int? = null;
+    let y: Int = 10;
+    
+    // This should fail if we try to assign x to y without check
+    // let z: Int = x; 
+    
+    if (x == null) {
+        0
+    } else {
+        1
+    }
+}
+
+fun main() -> Int {
+    let s = Shape { id: 1 };
+    s.draw(); // Test extension function
+    
+    test_nullability()
+}

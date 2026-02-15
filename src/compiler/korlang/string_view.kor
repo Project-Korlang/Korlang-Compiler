@@ -1,0 +1,38 @@
+
+module string_view
+
+struct StringView {
+    base: String;
+    start: Int;
+    length: Int;
+}
+
+fun StringView_new(s: String) -> StringView {
+    StringView {
+        base: s,
+        start: 0,
+        length: s.length()
+    }
+}
+
+fun StringView_slice(self: StringView, start: Int, end: Int) -> StringView {
+    StringView {
+        base: self.base,
+        start: self.start + start,
+        length: end - start
+    }
+}
+
+fun StringView_char_at(self: StringView, index: Int) -> Char {
+    self.base.char_at(self.start + index)
+}
+
+fun StringView_to_string(self: StringView) -> String {
+    self.base.substring(self.start, self.start + self.length)
+}
+
+fun StringView_equals_str(self: StringView, other: String) -> Bool {
+    if (self.length != other.length()) { return false; }
+    
+    self.to_string() == other
+}

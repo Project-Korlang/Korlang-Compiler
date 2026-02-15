@@ -1,0 +1,56 @@
+// Shared type system for self-hosted sema
+
+module types
+
+import ast
+
+enum Type {
+  Int;
+  UInt;
+  Float;
+  Bool;
+  Char;
+  String;
+  Unit;
+  Any;
+  Nothing;
+  Number;
+  Tuple(List<Type>);
+  Array(Type);
+  Tensor(Type);
+  Named(String);
+  Func(List<Type>, Type);
+  Var(Int);
+  Unknown;
+}
+
+fun type_from_ref(tr: TypeRef) -> Type
+
+fun type_from_ref(tr: TypeRef) -> Type {
+  match (tr) {
+    TypeRef.Named(name, _) => {
+      if (name == "Int") { Type.Int }
+      else if (name == "UInt") { Type.UInt }
+      else if (name == "Float") { Type.Float }
+      else if (name == "Bool") { Type.Bool }
+      else if (name == "Char") { Type.Char }
+      else if (name == "String") { Type.String }
+      else if (name == "Any") { Type.Any }
+      else if (name == "Nothing") { Type.Nothing }
+      else { Type.Named(name) }
+    }
+    TypeRef.Tuple(elems, _) => {
+      let out = List.new();
+      let i = 0;
+      while (i < elems.len()) {
+        out.push(type_from_ref(elems[i]));
+        i = i + 1;
+      }
+      Type.Tuple(out)
+    }
+    TypeRef.Array(inner, _) => Type.Array(type_from_ref(inner))
+    TypeRef.Tensor(elem, _, _) => Type.Tensor(type_from_ref(elem))
+    TypeRef.Optional(inner, _) => type_from_ref(inner)
+    TypeRef.NonNull(inner, _) => type_from_ref(inner)
+  }
+}

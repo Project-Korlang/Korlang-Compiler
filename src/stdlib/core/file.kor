@@ -1,0 +1,54 @@
+// Phase Reality: Group 2.1 - File Operations Implementation
+module file
+
+import syscall.dispatcher
+import syscall.linux
+
+struct File {
+    fd: Int
+}
+
+// R.2.8: file.open
+fun open(path: String) -> File {
+    let fd = dispatcher.syscall3(linux.SYS_OPEN, path.ptr, linux.O_RDONLY, 0)
+    File { fd: fd }
+}
+
+// R.2.9: file.new
+fun new(path: String) -> File {
+    let fd = dispatcher.syscall3(linux.SYS_OPEN, path.ptr, linux.O_CREAT | linux.O_WRONLY | linux.O_TRUNC, 420)
+    File { fd: fd }
+}
+
+// R.2.10: file.read
+fun File.read(self) -> String {
+    let buffer = [0; 4096]
+    let n = dispatcher.syscall3(linux.SYS_READ, self.fd, buffer.ptr, 4096)
+    buffer.toString(n)
+}
+
+// R.2.11: file.write
+fun File.write(self, s: String) {
+    dispatcher.syscall3(linux.SYS_WRITE, self.fd, s.ptr, s.len)
+}
+
+// R.2.12: file.append
+fun File.append(self, s: String) {
+    dispatcher.syscall3(linux.SYS_LSEEK, self.fd, 0, linux.SEEK_END)
+    dispatcher.syscall3(linux.SYS_WRITE, self.fd, s.ptr, s.len)
+}
+
+// R.2.13: file.exists
+fun exists(path: String) -> Bool {
+    let fd = dispatcher.syscall3(linux.SYS_OPEN, path.ptr, linux.O_RDONLY, 0)
+    if (fd >= 0) {
+        dispatcher.syscall1(linux.SYS_CLOSE, fd)
+        return true
+    }
+    false
+}
+
+// R.2.14: file.delete
+fun delete(path: String) {
+    dispatcher.syscall1(linux.SYS_UNLINK, path.ptr)
+}

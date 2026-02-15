@@ -1,0 +1,120 @@
+
+
+module linker
+
+import elf
+import reloc
+
+struct ObjectFile {
+    name: String;
+    sections: List<linker.elf.ElfSection>;
+    relocs: List<linker.reloc.Relocation>;
+    symbols: List<String>;
+}
+
+struct LinkerContext {
+    objects: List<ObjectFile>;
+    output_path: String;
+    entry_point: String;
+}
+
+fun LinkerContext_new(out: String) -> LinkerContext {
+    LinkerContext {
+        objects: List.new(),
+        output_path: out,
+        entry_point: "_start"
+    }
+}
+
+
+fun linker_add_object(ctx: LinkerContext, obj: ObjectFile) {
+    ctx.objects.push(obj);
+}
+
+fun linker_merge_sections(ctx: LinkerContext) -> List<linker.elf.ElfSection> {
+    
+    let merged_text = linker.elf.ElfSection { name: ".text", data: List.new(), align: 16 };
+    let merged_data = linker.elf.ElfSection { name: ".data", data: List.new(), align: 16 };
+    
+    let i = 0;
+    while (i < ctx.objects.len()) {
+        let obj = ctx.objects[i];
+        let j = 0;
+        while (j < obj.sections.len()) {
+            let sec = obj.sections[j];
+            if (sec.name == ".text") {
+                let k = 0;
+                while (k < sec.data.len()) { merged_text.data.push(sec.data[k]); k = k + 1; }
+            } else if (sec.name == ".data") {
+                let k = 0;
+                while (k < sec.data.len()) { merged_data.data.push(sec.data[k]); k = k + 1; }
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    
+    let out = List.new();
+    out.push(merged_text);
+    out.push(merged_data);
+    out
+}
+
+fun linker_emit_executable(ctx: LinkerContext) {
+    let sections = linker_merge_sections(ctx);
+    
+    
+    let ph_off = 64; 
+    let ph_num = sections.len() as UInt; 
+    let entry = 0x400000; 
+    
+    let hdr = linker.elf.ElfHeader {
+        typ: linker.elf.ET_EXEC,
+        machine: linker.elf.EM_X86_64,
+        entry: entry,
+        ph_off: ph_off,
+        sh_off: 0, 
+        ph_num: ph_num,
+        sh_num: 0,
+        sh_str_ndx: 0
+    };
+    
+    let buf = List.new();
+    linker.elf.write_elf_header(buf, hdr);
+    
+    
+    let i = 0;
+    let offset = ph_off + (ph_num * 56);
+    while (i < sections.len()) {
+        let sec = sections[i];
+        let size = sec.data.len() as UInt;
+        let flags = if (sec.name == ".text") { 5 } else { 6 }; 
+        
+        let ph = linker.elf.ProgramHeader {
+            typ: linker.elf.PT_LOAD,
+            flags: flags as UInt,
+            offset: offset,
+            vaddr: entry + offset,
+            paddr: entry + offset,
+            filesz: size,
+            memsz: size,
+            align: 0x1000
+        };
+        
+        linker.elf.write_program_header(buf, ph);
+        offset = offset + size;
+        i = i + 1;
+    }
+    
+    
+    i = 0;
+    while (i < sections.len()) {
+        let sec = sections[i];
+        let j = 0;
+        while (j < sec.data.len()) { buf.push(sec.data[j]); j = j + 1; }
+        i = i + 1;
+    }
+    
+    
+    
+}

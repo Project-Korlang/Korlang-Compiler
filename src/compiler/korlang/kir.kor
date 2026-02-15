@@ -29,6 +29,35 @@ struct KirBlock {
 enum KirInstr {
   Let(String, KirType, KirValue);
   Assign(String, KirValue);
+  Add(String, KirValue, KirValue);
+  Sub(String, KirValue, KirValue);
+  Mul(String, KirValue, KirValue);
+  Div(String, KirValue, KirValue);
+  Mod(String, KirValue, KirValue);
+  FAdd(String, KirValue, KirValue);
+  FSub(String, KirValue, KirValue);
+  FMul(String, KirValue, KirValue);
+  FDiv(String, KirValue, KirValue);
+  Eq(String, KirValue, KirValue);
+  NotEq(String, KirValue, KirValue);
+  Lt(String, KirValue, KirValue);
+  Gt(String, KirValue, KirValue);
+  LtEq(String, KirValue, KirValue);
+  GtEq(String, KirValue, KirValue);
+  And(String, KirValue, KirValue);
+  Or(String, KirValue, KirValue);
+  Xor(String, KirValue, KirValue);
+  Shl(String, KirValue, KirValue);
+  Shr(String, KirValue, KirValue);
+  Not(String, KirValue);
+  Neg(String, KirValue);
+  BitNot(String, KirValue);
+  Cast(String, KirType, KirValue);
+  GetField(String, KirValue, String);
+  SetField(KirValue, String, KirValue);
+  GetIndex(String, KirValue, KirValue);
+  SetIndex(KirValue, KirValue, KirValue);
+  AllocArray(String, KirType, KirValue);
   Return(KirValue?);
   Branch(String);
   CondBranch(KirValue, String, String);
@@ -158,6 +187,55 @@ fun lower_stmt(ctx: LowerCtx, stmt: Stmt) {
       if (e != null) { push_instr(ctx, KirInstr.Return(lower_expr(ctx, e))); }
       else { push_instr(ctx, KirInstr.Return(null)); }
     }
+    Stmt.If(cond, then_block, else_stmt, _) => {
+      let c = lower_expr(ctx, cond);
+      let then_label = "then_" + ctx.next_reg.to_string();
+      let else_label = "else_" + ctx.next_reg.to_string();
+      let merge_label = "merge_" + ctx.next_reg.to_string();
+      ctx.next_reg = ctx.next_reg + 1;
+      
+      push_instr(ctx, KirInstr.CondBranch(c, then_label, else_label));
+      
+      // Then branch
+      ctx.blocks.push(KirBlock { label: then_label, instrs: List.new() });
+      ctx.current = ctx.blocks.len() - 1;
+      lower_block(ctx, then_block);
+      push_instr(ctx, KirInstr.Branch(merge_label));
+      
+      // Else branch
+      ctx.blocks.push(KirBlock { label: else_label, instrs: List.new() });
+      ctx.current = ctx.blocks.len() - 1;
+      if (else_stmt != null) { lower_stmt(ctx, else_stmt); }
+      push_instr(ctx, KirInstr.Branch(merge_label));
+      
+      // Merge
+      ctx.blocks.push(KirBlock { label: merge_label, instrs: List.new() });
+      ctx.current = ctx.blocks.len() - 1;
+    }
+    Stmt.While(cond, body, _) => {
+      let cond_label = "while_cond_" + ctx.next_reg.to_string();
+      let body_label = "while_body_" + ctx.next_reg.to_string();
+      let end_label = "while_end_" + ctx.next_reg.to_string();
+      ctx.next_reg = ctx.next_reg + 1;
+      
+      push_instr(ctx, KirInstr.Branch(cond_label));
+      
+      // Cond
+      ctx.blocks.push(KirBlock { label: cond_label, instrs: List.new() });
+      ctx.current = ctx.blocks.len() - 1;
+      let c = lower_expr(ctx, cond);
+      push_instr(ctx, KirInstr.CondBranch(c, body_label, end_label));
+      
+      // Body
+      ctx.blocks.push(KirBlock { label: body_label, instrs: List.new() });
+      ctx.current = ctx.blocks.len() - 1;
+      lower_block(ctx, body);
+      push_instr(ctx, KirInstr.Branch(cond_label));
+      
+      // End
+      ctx.blocks.push(KirBlock { label: end_label, instrs: List.new() });
+      ctx.current = ctx.blocks.len() - 1;
+    }
     Stmt.Block(b) => { lower_block(ctx, b); }
     _ => {}
   }
@@ -176,10 +254,59 @@ fun lower_expr(ctx: LowerCtx, expr: Expr) -> KirValue {
       KirValue.Const(l, t)
     }
     Expr.Ident(name, _) => lookup(ctx, name)
-    Expr.Binary(left, _, right, _) => {
-      let _ = lower_expr(ctx, left);
+    Expr.Unary(op, inner, _) => {
+      let v = lower_expr(ctx, inner);
+      let reg = new_reg(ctx);
+      if (op == UnaryOp.Not) { push_instr(ctx, KirInstr.Not(reg, v)); }
+      else if (op == UnaryOp.Neg) { push_instr(ctx, KirInstr.Neg(reg, v)); }
+      else if (op == UnaryOp.BitNot) { push_instr(ctx, KirInstr.BitNot(reg, v)); }
+      else if (op == UnaryOp.Pos) { return v; }
+      KirValue.Reg(reg, v.ty())
+    }
+    Expr.Binary(left, op, right, _) => {
+      let l = lower_expr(ctx, left);
       let r = lower_expr(ctx, right);
-      r
+      let reg = new_reg(ctx);
+      let is_float = l.ty() == KirType.Float;
+      
+      if (op == BinaryOp.Add) {
+        if (is_float) { push_instr(ctx, KirInstr.FAdd(reg, l, r)); }
+        else { push_instr(ctx, KirInstr.Add(reg, l, r)); }
+      } else if (op == BinaryOp.Sub) {
+        if (is_float) { push_instr(ctx, KirInstr.FSub(reg, l, r)); }
+        else { push_instr(ctx, KirInstr.Sub(reg, l, r)); }
+      } else if (op == BinaryOp.Mul) {
+        if (is_float) { push_instr(ctx, KirInstr.FMul(reg, l, r)); }
+        else { push_instr(ctx, KirInstr.Mul(reg, l, r)); }
+      } else if (op == BinaryOp.Div) {
+        if (is_float) { push_instr(ctx, KirInstr.FDiv(reg, l, r)); }
+        else { push_instr(ctx, KirInstr.Div(reg, l, r)); }
+      } else if (op == BinaryOp.Mod) {
+        push_instr(ctx, KirInstr.Mod(reg, l, r));
+      } else if (op == BinaryOp.Eq) {
+        push_instr(ctx, KirInstr.Eq(reg, l, r));
+      } else if (op == BinaryOp.NotEq) {
+        push_instr(ctx, KirInstr.NotEq(reg, l, r));
+      } else if (op == BinaryOp.Lt) {
+        push_instr(ctx, KirInstr.Lt(reg, l, r));
+      } else if (op == BinaryOp.Gt) {
+        push_instr(ctx, KirInstr.Gt(reg, l, r));
+      } else if (op == BinaryOp.LtEq) {
+        push_instr(ctx, KirInstr.LtEq(reg, l, r));
+      } else if (op == BinaryOp.GtEq) {
+        push_instr(ctx, KirInstr.GtEq(reg, l, r));
+      } else if (op == BinaryOp.And) {
+        push_instr(ctx, KirInstr.And(reg, l, r));
+      } else if (op == BinaryOp.Or) {
+        push_instr(ctx, KirInstr.Or(reg, l, r));
+      }
+      
+      let res_ty = if (op == BinaryOp.Eq || op == BinaryOp.NotEq || op == BinaryOp.Lt || op == BinaryOp.Gt || op == BinaryOp.LtEq || op == BinaryOp.GtEq || op == BinaryOp.And || op == BinaryOp.Or) {
+        KirType.Bool
+      } else {
+        l.ty()
+      };
+      KirValue.Reg(reg, res_ty)
     }
     Expr.Assign(left, _, right, _) => {
       let r = lower_expr(ctx, right);
@@ -189,6 +316,17 @@ fun lower_expr(ctx: LowerCtx, expr: Expr) -> KirValue {
           push_instr(ctx, KirInstr.Assign(reg.reg_name(), r));
           reg
         }
+        Expr.Member(obj, field, _) => {
+          let target = lower_expr(ctx, obj);
+          push_instr(ctx, KirInstr.SetField(target, field, r));
+          r
+        }
+        Expr.Index(target, index, _) => {
+          let t = lower_expr(ctx, target);
+          let idx = lower_expr(ctx, index);
+          push_instr(ctx, KirInstr.SetIndex(t, idx, r));
+          r
+        }
         _ => r
       }
     }
@@ -196,12 +334,34 @@ fun lower_expr(ctx: LowerCtx, expr: Expr) -> KirValue {
       let call_args = List.new();
       let i = 0; while (i < args.len()) { call_args.push(lower_expr(ctx, args[i])); i = i + 1; }
       let name = match (callee) { Expr.Ident(n, _) => n _ => "<lambda>" };
-      push_instr(ctx, KirInstr.Call(name, call_args));
-      KirValue.Reg(new_reg(ctx), KirType.Int)
+      let res_reg = new_reg(ctx);
+      push_instr(ctx, KirInstr.Call(res_reg, name, call_args));
+      KirValue.Reg(res_reg, KirType.Int)
+    }
+    Expr.Member(obj, field, _) => {
+      let v = lower_expr(ctx, obj);
+      let reg = new_reg(ctx);
+      push_instr(ctx, KirInstr.GetField(reg, v, field));
+      KirValue.Reg(reg, KirType.Int)
+    }
+    Expr.Index(target, index, _) => {
+      let t = lower_expr(ctx, target);
+      let idx = lower_expr(ctx, index);
+      let reg = new_reg(ctx);
+      push_instr(ctx, KirInstr.GetIndex(reg, t, idx));
+      KirValue.Reg(reg, KirType.Int)
     }
     Expr.Array(items, _) => {
-      let i = 0; while (i < items.len()) { lower_expr(ctx, items[i]); i = i + 1; }
-      KirValue.Reg(new_reg(ctx), KirType.Array(KirType.Int))
+      let len_val = KirValue.Const(Literal.Int(items.len()), KirType.Int);
+      let reg = new_reg(ctx);
+      push_instr(ctx, KirInstr.AllocArray(reg, KirType.Int, len_val));
+      let i = 0;
+      while (i < items.len()) {
+        let ev = lower_expr(ctx, items[i]);
+        push_instr(ctx, KirInstr.SetIndex(KirValue.Reg(reg, KirType.Array(KirType.Int)), KirValue.Const(Literal.Int(i), KirType.Int), ev));
+        i = i + 1;
+      }
+      KirValue.Reg(reg, KirType.Array(KirType.Int))
     }
     Expr.Block(b) => { lower_block(ctx, b); KirValue.Reg(new_reg(ctx), KirType.Int) }
     _ => KirValue.Reg(new_reg(ctx), KirType.Int)

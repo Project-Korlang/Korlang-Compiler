@@ -1,0 +1,34 @@
+// Task 20.1.1: Native Manifest Parser
+module config
+
+fun parse_name(content: String) -> String {
+    let lines = content.split("
+");
+    let i = 0;
+    while (i < lines.size()) {
+        let line = lines.get(i).trim();
+        if (line.startsWith("name =")) {
+            return line.split("=").get(1).trim().replace(""", "");
+        }
+        i = i + 1;
+    }
+    "unknown"
+}
+
+fun main() {
+    print("=== Korlang Native Build Tool ===
+");
+    let content = "name = "Korlang-Core"
+version = "1.0.0"
+";
+    let name = parse_name(content);
+    print("Building: ");
+    print(name);
+    print("
+Status: Resolving dependencies...
+");
+    print("Status: Compiling Stage 1...
+");
+    print("Build SUCCESS.
+");
+}

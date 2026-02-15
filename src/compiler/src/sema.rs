@@ -1,5 +1,8 @@
 use crate::ast::*;
 use crate::diag::{Diagnostic, Span};
+use crate::borrowck::BorrowChecker;
+use crate::lifetime::LifetimeChecker;
+use crate::moveck::MoveChecker;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,20 +21,25 @@ pub enum Type {
     Tensor(Box<Type>),
     Named(String),
     Func(Vec<Type>, Box<Type>),
+    Optional(Box<Type>),
     Unknown,
 }
 
 #[derive(Default)]
-struct Scope {
-    vars: HashMap<String, Type>,
+pub(crate) struct Scope {
+    pub(crate) vars: HashMap<String, Type>,
 }
 
 pub struct Sema {
-    scopes: Vec<Scope>,
-    diags: Vec<Diagnostic>,
-    functions: HashMap<String, Type>,
-    nogc_functions: HashMap<String, bool>,
-    permissive: bool,
+    pub(crate) scopes: Vec<Scope>,
+    pub(crate) diags: Vec<Diagnostic>,
+    pub(crate) functions: HashMap<String, Type>,
+    pub(crate) extensions: HashMap<String, Vec<(Type, Type)>>, // Receiver type -> Vec<(Method Name, Method Sig)>
+    pub(crate) interfaces: HashMap<String, InterfaceDecl>,
+    pub(crate) sealed_types: HashMap<String, SealedDecl>,
+    pub(crate) structs: HashMap<String, StructDecl>,
+    pub(crate) nogc_functions: HashMap<String, bool>,
+    pub(crate) permissive: bool,
 }
 
 impl Sema {
@@ -40,6 +48,10 @@ impl Sema {
             scopes: Vec::new(),
             diags: Vec::new(),
             functions: HashMap::new(),
+            extensions: HashMap::new(),
+            interfaces: HashMap::new(),
+            sealed_types: HashMap::new(),
+            structs: HashMap::new(),
             nogc_functions: HashMap::new(),
             permissive: std::env::var("KORLANG_SEMA_PERMISSIVE").ok().as_deref() == Some("1"),
         };
@@ -57,26 +69,45 @@ impl Sema {
     }
 
     pub fn check_program(mut self, program: &Program) -> Result<(), Vec<Diagnostic>> {
-        // Predeclare types (structs/enums/aliases) so references before definition work.
+        // Predeclare types (structs/enums/aliases/interfaces/sealed)
         for item in &program.items {
             match item {
-                Item::Struct(s) => self.define_builtin(&s.name, Type::Named(s.name.clone())),
+                Item::Struct(s) => {
+                    self.structs.insert(s.name.clone(), s.clone());
+                    self.define_builtin(&s.name, Type::Named(s.name.clone()));
+                }
                 Item::Enum(e) => self.define_builtin(&e.name, Type::Named(e.name.clone())),
                 Item::TypeAlias(t) => self.define_builtin(&t.name, Type::Named(t.name.clone())),
+                Item::Interface(i) => {
+                    self.interfaces.insert(i.name.clone(), i.clone());
+                    self.define_builtin(&i.name, Type::Named(i.name.clone()));
+                }
+                Item::Sealed(s) => {
+                    self.sealed_types.insert(s.name.clone(), s.clone());
+                    self.define_builtin(&s.name, Type::Named(s.name.clone()));
+                }
                 _ => {}
             }
         }
         for item in &program.items {
             if let Item::Fun(f) = item {
                 let sig = self.fun_sig(f);
-                self.functions.insert(f.name.clone(), sig);
-                self.nogc_functions.insert(f.name.clone(), f.nogc);
+                if let Some(recv) = &f.receiver {
+                    let recv_ty = self.type_from_ref(recv);
+                    let entry = self.extensions.entry(f.name.clone()).or_insert_with(Vec::new);
+                    entry.push((recv_ty, sig));
+                } else {
+                    self.functions.insert(f.name.clone(), sig);
+                    self.nogc_functions.insert(f.name.clone(), f.nogc);
+                }
             }
         }
 
         for item in &program.items {
             self.check_item(item);
         }
+
+        self.validate_nogc(program);
 
         if self.diags.is_empty() {
             Ok(())
@@ -88,23 +119,58 @@ impl Sema {
     fn check_item(&mut self, item: &Item) {
         match item {
             Item::Fun(f) => self.check_fun(f),
-            Item::Struct(_) => {}
+            Item::Struct(s) => self.check_struct(s),
             Item::Enum(_) => {}
             Item::TypeAlias(_) => {}
             Item::View(_) => {}
             Item::Resource(_) => {}
+            Item::Interface(i) => self.check_interface(i),
+            Item::Sealed(s) => self.check_sealed(s),
             Item::Const(v) => {
                 let ty = self.check_expr(&v.value);
-                if let Some(ann) = &v.ty {
+                let final_ty = if let Some(ann) = &v.ty {
                     let ann_ty = self.type_from_ref(ann);
                     self.unify(&ann_ty, &ty, v.span);
-                }
-                self.define_var(&v.name, ty, v.span);
+                    ann_ty
+                } else {
+                    ty
+                };
+                self.define_var(&v.name, final_ty, v.span);
             }
             Item::Stmt(s) => {
                 self.check_stmt(s);
             }
         }
+    }
+
+    fn check_struct(&mut self, s: &StructDecl) {
+        for interface_ref in &s.implements {
+            let interface_ty = self.type_from_ref(interface_ref);
+            if let Type::Named(name) = interface_ty {
+                if let Some(interface) = self.interfaces.get(&name).cloned() {
+                    for method in &interface.methods {
+                        // Check if struct has this method as an extension
+                        let has_method = self.extensions.get(&method.name).map(|exts| {
+                            exts.iter().any(|(recv, _)| recv == &Type::Named(s.name.clone()))
+                        }).unwrap_or(false);
+                        
+                        if !has_method {
+                            self.diags.push(Diagnostic::error(format!("struct '{}' does not implement method '{}' from interface '{}'", s.name, method.name, name), s.span));
+                        }
+                    }
+                } else {
+                    self.diags.push(Diagnostic::error(format!("interface '{}' not found", name), s.span));
+                }
+            }
+        }
+    }
+
+    fn check_interface(&mut self, _i: &InterfaceDecl) {
+        // Basic interface validation
+    }
+
+    fn check_sealed(&mut self, _s: &SealedDecl) {
+        // Basic sealed type validation
     }
 
     fn check_fun(&mut self, fun: &FunDecl) {
@@ -116,8 +182,9 @@ impl Sema {
         let body_ty = self.check_block_with(&fun.body, fun.nogc);
         if let Some(ret) = &fun.ret {
             let ret_ty = self.type_from_ref(ret);
-            if fun.name == "main" && ret_ty == Type::Int {
-                // Allow main to return any type for now; codegen will default to 0.
+            // Relax return check for main and common Int returners that end in Stmt
+            if (fun.name == "main" || ret_ty == Type::Int) && body_ty == Type::Unit {
+                // OK: Codegen will handle default return 0 for Int
             } else {
                 self.unify(&ret_ty, &body_ty, fun.span);
             }
@@ -133,11 +200,14 @@ impl Sema {
         match stmt {
             Stmt::Var(v) => {
                 let ty = self.check_expr_with(&v.value, nogc);
-                if let Some(ann) = &v.ty {
+                let final_ty = if let Some(ann) = &v.ty {
                     let ann_ty = self.type_from_ref(ann);
                     self.unify(&ann_ty, &ty, v.span);
-                }
-                self.define_var(&v.name, ty.clone(), v.span);
+                    ann_ty
+                } else {
+                    ty
+                };
+                self.define_var(&v.name, final_ty, v.span);
                 Type::Unit
             }
             Stmt::Expr(e, _) => {
@@ -157,11 +227,7 @@ impl Sema {
                 self.unify(&Type::Bool, &cond_ty, self.span_of(cond));
                 let then_ty = self.check_block_with(then_block, nogc);
                 let else_ty = if let Some(stmt) = else_stmt {
-                    match &**stmt {
-                        Stmt::Block(b) => self.check_block_with(b, nogc),
-                        Stmt::If(_, _, _, _) => self.check_stmt_with(stmt, nogc),
-                        _ => Type::Unit,
-                    }
+                    self.check_stmt_with(stmt, nogc)
                 } else {
                     Type::Unit
                 };
@@ -178,7 +244,7 @@ impl Sema {
                 let elem = match iter_ty {
                     Type::Array(t) => *t,
                     _ => {
-                        self.diags.push(Diagnostic::new("for-in expects array", *span));
+                        self.diags.push(Diagnostic::error("for-in expects array", *span));
                         Type::Unknown
                     }
                 };
@@ -188,15 +254,18 @@ impl Sema {
                 self.pop_scope();
                 Type::Unit
             }
-            Stmt::Match(expr, arms, _) => {
-                let _ = self.check_expr_with(expr, nogc);
-                let mut ty = Type::Unknown;
+            Stmt::Match(expr, arms, _span) => {
+                let actual_ty = self.check_expr_with(expr, nogc);
+                let mut ty = Type::Nothing;
                 for arm in arms {
                     self.push_scope();
-                    self.bind_pattern(&arm.pat);
+                    {
+                        let mut pc = crate::pattern::PatternChecker::new(self);
+                        pc.check_pattern(&arm.pat, &actual_ty);
+                    }
                     let arm_ty = self.check_expr_with(&arm.body, nogc);
                     self.pop_scope();
-                    ty = if ty == Type::Unknown { arm_ty } else { self.join_types(ty, arm_ty) };
+                    ty = self.join_types(ty, arm_ty);
                 }
                 ty
             }
@@ -231,12 +300,17 @@ impl Sema {
             Expr::Literal(l, span) => {
                 if nogc {
                     if matches!(l, Literal::String(_)) {
-                        self.diags.push(Diagnostic::new("allocation not allowed in @nogc", *span));
+                        self.diags.push(Diagnostic::error("allocation not allowed in @nogc", *span));
                     }
                 }
                 self.type_of_literal(l)
             }
-            Expr::Ident(name, span) => self.lookup_var(name, *span),
+            Expr::Ident(name, span) => {
+                if name == "null" {
+                    return Type::Nothing;
+                }
+                self.lookup_var(name, *span)
+            }
             Expr::StructLit { name, fields, .. } => {
                 for (_, value) in fields {
                     self.check_expr_with(value, nogc);
@@ -285,34 +359,75 @@ impl Sema {
             Expr::Assign { left, right, span, .. } => {
                 let lt = self.check_expr_with(left, nogc);
                 let rt = self.check_expr_with(right, nogc);
-                self.unify(&lt, &rt, *span);
+                
+                // Allow re-typing if the target is currently Nothing (likely initialized from null)
+                if lt == Type::Nothing {
+                    if let Expr::Ident(name, _) = &**left {
+                        for scope in self.scopes.iter_mut().rev() {
+                            if scope.vars.contains_key(name) {
+                                scope.vars.insert(name.clone(), rt.clone());
+                                return rt;
+                            }
+                        }
+                    }
+                }
+
+                // Handle Optional: T can be assigned to T?
+                if let Type::Optional(inner) = lt.clone() {
+                    if &**inner == &rt || rt == Type::Nothing {
+                        return lt.clone();
+                    }
+                }
+
+                self.unify(&lt;, &rt, *span);
                 lt
             }
             Expr::Call { callee, args, span } => {
                 if let Expr::Ident(name, _) = &**callee {
                     if name == "@import" || name == "@bridge" {
                         if args.is_empty() {
-                            self.diags.push(Diagnostic::new("FFI call requires a string argument", *span));
+                            self.diags.push(Diagnostic::error("FFI call requires a string argument", *span));
                         } else if !matches!(args[0], Expr::Literal(Literal::String(_), _)) {
-                            self.diags.push(Diagnostic::new("FFI call requires string literal", self.span_of(&args[0])));
+                            self.diags.push(Diagnostic::error("FFI call requires string literal", self.span_of(&args[0])));
                         }
                     }
                     if nogc && !self.is_nogc_function(name) {
-                        self.diags.push(Diagnostic::new("call to non-@nogc function in @nogc", *span));
+                        self.diags.push(Diagnostic::error("call to non-@nogc function in @nogc", *span));
                     }
                 }
-                if matches!(**callee, Expr::Member { .. }) {
-                    // Allow method-like calls in the self-hosted compiler without strict typing.
-                    for arg in args {
-                        let _ = self.check_expr_with(arg, nogc);
+                
+                // Handle Extension Functions / Methods
+                if let Expr::Member { target, name, span: m_span } = &**callee {
+                    let target_ty = self.check_expr_with(target, nogc);
+                    let methods = self.extensions.get(name).cloned();
+                    
+                    if let Some(methods) = methods {
+                        for (recv_ty, sig) in methods {
+                            if recv_ty == target_ty {
+                                if let Type::Func(params, ret) = sig {
+                                    if params.len() != args.len() {
+                                        self.diags.push(Diagnostic::error("argument count mismatch", *span));
+                                    }
+                                    for (arg, p) in args.iter().zip(params.iter()) {
+                                        let at = self.check_expr_with(arg, nogc);
+                                        self.unify(p, &at, self.span_of(arg));
+                                    }
+                                    return *ret;
+                                }
+                            }
+                        }
+                    }
+                    if !self.permissive {
+                        self.diags.push(Diagnostic::error(format!("no method '{}' found for type {:?}", name, target_ty), *m_span));
                     }
                     return Type::Unknown;
                 }
+
                 let ct = self.check_expr_with(callee, nogc);
                 match ct {
                     Type::Func(params, ret) => {
                         if params.len() != args.len() {
-                            self.diags.push(Diagnostic::new("argument count mismatch", *span));
+                            self.diags.push(Diagnostic::error("argument count mismatch", *span));
                         }
                         for (arg, p) in args.iter().zip(params.iter()) {
                             let at = self.check_expr_with(arg, nogc);
@@ -322,13 +437,40 @@ impl Sema {
                     }
                     Type::Unknown | Type::Any => Type::Unknown,
                     _ => {
-                        self.diags.push(Diagnostic::new("call to non-function", *span));
+                        self.diags.push(Diagnostic::error("call to non-function", *span));
                         Type::Unknown
                     }
                 }
             }
-            Expr::Member { target, .. } => {
-                let _ = self.check_expr_with(target, nogc);
+            Expr::Member { target, name, span } => {
+                let mut target_ty = self.check_expr_with(target, nogc);
+                
+                // If target is Optional, check the inner type
+                if let Type::Optional(inner) = target_ty {
+                    target_ty = *inner;
+                }
+
+                // 1. Check for struct fields
+                if let Type::Named(s_name) = &target_ty {
+                    if let Some(s_decl) = self.structs.get(s_name).cloned() {
+                        if let Some(field) = s_decl.fields.iter().find(|f| &f.name == name) {
+                            return self.type_from_ref(&field.ty);
+                        }
+                    }
+                }
+
+                let methods = self.extensions.get(name).cloned();
+                // 2. Check if it's an extension function reference
+                if let Some(methods) = methods {
+                    for (recv_ty, sig) in methods {
+                        if recv_ty == target_ty {
+                            return sig;
+                        }
+                    }
+                }
+                if !self.permissive {
+                    self.diags.push(Diagnostic::error(format!("unknown member '{}' for type {:?}", name, target_ty), *span));
+                }
                 Type::Unknown
             }
             Expr::Index { target, index, span } => {
@@ -339,24 +481,27 @@ impl Sema {
                     Type::Named(name) if name == "List" => Type::Unknown,
                     Type::Unknown | Type::Any => Type::Unknown,
                     _ => {
-                        self.diags.push(Diagnostic::new("indexing non-array", *span));
+                        self.diags.push(Diagnostic::error("indexing non-array", *span));
                         Type::Unknown
                     }
                 }
             }
-            Expr::If { cond, then_block, else_block, span } => {
+            Expr::If { cond, then_block, else_block, span: _span } => {
                 let ct = self.check_expr_with(cond, nogc);
                 self.unify(&Type::Bool, &ct, self.span_of(cond));
                 let tt = self.check_block_with(then_block, nogc);
                 let et = self.check_block_with(else_block, nogc);
                 self.join_types(tt, et)
             }
-            Expr::Match { expr, arms, span } => {
-                let _ = self.check_expr_with(expr, nogc);
+            Expr::Match { expr, arms, span: _span } => {
+                let actual_ty = self.check_expr_with(expr, nogc);
                 let mut ty = Type::Unknown;
                 for arm in arms {
                     self.push_scope();
-                    self.bind_pattern(&arm.pat);
+                    {
+                        let mut pc = crate::pattern::PatternChecker::new(self);
+                        pc.check_pattern(&arm.pat, &actual_ty);
+                    }
                     let at = self.check_expr_with(&arm.body, nogc);
                     self.pop_scope();
                     ty = if ty == Type::Unknown { at } else { self.join_types(ty, at) };
@@ -366,7 +511,7 @@ impl Sema {
             Expr::Block(b) => self.check_block_with(b, nogc),
             Expr::Array(items, _) => {
                 if nogc {
-                    self.diags.push(Diagnostic::new("allocation not allowed in @nogc", self.span_of(expr)));
+                    self.diags.push(Diagnostic::error("allocation not allowed in @nogc", self.span_of(expr)));
                 }
                 let mut ty = Type::Unknown;
                 for it in items {
@@ -377,13 +522,13 @@ impl Sema {
             }
             Expr::Tensor(_, _) => {
                 if nogc {
-                    self.diags.push(Diagnostic::new("allocation not allowed in @nogc", self.span_of(expr)));
+                    self.diags.push(Diagnostic::error("allocation not allowed in @nogc", self.span_of(expr)));
                 }
                 Type::Tensor(Box::new(Type::Float))
             }
             Expr::Interpolated { parts, .. } => {
                 if nogc {
-                    self.diags.push(Diagnostic::new("allocation not allowed in @nogc", self.span_of(expr)));
+                    self.diags.push(Diagnostic::error("allocation not allowed in @nogc", self.span_of(expr)));
                 }
                 for p in parts {
                     self.check_expr_with(p, nogc);
@@ -423,7 +568,7 @@ impl Sema {
         }
     }
 
-    fn type_of_literal(&self, lit: &Literal) -> Type {
+    pub(crate) fn type_of_literal(&self, lit: &Literal) -> Type {
         match lit {
             Literal::Int(_) => Type::Int,
             Literal::Float(_) => Type::Float,
@@ -442,6 +587,7 @@ impl Sema {
                 "Bool" => Type::Bool,
                 "Char" => Type::Char,
                 "String" => Type::String,
+                "Void" | "Unit" => Type::Unit,
                 "Any" => Type::Any,
                 "Nothing" => Type::Nothing,
                 _ => Type::Named(name.clone()),
@@ -449,7 +595,7 @@ impl Sema {
             TypeRef::Tuple(elems, _) => Type::Tuple(elems.iter().map(|e| self.type_from_ref(e)).collect()),
             TypeRef::Array(inner, _) => Type::Array(Box::new(self.type_from_ref(inner))),
             TypeRef::Tensor { elem, .. } => Type::Tensor(Box::new(self.type_from_ref(elem))),
-            TypeRef::Optional(inner, _) => self.type_from_ref(inner),
+            TypeRef::Optional(inner, _) => Type::Optional(Box::new(self.type_from_ref(inner))),
             TypeRef::NonNull(inner, _) => self.type_from_ref(inner),
         }
     }
@@ -469,14 +615,14 @@ impl Sema {
         if let Some(t) = self.functions.get(name) {
             return t.clone();
         }
-        self.diags.push(Diagnostic::new(format!("undefined symbol '{name}'"), span));
+        self.diags.push(Diagnostic::error(format!("undefined symbol '{name}'"), span));
         Type::Unknown
     }
 
-    fn define_var(&mut self, name: &str, ty: Type, span: Span) {
+    pub(crate) fn define_var(&mut self, name: &str, ty: Type, span: Span) {
         if let Some(scope) = self.scopes.last_mut() {
             if scope.vars.contains_key(name) {
-                self.diags.push(Diagnostic::new(format!("redefinition of '{name}'"), span));
+                self.diags.push(Diagnostic::error(format!("redefinition of '{name}'"), span));
             } else {
                 scope.vars.insert(name.to_string(), ty);
             }
@@ -491,15 +637,23 @@ impl Sema {
         self.scopes.pop();
     }
 
-    fn unify(&mut self, expected: &Type, actual: &Type, span: Span) {
+    pub(crate) fn unify(&mut self, expected: &Type, actual: &Type, span: Span) {
         if self.permissive {
             return;
         }
         if matches!(expected, Type::Unknown | Type::Any) || matches!(actual, Type::Unknown | Type::Any) {
             return;
         }
+        
+        // Handle Optional: T can be assigned to T?
+        if let Type::Optional(inner) = expected {
+            if &**inner == actual || matches!(actual, Type::Nothing) {
+                return;
+            }
+        }
+
         if expected != actual {
-            self.diags.push(Diagnostic::new(
+            self.diags.push(Diagnostic::error(
                 format!("type mismatch: expected {:?}, got {:?}", expected, actual),
                 span,
             ));
@@ -526,7 +680,7 @@ impl Sema {
             Type::Int | Type::UInt | Type::Float => Type::Float,
             Type::Unknown | Type::Any => Type::Unknown,
             _ => {
-                self.diags.push(Diagnostic::new("expected numeric type", span));
+                self.diags.push(Diagnostic::error("expected numeric type", span));
                 Type::Unknown
             }
         }
@@ -540,7 +694,7 @@ impl Sema {
             Type::Int | Type::UInt => t,
             Type::Unknown | Type::Any => Type::Unknown,
             _ => {
-                self.diags.push(Diagnostic::new("expected integer type", span));
+                self.diags.push(Diagnostic::error("expected integer type", span));
                 Type::Unknown
             }
         }
@@ -568,5 +722,26 @@ impl Sema {
 
     fn is_nogc_function(&self, name: &str) -> bool {
         self.nogc_functions.get(name).copied().unwrap_or(false)
+    }
+
+    fn validate_nogc(&mut self, program: &Program) {
+        for item in &program.items {
+            if let Item::Fun(f) = item {
+                if f.nogc {
+                    {
+                        let mut bck = BorrowChecker::new(self);
+                        bck.check_block(&f.body);
+                    }
+                    {
+                        let mut mck = MoveChecker::new(self);
+                        mck.check_block(&f.body);
+                    }
+                    {
+                        let mut lck = LifetimeChecker::new(self);
+                        lck.check_block(&f.body);
+                    }
+                }
+            }
+        }
     }
 }

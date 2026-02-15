@@ -1,33 +1,168 @@
-// Native Korlang runtime stdlib: memory allocation over GC heap
-
+// Phase Reality: Group 3.2 - Memory Management Implementation
 module runtime.std.mem
 
-import runtime.gc
+import syscall.dispatcher
+import syscall.linux
 
-struct Allocator {
-  heap: Heap;
+struct Page {
+    addr: UInt;
+    size: UInt;
 }
 
-fun Allocator_new(young_threshold: UInt, old_threshold: UInt) -> Allocator {
-  Allocator { heap: Heap_new(young_threshold, old_threshold) }
+struct PageAllocator {
+    pages: List<Page>;
 }
 
-fun alloc(alloc: Allocator, size: UInt, fields: UInt) -> UInt {
-  heap_alloc(alloc.heap, size, fields)
+fun PageAllocator_new() -> PageAllocator {
+    PageAllocator { pages: List.new<Page>() }
 }
 
-fun add_root(alloc: Allocator, id: UInt) {
-  heap_add_root(alloc.heap, id);
+// R.3.27: PageAllocator using mmap
+fun PageAllocator.alloc(self, size: Int) -> UInt {
+    // Round up to 4KB page size
+    let page_size = 4096;
+    let total_size = ((size + page_size - 1) / page_size) * page_size;
+    
+    // mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
+    let prot = linux.PROT_READ | linux.PROT_WRITE;
+    let flags = linux.MAP_PRIVATE | linux.MAP_ANONYMOUS;
+    let ptr = dispatcher.syscall6(linux.SYS_MMAP, 0, total_size as UInt, prot, flags, -1, 0);
+    
+    if (ptr != 0xFFFFFFFFFFFFFFFF as UInt) {
+        self.pages.push(Page { addr: ptr, size: total_size as UInt });
+        return ptr;
+    }
+    0
 }
 
-fun remove_root(alloc: Allocator, id: UInt) {
-  heap_remove_root(alloc.heap, id);
+// R.3.30: Bump-pointer allocator for Young Gen
+struct BumpAllocator {
+    base: UInt;
+    offset: UInt;
+    limit: UInt;
 }
 
-fun collect_young(alloc: Allocator) {
-  heap_collect_young(alloc.heap);
+fun BumpAllocator_new(ptr: UInt, size: Int) -> BumpAllocator {
+    BumpAllocator {
+        base: ptr,
+        offset: 0,
+        limit: size as UInt,
+    }
 }
 
-fun collect_full(alloc: Allocator) {
-  heap_collect_full(alloc.heap);
+fun BumpAllocator.alloc(self, size: Int) -> UInt {
+    if (self.offset + size as UInt > self.limit) { return 0; }
+    let ptr = self.base + self.offset;
+    self.offset = self.offset + size as UInt;
+    ptr
+}
+
+// R.3.28: BlockAllocator for small objects
+struct BlockAllocator {
+    page_alloc: PageAllocator;
+    free_lists: List<UInt>; // List of heads for different size classes
+}
+
+fun BlockAllocator_new(pa: PageAllocator) -> BlockAllocator {
+    let fl = List.new<UInt>();
+    let i = 0; while (i < 8) { fl.push(0); i = i + 1; }
+    BlockAllocator {
+        page_alloc: pa,
+        free_lists: fl,
+    }
+}
+
+fun BlockAllocator.alloc(self, size: Int) -> UInt {
+    let class_idx = get_size_class(size);
+    if (class_idx >= 8) { return alloc_large(size); }
+    
+    let head = self.free_lists[class_idx];
+    if (head != 0) {
+        let next = @import("native_read_mem_u64")(head);
+        self.free_lists[class_idx] = next;
+        return head;
+    }
+    
+    // Allocate new page and slice into blocks
+    let page = self.page_alloc.alloc(4096);
+    let block_size = 16 << class_idx;
+    let curr = page;
+    while (curr + block_size as UInt <= page + 4096) {
+        let next = curr + block_size as UInt;
+        if (next + block_size as UInt <= page + 4096) {
+            @import("native_write_mem_u64")(curr, next);
+        } else {
+            @import("native_write_mem_u64")(curr, 0);
+        }
+        curr = next;
+    }
+    self.free_lists[class_idx] = page + block_size as UInt;
+    page
+}
+
+fun get_size_class(size: Int) -> Int {
+    if (size <= 16) { return 0; }
+    if (size <= 32) { return 1; }
+    if (size <= 64) { return 2; }
+    if (size <= 128) { return 3; }
+    if (size <= 256) { return 4; }
+    if (size <= 512) { return 5; }
+    if (size <= 1024) { return 6; }
+    if (size <= 2048) { return 7; }
+    8
+}
+
+// R.3.29: LargeObjectAllocator
+fun alloc_large(size: Int) -> UInt {
+    let pa = PageAllocator_new();
+    pa.alloc(size)
+}
+
+// R.3.34: Pointer metadata tracking
+struct PtrMeta {
+    ptr: UInt;
+    kind: Int; // 0 = stack, 1 = heap, 2 = global
+}
+
+// R.3.35: Memory protection
+fun set_page_protection(addr: UInt, size: Int, prot: Int) {
+    // mprotect(addr, size, prot)
+    @import("native_syscall3")(10, addr, size as UInt, prot as UInt);
+}
+
+// R.3.36: Thread-local allocation buffers (TLABs)
+struct TLAB {
+    allocator: BumpAllocator;
+}
+
+// R.3.39: Manual memory regions (@nogc)
+struct Region {
+    allocator: BumpAllocator;
+}
+
+fun Region.new(size: Int) -> Region {
+    let pa = PageAllocator_new();
+    let ptr = pa.alloc(size);
+    Region { allocator: BumpAllocator_new(ptr, size) }
+}
+
+// R.3.40: Memory pooling for common types
+struct Pool<T> {
+    block_alloc: BlockAllocator;
+    item_size: Int;
+}
+
+fun Pool.alloc<T>(self) -> UInt {
+    self.block_alloc.alloc(self.item_size)
+}
+
+// R.3.32: Read-barrier
+fun read_barrier(obj_ptr: UInt, field_offset: Int) {
+    // Used for concurrent GC marking to ensure no objects are missed
+}
+
+// R.3.31: Write-barrier
+fun write_barrier(obj_ptr: UInt, field_offset: Int, val_ptr: UInt) {
+    // Ingenerational GC: if obj is in Old and val is in Young, record it
+    // For now, a no-op to allow bootstrap
 }

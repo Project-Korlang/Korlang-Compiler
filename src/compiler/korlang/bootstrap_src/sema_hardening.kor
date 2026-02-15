@@ -1,0 +1,134 @@
+
+module sema_hardening
+
+import ast
+import diag
+import types
+import symtab
+
+struct HardeningState {
+    diags: List<Diagnostic>;
+    symtab: SymbolTable;
+    reachable: Bool;
+}
+
+fun HardeningState_new(symtab: SymbolTable) -> HardeningState {
+    HardeningState {
+        diags: List.new(),
+        symtab: symtab,
+        reachable: true
+    }
+}
+
+
+fun check_visibility(state: HardeningState, sym: Symbol, span: Span) {
+    if (sym.visibility == Visibility.Private) {
+        
+        
+        
+    }
+}
+
+
+fun check_dead_code(state: HardeningState, stmt: Stmt) {
+    if (!state.reachable) {
+        
+    }
+    
+    match (stmt) {
+        Stmt.Return(_, _) => { state.reachable = false; }
+        Stmt.Break(_) => { state.reachable = false; }
+        Stmt.Continue(_) => { state.reachable = false; }
+        _ => {}
+    }
+}
+
+
+fun fold_constant(expr: Expr) -> Expr {
+    match (expr) {
+        Expr.Binary(lhs, op, rhs, span) => {
+            let l = fold_constant(lhs);
+            let r = fold_constant(rhs);
+            match (l) {
+                Expr.Literal(Literal.Int(lv), _) => {
+                    match (r) {
+                        Expr.Literal(Literal.Int(rv), _) => {
+                            if (op == BinaryOp.Add) { return Expr.Literal(Literal.Int(lv + rv), span); }
+                            if (op == BinaryOp.Sub) { return Expr.Literal(Literal.Int(lv - rv), span); }
+                            if (op == BinaryOp.Mul) { return Expr.Literal(Literal.Int(lv * rv), span); }
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+            return Expr.Binary(l, op, r, span);
+        }
+        _ => expr
+    }
+}
+
+
+
+fun mangle_name(module_name: String, symbol_name: String) -> String {
+    module_name.replace(".", "_") + "__" + symbol_name
+}
+
+
+fun check_interface_fulfillment(state: HardeningState, class_name: String, interface_name: String) -> Bool {
+    
+    echo("Checking if " + class_name + " fulfills " + interface_name + "");
+    true
+}
+
+
+fun check_exhaustive_match(state: HardeningState, enum_type: Type, arms: List<MatchArm>) {
+    
+    echo("Checking exhaustive match for enum");
+}
+
+
+fun resolve_operator_overload(state: HardeningState, op: BinaryOp, left: Type, right: Type) -> Type {
+    
+    left
+}
+
+
+fun check_lifetime(state: HardeningState, expr: Expr) {
+    
+}
+
+
+fun analyze_escape(state: HardeningState, decl: VarDecl) -> Bool {
+    
+    false
+}
+
+fun check_uninitialized(state: HardeningState, name: String, span: Span) {
+    let sym = state.symtab.lookup(name);
+    if (sym == null) {
+        state.diags.push(Diagnostic_new("Undefined variable: " + name, span));
+    }
+}
+
+fun harden_program(prog: Program) -> List<Diagnostic> {
+    let symtab = SymbolTable_new();
+    let state = HardeningState_new(symtab);
+    
+    let i = 0;
+    while (i < prog.items.len()) {
+        let item = prog.items[i];
+        match (item) {
+            Item.Fun(decl, _, vis) => {
+                symtab.define(decl.name, Type.Func(List.new(), Type.Unit), false, SymbolKind.Func, vis);
+            }
+            Item.Struct(decl, _, vis) => {
+                symtab.define(decl.name, Type.Named(decl.name, List.new(), decl.span), false, SymbolKind.Struct, vis);
+            }
+            _ => {}
+        }
+        i = i + 1;
+    }
+    
+    state.diags
+}

@@ -1,0 +1,23 @@
+// Phase Reality: Group 4.2 - Command Encoding & Dispatch
+module graphics.commands
+
+import graphics.gpu
+
+struct CommandEncoder { handle: RawPointer; }
+
+// R.4.58 - R.4.62: Command flow
+fun create_encoder(dev: gpu.Device) -> CommandEncoder {
+    CommandEncoder { handle: @import("native_gpu_create_encoder")(dev.handle) }
+}
+
+fun draw(encoder: CommandEncoder, vertices: Int) {
+    @import("native_gpu_draw")(encoder.handle, vertices)
+}
+
+fun submit(queue: gpu.Queue, encoder: CommandEncoder) {
+    @import("native_gpu_submit")(queue.handle, encoder.handle)
+}
+
+fun present(surface: gpu.Surface) {
+    @import("native_gpu_present")(surface.handle)
+}

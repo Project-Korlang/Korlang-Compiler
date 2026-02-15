@@ -1,0 +1,80 @@
+// Phase Reality: Group 3.1 - Fiber Model Implementation
+module fiber
+
+import fiber_stack
+
+enum FiberStatus {
+    Ready;
+    Running;
+    Suspended;
+    Blocked;
+    Exited;
+}
+
+struct Fiber {
+    id: Int;
+    stack: RawPointer;
+    stack_size: Int;
+    sp: RawPointer; // Stack pointer for context switch
+    status: FiberStatus;
+    entry: (Any) -> Void;
+    arg: Any;
+    // For joining
+    done: Int; // 0 or 1
+}
+
+// ... existing code ...
+
+// R.3.13: Fiber exit
+fun Fiber.exit(self) {
+    self.status = FiberStatus.Exited;
+    @import("native_atomic_store")(self.done.ptr, 1);
+    @import("native_futex_wake")(self.done.ptr, 0x7FFFFFFF);
+    yield();
+}
+
+// R.3.14: Fiber join
+fun Fiber.join(self) {
+    while (@import("native_atomic_load")(self.done.ptr) == 0) {
+        @import("native_futex_wait")(self.done.ptr, 0, 0);
+    }
+}
+
+// R.3.1: Fiber_new
+fun new(entry: (Any) -> Void, arg: Any) -> Fiber {
+    let size = 65536; // 64KB default stack
+    let stack_ptr = fiber_stack.allocate(size);
+    
+    let f = Fiber {
+        id: next_fiber_id(),
+        stack: stack_ptr,
+        stack_size: size,
+        sp: stack_ptr + size, // Initial SP at top
+        status: FiberStatus.Ready,
+        entry: entry,
+        arg: arg,
+    };
+    
+    f.init_context();
+    f
+}
+
+// Assembly hook for context initialization
+fun Fiber.init_context(self) {
+    @import("native_init_fiber_context")(self.sp.ptr, self.entry.ptr, self.arg.ptr);
+}
+
+// R.3.5: Context Switch
+fun Fiber.resume(self) {
+    self.status = FiberStatus.Running;
+    @import("native_switch_to_fiber")(self.sp.ptr);
+}
+
+fun yield() {
+    @import("native_yield_to_scheduler")();
+}
+
+var _global_fiber_counter: Int = 0;
+fun next_fiber_id() -> Int {
+    @import("native_atomic_faa_64")(_global_fiber_counter.ptr, 1)
+}

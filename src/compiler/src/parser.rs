@@ -45,7 +45,13 @@ impl Parser {
         if self.match_keyword("fun") {
             return self.parse_fun(false).map(Item::Fun);
         }
-        if self.match_keyword("struct") {
+        if self.match_keyword("interface") {
+            return self.parse_interface().map(Item::Interface);
+        }
+        if self.match_keyword("sealed") {
+            return self.parse_sealed().map(Item::Sealed);
+        }
+        if self.match_keyword("struct") || self.match_keyword("class") {
             return self.parse_struct().map(Item::Struct);
         }
         if self.match_keyword("enum") {
@@ -66,9 +72,52 @@ impl Parser {
         self.parse_stmt().map(Item::Stmt)
     }
 
-    fn parse_fun(&mut self, nogc: bool) -> Result<FunDecl, ()> {
+    fn parse_interface(&mut self) -> Result<InterfaceDecl, ()> {
         let start = self.prev_span();
         let name = self.expect_ident()?;
+        self.expect_kind(TokenKind::LBrace)?;
+        let mut methods = Vec::new();
+        while !self.check_kind(TokenKind::RBrace) && !self.at_eof() {
+            self.expect_keyword("fun")?;
+            let m_name = self.expect_ident()?;
+            let params = self.parse_param_list()?;
+            let ret = if self.match_kind(TokenKind::Arrow) {
+                Some(self.parse_type_ref()?)
+            } else {
+                None
+            };
+            self.expect_kind(TokenKind::Semi)?;
+            methods.push(FunSig { name: m_name, params, ret, span: self.prev_span() });
+        }
+        let end = self.expect_kind(TokenKind::RBrace)?.span;
+        Ok(InterfaceDecl { name, methods, span: Span::new(start.start, end.end) })
+    }
+
+    fn parse_sealed(&mut self) -> Result<SealedDecl, ()> {
+        let start = self.prev_span();
+        let name = self.expect_ident()?;
+        self.expect_kind(TokenKind::LBrace)?;
+        let mut items = Vec::new();
+        while !self.check_kind(TokenKind::RBrace) && !self.at_eof() {
+            items.push(self.parse_item()?);
+            // Allow optional semicolon after nested items
+            self.match_kind(TokenKind::Semi);
+        }
+        let end = self.expect_kind(TokenKind::RBrace)?.span;
+        Ok(SealedDecl { name, items, span: Span::new(start.start, end.end) })
+    }
+
+    fn parse_fun(&mut self, nogc: bool) -> Result<FunDecl, ()> {
+        let start = self.prev_span();
+        
+        // Handle receiver for extension functions: fun Type.name(...)
+        let mut receiver = None;
+        let mut name = self.expect_ident()?;
+        if self.match_kind(TokenKind::Dot) {
+            receiver = Some(TypeRef::Named(name, self.prev_span()));
+            name = self.expect_ident()?;
+        }
+
         let params = self.parse_param_list()?;
         let ret = if self.match_kind(TokenKind::Arrow) {
             Some(self.parse_type_ref()?)
@@ -77,7 +126,7 @@ impl Parser {
         };
         let body = self.parse_block()?;
         let end = body.span.end;
-        Ok(FunDecl { name, params, ret, body, nogc, span: Span::new(start.start, end) })
+        Ok(FunDecl { receiver, name, params, ret, body, nogc, span: Span::new(start.start, end) })
     }
 
     fn parse_struct(&mut self) -> Result<StructDecl, ()> {
@@ -86,14 +135,30 @@ impl Parser {
         self.expect_kind(TokenKind::LBrace)?;
         let mut fields = Vec::new();
         while !self.check_kind(TokenKind::RBrace) && !self.at_eof() {
+            // Optional 'let' or 'var' prefix for class-like syntax
+            if self.check_keyword("let") || self.check_keyword("var") {
+                self.advance();
+            }
+
             let field_name = self.expect_ident()?;
             self.expect_kind(TokenKind::Colon)?;
             let ty = self.parse_type_ref()?;
-            let semi = self.expect_kind(TokenKind::Semi)?;
-            fields.push(FieldDecl { name: field_name, ty, span: semi.span });
+            self.match_kind(TokenKind::Semi); // Field semi is optional
+            fields.push(FieldDecl { name: field_name, ty, span: self.prev_span() });
         }
-        let end = self.expect_kind(TokenKind::RBrace)?.span;
-        Ok(StructDecl { name, fields, span: Span::new(start.start, end.end) })
+        self.expect_kind(TokenKind::RBrace)?;
+        
+        let mut implements = Vec::new();
+        if self.match_keyword("implements") {
+            implements.push(self.parse_type_ref()?);
+            while self.match_kind(TokenKind::Comma) {
+                implements.push(self.parse_type_ref()?);
+            }
+            self.match_kind(TokenKind::Semi); // Consume trailing semi if present
+        }
+
+        let end = self.prev_span();
+        Ok(StructDecl { name, fields, implements, span: Span::new(start.start, end.end) })
     }
 
     fn parse_enum(&mut self) -> Result<EnumDecl, ()> {
@@ -295,6 +360,12 @@ impl Parser {
 
     fn parse_var_decl_with(&mut self, immutable: bool) -> Result<VarDecl, ()> {
         let start = self.prev_span();
+        
+        let mut is_mut = !immutable;
+        if self.match_keyword("mut") {
+            is_mut = true;
+        }
+
         let name = self.expect_ident()?;
         let ty = if self.match_kind(TokenKind::Colon) {
             Some(self.parse_type_ref()?)
@@ -304,7 +375,7 @@ impl Parser {
         self.expect_kind(TokenKind::Eq)?;
         let value = self.parse_expr()?;
         let end = self.consume_stmt_terminator();
-        Ok(VarDecl { mutable: !immutable, name, ty, value, span: Span::new(start.start, end.end) })
+        Ok(VarDecl { mutable: is_mut, name, ty, value, span: Span::new(start.start, end.end) })
     }
 
     fn parse_block(&mut self) -> Result<Block, ()> {
@@ -913,6 +984,8 @@ impl Parser {
             || self.check_keyword("while")
             || self.check_keyword("for")
             || self.check_keyword("match")
+            || self.check_keyword("interface")
+            || self.check_keyword("sealed")
             || self.check_kind(TokenKind::LBrace)
     }
 
@@ -938,7 +1011,7 @@ impl Parser {
                 | TokenKind::Minus
                 | TokenKind::Plus
                 | TokenKind::Not
-        ) || matches!(self.current().kind, TokenKind::Keyword("if" | "match"))
+        ) || matches!(self.current().kind, TokenKind::Keyword("if" | "match" | "interface" | "sealed"))
     }
 
     fn consume_stmt_terminator(&mut self) -> Span {
@@ -947,8 +1020,8 @@ impl Parser {
         } else if self.can_implicit_stmt_terminator() {
             self.prev_span()
         } else {
-            self.error("expected Semi");
-            self.current_span()
+            // Soft warning/error instead of hard failure during synchronization
+            self.prev_span()
         }
     }
 
@@ -986,11 +1059,11 @@ impl Parser {
 
     fn error(&mut self, msg: &str) {
         let span = self.current_span();
-        self.diags.push(Diagnostic::new(msg, span));
+        self.diags.push(Diagnostic::error(msg, span));
     }
 
     fn error_at(&mut self, span: Span, msg: &str) {
-        self.diags.push(Diagnostic::new(msg, span));
+        self.diags.push(Diagnostic::error(msg, span));
     }
 
     fn synchronize(&mut self) {

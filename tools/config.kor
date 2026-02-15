@@ -1,0 +1,42 @@
+// Task 20.1.1: Native Manifest Parser
+module config
+
+import file
+import collections
+
+struct Package {
+    name: String;
+    version: String;
+    entry: String;
+}
+
+class Config {
+    package: Package;
+    dependencies: Map<String, String>;
+
+    init() {
+        this.package = Package { name: "", version: "", entry: "" };
+        this.dependencies = Map.new();
+    }
+}
+
+fun parse(path: String) -> Config {
+    let content = file.read(path);
+    let conf = Config();
+    
+    let lines = content.split("\n");
+    let i = 0;
+    while (i < lines.size()) {
+        let line = lines.get(i).trim();
+        if (line.indexOf("=") != -1) {
+            let kv = line.split("=");
+            let k = kv.get(0).trim();
+            let v = kv.get(1).trim();
+            if (k == "name") { conf.package.name = v; }
+            if (k == "version") { conf.package.version = v; }
+            if (k == "entry") { conf.package.entry = v; }
+        }
+        i = i + 1;
+    }
+    conf
+}

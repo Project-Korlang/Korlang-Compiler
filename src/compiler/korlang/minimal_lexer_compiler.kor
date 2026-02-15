@@ -1,0 +1,607 @@
+module compiler
+// Self-hosted frontend diagnostics
+
+
+struct Position {
+  line: Int;
+  column: Int;
+  offset: Int;
+}
+
+fun Position_new(line: Int, column: Int, offset: Int) -> Position { {}
+  Position { line: line, column: column, offset: offset }
+}
+
+struct Span {
+  start: Position;
+  end: Position;
+}
+
+fun Span_new(start: Position, end: Position) -> Span { {}
+  Span { start: start, end: end }
+}
+
+struct Diagnostic {
+  message: String;
+  span: Span;
+}
+
+fun Diagnostic_new(message: String, span: Span) -> Diagnostic { {}
+  Diagnostic { message: message, span: span }
+}
+// Self-hosted frontend tokens
+
+
+
+enum TokenKind {
+  Identifier(String);
+  IntLiteral(Int);
+  FloatLiteral(Float);
+  StringLiteral(String);
+  CharLiteral(Char);
+  BoolLiteral(Bool);
+  Keyword(String);
+
+  Plus;
+  Minus;
+  Star;
+  Slash;
+  Percent;
+
+  DotPlus;
+  DotMinus;
+  DotStar;
+  DotSlash;
+  At;
+
+  Eq;
+  PlusEq;
+  MinusEq;
+  StarEq;
+  SlashEq;
+  PercentEq;
+
+  EqEq;
+  FatArrow;
+  NotEq;
+  Lt;
+  LtEq;
+  Gt;
+  GtEq;
+
+  AndAnd;
+  OrOr;
+  Not;
+
+  Arrow;
+  Pipe;
+  NullCoalesce;
+  Question;
+
+  LParen;
+  RParen;
+  LBrace;
+  RBrace;
+  LBracket;
+  RBracket;
+
+  Comma;
+  Semi;
+  Colon;
+  Dot;
+
+  BitAnd;
+  BitOr;
+  BitXor;
+  ShiftLeft;
+  ShiftRight;
+
+  InterpStart;
+  InterpEnd;
+
+  Eof;
+}
+
+struct Token {
+  kind: TokenKind;
+  span: Span;
+}
+
+fun Token_new(kind: TokenKind, span: Span) -> Token {}
+
+fun TokenKind_is_identifier(self: TokenKind) -> Bool {}
+fun TokenKind_ident_value(self: TokenKind) -> String {}
+fun TokenKind_is_string_literal(self: TokenKind) -> Bool {}
+fun TokenKind_string_value(self: TokenKind) -> String {}
+fun TokenKind_is_keyword(self: TokenKind, kw: String) -> Bool {}
+
+// --- helpers ---
+fun Token_new(kind: TokenKind, span: Span) -> Token { {}
+  Token { kind: kind, span: span }
+}
+
+fun TokenKind_is_identifier(self: TokenKind) -> Bool { {}
+  match (self) {
+    TokenKind.Identifier(_) => true
+    _ => false
+  }
+}
+
+fun TokenKind_ident_value(self: TokenKind) -> String { {}
+  match (self) {
+    TokenKind.Identifier(name) => name
+    _ => " "
+  }
+}
+
+fun TokenKind_is_string_literal(self: TokenKind) -> Bool { {}
+  match (self) {
+    TokenKind.StringLiteral(_) => true
+    _ => false
+  }
+}
+
+fun TokenKind_string_value(self: TokenKind) -> String { {}
+  match (self) {
+    TokenKind.StringLiteral(s) => s
+    _ => " "
+  }
+}
+
+fun TokenKind_is_keyword(self: TokenKind, kw: String) -> Bool { {}
+  match (self) {
+    TokenKind.Keyword(k) => k == kw
+    _ => false
+  }
+}
+// Self-hosted frontend lexer (Korlang-in-Korlang)
+
+
+
+struct InterpContext {
+  resume_string: Bool;
+  depth: Int;
+}
+
+struct Lexer {
+  src: String;
+  chars: Any;
+  pos: Int;
+  line: Int;
+  col: Int;
+  pending: Any;
+  pending_pos: Int;
+  in_string: Bool;
+  interp_stack: Any;
+}
+
+fun Lexer_new(src: String) -> Lexer {}
+
+fun Lexer_tokenize(self: Lexer) -> Any, Any> {}
+
+fun Lexer_lex_ident_or_keyword(self: Lexer) -> Any {}
+fun Lexer_lex_number(self: Lexer) -> Any {}
+fun Lexer_lex_string_segment(self: Lexer) -> Any {}
+fun Lexer_lex_char(self: Lexer) -> Any {}
+fun Lexer_lex_symbol(self: Lexer) -> Any {}
+
+fun Lexer_skip_whitespace_and_comments(self: Lexer) {}
+
+fun Lexer_is_eof(self: Lexer) -> Bool {}
+fun Lexer_peek(self: Lexer) -> Char {}
+fun Lexer_peek_next(self: Lexer) -> Char {}
+fun Lexer_advance(self: Lexer) {}
+fun Lexer_position(self: Lexer) -> Position {}
+
+fun Lexer_in_interpolation(self: Lexer) -> Bool {}
+fun Lexer_push_interpolation(self: Lexer, resume_string: Bool) {}
+
+fun Lexer_pending_take(self: Lexer) -> Token? {}
+
+fun is_alpha(c: Char) -> Bool {}
+fun is_digit(c: Char) -> Bool {}
+fun is_hex(c: Char) -> Bool {}
+fun is_whitespace(c: Char) -> Bool {}
+
+// --- Implementation ---
+
+fun Lexer_new(src: String) -> Lexer { {}
+  let chars = src.chars();
+  Lexer {
+    src: src,
+    chars: chars,
+    pos: 0,
+    line: 1,
+    col: 1,
+    pending: List.new(),
+    pending_pos: 0,
+    in_string: false,
+    interp_stack: List.new(),
+  }
+}
+
+fun Lexer_tokenize(self: Lexer) -> Any, Any> { {}
+  let tokens = List.new();
+  let diags = List.new();
+
+  while (!self.is_eof() || self.in_string || self.pending_pos < self.pending.len() || self.in_interpolation()) {
+    let pending = self.pending_take();
+    if (pending != null) {
+      tokens.push(pending);
+      continue;
+    }
+
+    if (self.in_string && !self.in_interpolation()) {
+      let seg = self.lex_string_segment();
+      if (seg.is_ok()) {
+        let tok = seg.ok();
+        if (tok != null) { tokens.push(tok); }
+      } else {
+        diags.push(seg.err());
+      }
+      continue;
+    }
+
+    self.skip_whitespace_and_comments();
+    if (self.is_eof()) { break; }
+
+    let c = self.peek();
+    let tok = if (is_alpha(c) || c == '_') {
+      self.lex_ident_or_keyword()
+    } else if (is_digit(c)) {
+      self.lex_number()
+    } else if (c == '"') {
+      self.advance();
+      self.in_string = true;
+      self.lex_string_segment()
+    } else if (c == '\'') {
+      self.lex_char()
+    } else {
+      self.lex_symbol()
+    };
+
+    if (tok.is_ok()) {
+      let t = tok.ok();
+      if (t != null) { tokens.push(t); }
+    } else {
+      diags.push(tok.err());
+    }
+  }
+
+  if (self.in_interpolation()) {
+    diags.push(Diagnostic_new("unterminated interpolation", Span_new(self.position(), self.position())));
+  }
+
+  tokens.push(Token_new(TokenKind.Eof, Span_new(self.position(), self.position())));
+
+  if (diags.len() == 0) {
+    return Result.ok(tokens);
+  }
+  Result.err(diags)
+}
+
+fun Lexer_lex_ident_or_keyword(self: Lexer) -> Any { {}
+  let start_pos = self.position();
+  let start_idx = self.pos;
+  self.advance();
+  while (!self.is_eof()) {
+    let c = self.peek();
+    if (is_alpha(c) || is_digit(c) || c == '_') {
+      self.advance();
+    } else {
+      break;
+    }
+  }
+  let s = self.src.slice(start_idx, self.pos);
+  let keywords = ["fun", "gpu", "let", "var", "if", "else", "match", "for", "while",
+    "break", "continue", "return", "view", "resource", "state", "spawn", "@nogc",
+    "import", "as", "struct", "enum", "type", "in", "interface", "module", "class"];
+  let kind = if keywords.contains(s) {
+    TokenKind.Keyword(s)
+  } else if (s == "true") {
+    TokenKind.BoolLiteral(true)
+  } else if (s == "false") {
+    TokenKind.BoolLiteral(false)
+  } else {
+      TokenKind.Identifier(s)
+    };
+
+  Result.ok(Token_new(kind, Span_new(start_pos, self.position())))
+}
+
+fun Lexer_lex_number(self: Lexer) -> Any { {}
+  let start_pos = self.position();
+  let start = self.pos;
+  if (self.peek() == '0' && (self.peek_next() == 'x' || self.peek_next() == 'X')) {
+    self.advance();
+    self.advance();
+    let hex_start = self.pos;
+    while (!self.is_eof() && is_hex(self.peek())) {
+      self.advance();
+    }
+    if (hex_start == self.pos) {
+      return Result.err(Diagnostic_new("invalid hex literal", Span_new(start_pos, self.position())));
+    }
+    let s = self.src.slice(hex_start, self.pos);
+    let v = Int.parse_radix(s, 16);
+    return Result.ok(Token_new(TokenKind.IntLiteral(v), Span_new(start_pos, self.position())));
+  }
+
+  while (!self.is_eof() && is_digit(self.peek())) {
+    self.advance();
+  }
+
+  let is_float = false;
+  if (!self.is_eof() && self.peek() == '.' && is_digit(self.peek_next())) {
+    is_float = true;
+    self.advance();
+    while (!self.is_eof() && is_digit(self.peek())) {
+      self.advance();
+    }
+  }
+  if (!self.is_eof() && (self.peek() == 'e' || self.peek() == 'E')) {
+    is_float = true;
+    self.advance();
+    if (self.peek() == '+' || self.peek() == '-') {
+      self.advance();
+    }
+    while (!self.is_eof() && is_digit(self.peek())) {
+      self.advance();
+    }
+  }
+
+  let s = self.src.slice(start, self.pos);
+  if (is_float) {
+    let v = Float.parse(s);
+    Result.ok(Token_new(TokenKind.FloatLiteral(v), Span_new(start_pos, self.position())))
+  } else {
+    let v = Int.parse(s);
+    Result.ok(Token_new(TokenKind.IntLiteral(v), Span_new(start_pos, self.position())))
+  }
+}
+
+fun Lexer_lex_string_segment(self: Lexer) -> Any { {}
+  let start = self.position();
+  let out = " ";
+  while (!self.is_eof()) {
+    let c = self.peek();
+    if (c == '"') {
+      let end_pos = self.position();
+      self.advance();
+      self.in_string = false;
+      if (out.len() == 0) { return Result.ok(null); }
+      return Result.ok(Token_new(TokenKind.StringLiteral(out), Span_new(start, end_pos)));
+    }
+    if (c == '\\') {
+      self.advance();
+      if (self.is_eof()) {
+        return Result.err(Diagnostic_new("unterminated escape", Span_new(start, self.position())));
+      }
+      let esc = self.peek();
+      let real = if (esc == 'n') { '\n' }
+        else if (esc == 'r') { '\r' }
+        else if (esc == 't') { '\t' }
+        else if (esc == '0') { '\0' }
+        else if (esc == '\\') { '\\' }
+        else if (esc == '"') { '"' }
+        else if (esc == '{') { '{' }
+        else if (esc == '}') { '}' }
+        else { return Result.err(Diagnostic_new("invalid escape", Span_new(start, self.position()))); };
+      out = out + real.to_string();
+      self.advance();
+      continue;
+    }
+    if (c == '{') {
+      let interp_start = self.position();
+      if (out.len() > 0) {
+        let span = Span_new(start, interp_start);
+        self.advance();
+        self.push_interpolation(true);
+        let interp_span = Span_new(interp_start, self.position());
+        self.pending.push(Token_new(TokenKind.InterpStart, interp_span));
+        return Result.ok(Token_new(TokenKind.StringLiteral(out), span));
+      }
+      self.advance();
+      self.push_interpolation(true);
+      let interp_span = Span_new(interp_start, self.position());
+      return Result.ok(Token_new(TokenKind.InterpStart, interp_span));
+    }
+    out = out + c.to_string();
+    self.advance();
+  }
+  Result.err(Diagnostic_new("unterminated string", Span_new(start, self.position())))
+}
+
+fun Lexer_lex_char(self: Lexer) -> Any { {}
+  let start = self.position();
+  self.advance();
+  if (self.is_eof()) {
+    return Result.err(Diagnostic_new("unterminated char", Span_new(start, self.position())));
+  }
+  let c = self.peek();
+  let ch = if (c == '\\') {
+    self.advance();
+    let esc = self.peek();
+    let real = if (esc == 'n') { '\n' }
+      else if (esc == 'r') { '\r' }
+      else if (esc == 't') { '\t' }
+      else if (esc == '0') { '\0' }
+      else if (esc == '\\') { '\\' }
+      else if (esc == '\'') { '\'' }
+      else { return Result.err(Diagnostic_new("invalid escape", Span_new(start, self.position()))); };
+    self.advance();
+    real
+  } else {
+    self.advance();
+    c
+  };
+  if (self.is_eof() || self.peek() != '\'') {
+    return Result.err(Diagnostic_new("unterminated char", Span_new(start, self.position())));
+  }
+  self.advance();
+  Result.ok(Token_new(TokenKind.CharLiteral(ch), Span_new(start, self.position())))
+}
+
+fun Lexer_lex_symbol(self: Lexer) -> Any { {}
+  let start = self.position();
+  let c = self.peek();
+  let next = self.peek_next();
+
+  if (c == '}' && self.in_interpolation()) {
+    self.advance();
+    let top = self.interp_stack.last();
+    if (top != null) {
+      if (top.depth == 0) {
+        self.interp_stack.pop();
+        if (top.resume_string) { self.in_string = true; }
+        return Result.ok(Token_new(TokenKind.InterpEnd, Span_new(start, self.position())));
+      }
+      top.depth = top.depth - 1;
+      return Result.ok(Token_new(TokenKind.RBrace, Span_new(start, self.position())));
+    }
+  }
+
+  if (c == '{' && self.in_interpolation()) {
+    self.advance();
+    let top = self.interp_stack.last();
+    if (top != null) { top.depth = top.depth + 1; }
+    return Result.ok(Token_new(TokenKind.LBrace, Span_new(start, self.position())));
+  }
+
+  if (c == '@' && (is_alpha(next) || next == '_')) {
+    self.advance();
+    let ident_start = self.pos;
+    while (!self.is_eof()) {
+      let ch = self.peek();
+      if (is_alpha(ch) || is_digit(ch) || ch == '_') {
+        self.advance();
+      } else { break; }
+    }
+    let name = self.src.slice(ident_start, self.pos);
+    let full = "@" + name;
+    let kind = if (name == "nogc" || name == "import" || name == "bridge") {
+      TokenKind.Keyword(full)
+    } else {
+      TokenKind.Identifier(full)
+    };
+    return Result.ok(Token_new(kind, Span_new(start, self.position())));
+  }
+
+  let tok = if (c == '-' && next == '>') { self.advance(); self.advance(); TokenKind.Arrow }
+    else if (c == '|' && next == '>') { self.advance(); self.advance(); TokenKind.Pipe }
+    else if (c == '?' && next == ':') { self.advance(); self.advance(); TokenKind.NullCoalesce }
+    else if (c == '=' && next == '=') { self.advance(); self.advance(); TokenKind.EqEq }
+    else if (c == '=' && next == '>') { self.advance(); self.advance(); TokenKind.FatArrow }
+    else if (c == '!' && next == '=') { self.advance(); self.advance(); TokenKind.NotEq }
+    else if (c == '<' && next == '=') { self.advance(); self.advance(); TokenKind.LtEq }
+    else if (c == '>' && next == '=') { self.advance(); self.advance(); TokenKind.GtEq }
+    else if (c == '&' && next == '&') { self.advance(); self.advance(); TokenKind.AndAnd }
+    else if (c == '|' && next == '|') { self.advance(); self.advance(); TokenKind.OrOr }
+    else if (c == '.' && next == '+') { self.advance(); self.advance(); TokenKind.DotPlus }
+    else if (c == '.' && next == '-') { self.advance(); self.advance(); TokenKind.DotMinus }
+    else if (c == '.' && next == '*') { self.advance(); self.advance(); TokenKind.DotStar }
+    else if (c == '.' && next == '/') { self.advance(); self.advance(); TokenKind.DotSlash }
+    else if (c == '+' && next == '=') { self.advance(); self.advance(); TokenKind.PlusEq }
+    else if (c == '-' && next == '=') { self.advance(); self.advance(); TokenKind.MinusEq }
+    else if (c == '*' && next == '=') { self.advance(); self.advance(); TokenKind.StarEq }
+    else if (c == '/' && next == '=') { self.advance(); self.advance(); TokenKind.SlashEq }
+    else if (c == '%' && next == '=') { self.advance(); self.advance(); TokenKind.PercentEq }
+    else if (c == '@' && next == '{') { self.advance(); self.advance(); self.push_interpolation(false); TokenKind.InterpStart }
+    else {
+      self.advance();
+      if (c == '+') { TokenKind.Plus }
+      else if (c == '-') { TokenKind.Minus }
+      else if (c == '*') { TokenKind.Star }
+      else if (c == '/') { TokenKind.Slash }
+      else if (c == '%') { TokenKind.Percent }
+      else if (c == '@') { TokenKind.At }
+      else if (c == '=') { TokenKind.Eq }
+      else if (c == '<') { TokenKind.Lt }
+      else if (c == '>') { TokenKind.Gt }
+      else if (c == '!') { TokenKind.Not }
+      else if (c == '?') { TokenKind.Question }
+      else if (c == '(') { TokenKind.LParen }
+      else if (c == ')') { TokenKind.RParen }
+      else if (c == '{') { TokenKind.LBrace }
+      else if (c == '}') { TokenKind.RBrace }
+      else if (c == '[') { TokenKind.LBracket }
+      else if (c == ']') { TokenKind.RBracket }
+      else if (c == ',') { TokenKind.Comma }
+      else if (c == ';') { TokenKind.Semi }
+      else if (c == ':') { TokenKind.Colon }
+      else if (c == '.') { TokenKind.Dot }
+      else { return Result.err(Diagnostic_new("unexpected character", Span_new(start, self.position()))); }
+    };
+
+  Result.ok(Token_new(tok, Span_new(start, self.position())))
+}
+
+fun Lexer_skip_whitespace_and_comments(self: Lexer) { {}
+  while (true) {
+    while (!self.is_eof() && is_whitespace(self.peek())) { self.advance(); }
+    if (self.is_eof()) { return; }
+    if (self.peek() == '/' && self.peek_next() == '/') {
+      self.advance(); self.advance();
+      while (!self.is_eof() && self.peek() != '\n') { self.advance(); }
+      continue;
+    }
+    if (self.peek() == '/' && self.peek_next() == '*') {
+      self.advance(); self.advance();
+      while (!self.is_eof()) {
+        if (self.peek() == '*' && self.peek_next() == '/') { self.advance(); self.advance(); break; }
+        self.advance();
+      }
+      continue;
+    }
+    break;
+  }
+}
+
+fun Lexer_is_eof(self: Lexer) -> Bool { self.pos >= self.chars.len() } {}
+
+fun Lexer_peek(self: Lexer) -> Char { self.chars[self.pos] } {}
+
+fun Lexer_peek_next(self: Lexer) -> Char { {}
+  if (self.pos + 1 >= self.chars.len()) { '\0' } else { self.chars[self.pos + 1] }
+}
+
+fun Lexer_advance(self: Lexer) { {}
+  if (self.is_eof()) { return; }
+  if (self.peek() == '\n') {
+    self.line = self.line + 1;
+    self.col = 1;
+  } else {
+    self.col = self.col + 1;
+  }
+  self.pos = self.pos + 1;
+}
+
+fun Lexer_position(self: Lexer) -> Position { Position_new(self.line, self.col, self.pos) } {}
+
+fun Lexer_in_interpolation(self: Lexer) -> Bool { self.interp_stack.len() > 0 } {}
+
+fun Lexer_push_interpolation(self: Lexer, resume_string: Bool) { {}
+  self.interp_stack.push(InterpContext { resume_string: resume_string, depth: 0 });
+}
+
+fun Lexer_pending_take(self: Lexer) -> Token? { {}
+  if (self.pending_pos >= self.pending.len()) { return null; }
+  let tok = self.pending[self.pending_pos];
+  self.pending_pos = self.pending_pos + 1;
+  tok
+}
+
+fun is_alpha(c: Char) -> Bool { {}
+  (c >= 'a' && c = 'A' && c <= 'Z')
+}
+
+fun is_digit(c: Char) -> Bool { c >= '0' && c <= '9' } {}
+
+fun is_hex(c: Char) -> Bool { {}
+  is_digit(c) || (c >= 'a' && c = 'A' && c <= 'F')
+}
+
+fun is_whitespace(c: Char) -> Bool { {}
+  c == ' ' || c == '\t' || c == '\n' || c == '\r'
+}
+fun main() { print("Minimal Lexer Compiler OK\n"); } {}

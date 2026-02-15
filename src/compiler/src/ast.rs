@@ -15,10 +15,35 @@ pub enum Item {
     Resource(ResourceDecl),
     Const(VarDecl),
     Stmt(Stmt),
+    Interface(InterfaceDecl),
+    Sealed(SealedDecl),
+}
+
+#[derive(Debug, Clone)]
+pub struct InterfaceDecl {
+    pub name: String,
+    pub methods: Vec<FunSig>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub struct FunSig {
+    pub name: String,
+    pub params: Vec<Param>,
+    pub ret: Option<TypeRef>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub struct SealedDecl {
+    pub name: String,
+    pub items: Vec<Item>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct FunDecl {
+    pub receiver: Option<TypeRef>,
     pub name: String,
     pub params: Vec<Param>,
     pub ret: Option<TypeRef>,
@@ -38,6 +63,7 @@ pub struct Param {
 pub struct StructDecl {
     pub name: String,
     pub fields: Vec<FieldDecl>,
+    pub implements: Vec<TypeRef>,
     pub span: Span,
 }
 

@@ -1,0 +1,54 @@
+// Phase Reality: Group 2.1 - Path Manipulation Implementation
+module path
+
+// R.2.17: path.join
+fun join(a: String, b: String) -> String {
+    if (a.length() == 0) { return b; }
+    if (b.length() == 0) { return a; }
+    
+    let last_a = a.char_at(a.length() - 1);
+    let first_b = b.char_at(0);
+    
+    if (last_a == '/' && first_b == '/') {
+        return a + b.slice(1, b.length());
+    }
+    if (last_a != '/' && first_b != '/') {
+        return a + "/" + b;
+    }
+    return a + b;
+}
+
+// R.2.18: path.base
+fun base(p: String) -> String {
+    if (p.length() == 0) { return ""; }
+    let i = p.length() - 1;
+    while (i >= 0) {
+        if (p.char_at(i) == '/') {
+            return p.slice(i + 1, p.length());
+        }
+        i = i - 1;
+    }
+    return p;
+}
+
+// R.2.19: path.ext
+fun ext(p: String) -> String {
+    let b = base(p);
+    let i = b.length() - 1;
+    while (i >= 0) {
+        if (b.char_at(i) == '.') {
+            return b.slice(i, b.length());
+        }
+        i = i - 1;
+    }
+    return "";
+}
+
+// R.2.20: path.abs
+fun abs(p: String) -> String {
+    if (p.length() > 0 && p.char_at(0) == '/') {
+        return p;
+    }
+    // Simplification: In real implementation, prepend current working directory
+    return "/" + p;
+}

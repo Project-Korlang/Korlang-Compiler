@@ -1,0 +1,13 @@
+// AArch64 encoder helpers / fixed-length optimizations
+
+module compiler.backend.aarch64.opt
+
+fun prefer_movz_imm(v: UInt) -> Bool {
+  // Favor MOVZ if fits in 16 bits
+  v <= 0xFFFF
+}
+
+fun can_fold_add_imm(v: UInt) -> Bool {
+  // Simplified check for 12-bit imm
+  v <= 0xFFF
+}

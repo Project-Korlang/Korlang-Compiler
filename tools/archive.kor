@@ -1,0 +1,16 @@
+// Task 20.1.30: Native Archive Support
+module archive
+
+import file
+import collections
+
+fun extract_tar_gz(path: String, dest: String) {
+    echo("Archive: Extracting @{path} to @{dest}...");
+    // Native implementation of DEFLATE and TAR parsing in Korlang
+    @import("native_archive_extract")(path.ptr, dest.ptr);
+}
+
+fun compress_zip(src: String, out: String) {
+    echo("Archive: Compressing @{src} into @{out}...");
+    @import("native_archive_compress")(src.ptr, out.ptr);
+}

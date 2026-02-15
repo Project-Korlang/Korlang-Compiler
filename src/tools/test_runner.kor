@@ -1,0 +1,20 @@
+// Phase Reality: Group 4.3 - Test Runner
+module tools.test_runner
+
+import file
+import dir
+
+// R.4.63: Test runner
+fun run_tests(path: String) {
+    echo("Status: Running tests in @{path}");
+    let files = dir.list(path);
+    let i = 0;
+    while (i < files.len()) {
+        let f = files[i];
+        if (f.ends_with("_test.kor")) {
+            echo("Testing: @{f}");
+            // In real implementation, compile and run the test file
+        }
+        i = i + 1;
+    }
+}

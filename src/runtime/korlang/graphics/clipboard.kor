@@ -1,0 +1,11 @@
+// Phase Reality: Group 4.1 - Clipboard & Interaction
+module graphics.clipboard
+
+// R.4.17: Clipboard
+fun get_text() -> String {
+    @import("native_clipboard_get")()
+}
+
+fun set_text(s: String) {
+    @import("native_clipboard_set")(s.ptr)
+}

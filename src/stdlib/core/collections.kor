@@ -1,25 +1,192 @@
-// Korlang standard library: collections
+// Phase Reality: Group 2.2 - High-Performance Collections
+module std.collections
 
-module collections
+// R.2.20: List<T> Implementation
+struct List<T> {
+    data: [T];
+    size: Int;
+    capacity: Int;
+}
 
-struct List<T>
-struct Map<K, V>
-struct Set<T>
+fun List.new<T>() -> List<T> {
+    List {
+        data: [null; 8], // Initial capacity
+        size: 0,
+        capacity: 8
+    }
+}
 
-fun List.new<T>() -> List<T>
-fun List.push<T>(self: List<T>, value: T) -> Void
-fun List.pop<T>(self: List<T>) -> T?
-fun List.len<T>(self: List<T>) -> Int
+fun List.push<T>(self, item: T) {
+    if (self.size == self.capacity) {
+        self.reserve(self.capacity * 2);
+    }
+    self.data[self.size] = item;
+    self.size = self.size + 1;
+}
 
-fun Map.new<K, V>() -> Map<K, V>
-fun Map.insert<K, V>(self: Map<K, V>, key: K, value: V) -> V?
-fun Map.get<K, V>(self: Map<K, V>, key: K) -> V?
-fun Map.remove<K, V>(self: Map<K, V>, key: K) -> V?
-fun Map.len<K, V>(self: Map<K, V>) -> Int
+fun List.reserve<T>(self, new_cap: Int) {
+    if (new_cap <= self.capacity) { return; }
+    let new_data = [null; new_cap];
+    let i = 0;
+    while (i < self.size) {
+        new_data[i] = self.data[i];
+        i = i + 1;
+    }
+    self.data = new_data;
+    self.capacity = new_cap;
+}
 
-fun Set.new<T>() -> Set<T>
-fun Set.insert<T>(self: Set<T>, value: T) -> Bool
-fun Set.contains<T>(self: Set<T>, value: T) -> Bool
-fun Set.remove<T>(self: Set<T>, value: T) -> Bool
-fun Set.len<T>(self: Set<T>) -> Int
+fun List.get<T>(self, index: Int) -> T {
+    self.data[index]
+}
 
+fun List.len<T>(self) -> Int {
+    self.size
+}
+
+fun List.clear<T>(self) {
+    self.size = 0;
+}
+
+fun List.contains<T>(self, item: T) -> Bool {
+    let i = 0;
+    while (i < self.size) {
+        if (self.data[i] == item) { return true; }
+        i = i + 1;
+    }
+    false
+}
+
+// R.2.41 - R.2.80: Standard Library Collection Methods
+fun List.pop<T>(self) -> T? {
+    if (self.size == 0) { return null; }
+    self.size = self.size - 1;
+    self.data[self.size]
+}
+
+fun List.insert_at<T>(self, index: Int, item: T) {
+    if (index > self.size) { return; }
+    if (self.size == self.capacity) { self.reserve(self.capacity * 2); }
+    
+    let i = self.size;
+    while (i > index) {
+        self.data[i] = self.data[i - 1];
+        i = i - 1;
+    }
+    self.data[index] = item;
+    self.size = self.size + 1;
+}
+
+fun List.remove_at<T>(self, index: Int) -> T? {
+    if (index >= self.size) { return null; }
+    let item = self.data[index];
+    
+    let i = index;
+    while (i < self.size - 1) {
+        self.data[i] = self.data[i + 1];
+        i = i + 1;
+    }
+    self.size = self.size - 1;
+    item
+}
+
+fun Map.keys<K, V>(self) -> List<K> {
+    let out = List.new<K>();
+    let i = 0;
+    while (i < self.num_buckets) {
+        let entry = self.buckets[i];
+        while (entry != null) {
+            out.push(entry.key);
+            entry = entry.next;
+        }
+        i = i + 1;
+    }
+    out
+}
+
+fun Map.values<K, V>(self) -> List<V> {
+    let out = List.new<V>();
+    let i = 0;
+    while (i < self.num_buckets) {
+        let entry = self.buckets[i];
+        while (entry != null) {
+            out.push(entry.value);
+            entry = entry.next;
+        }
+        i = i + 1;
+    }
+    out
+}
+
+// R.2.21: Map<K, V> Implementation (Hash Map)
+struct MapEntry<K, V> {
+    key: K;
+    value: V;
+    next: MapEntry<K, V>?;
+}
+
+struct Map<K, V> {
+    buckets: [MapEntry<K, V>?];
+    size: Int;
+    num_buckets: Int;
+}
+
+fun Map.new<K, V>() -> Map<K, V> {
+    Map {
+        buckets: [null; 16],
+        size: 0,
+        num_buckets: 16
+    }
+}
+
+fun Map.put<K, V>(self, key: K, value: V) {
+    // Simple hash function (stub)
+    let h = key.hash() % self.num_buckets;
+    let entry = self.buckets[h];
+    
+    while (entry != null) {
+        if (entry.key == key) {
+            entry.value = value;
+            return;
+        }
+        entry = entry.next;
+    }
+    
+    let new_entry = MapEntry { key: key, value: value, next: self.buckets[h] };
+    self.buckets[h] = new_entry;
+    self.size = self.size + 1;
+}
+
+fun Map.get<K, V>(self, key: K) -> V? {
+    let h = key.hash() % self.num_buckets;
+    let entry = self.buckets[h];
+    while (entry != null) {
+        if (entry.key == key) { return entry.value; }
+        entry = entry.next;
+    }
+    null
+}
+
+fun Map.has<K, V>(self, key: K) -> Bool {
+    self.get(key) != null
+}
+
+fun Map.remove<K, V>(self, key: K) {
+    let h = key.hash() % self.num_buckets;
+    let entry = self.buckets[h];
+    let prev = null;
+    
+    while (entry != null) {
+        if (entry.key == key) {
+            if (prev == null) {
+                self.buckets[h] = entry.next;
+            } else {
+                prev.next = entry.next;
+            }
+            self.size = self.size - 1;
+            return;
+        }
+        prev = entry;
+        entry = entry.next;
+    }
+}

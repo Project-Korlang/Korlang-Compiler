@@ -1,0 +1,22 @@
+// Phase Reality: Group 2.3 - Simplified Data Utilities (Base64/Hex)
+module data
+
+// R.2.39: b64
+module Base64 {
+    fun encode(s: String) -> String {
+        @import("native_b64_enc")(s)
+    }
+    fun decode(s: String) -> String {
+        @import("native_b64_dec")(s)
+    }
+}
+
+// R.2.40: hex
+module Hex {
+    fun encode(s: String) -> String {
+        @import("native_hex_enc")(s)
+    }
+    fun decode(s: String) -> String {
+        @import("native_hex_dec")(s)
+    }
+}

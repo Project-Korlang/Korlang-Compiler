@@ -1,0 +1,14 @@
+// Phase Reality: Group 4.3 - Native Tooling
+module tools.kpm
+
+import file
+import path
+
+// R.4.51: kpm project initialization
+fun init_project(name: String) {
+    echo("Status: Initializing Korlang project '@{name}'");
+    file.new(path.join(name, "Korlan.txt"));
+    dir.new(path.join(name, "src"));
+    file.new(path.join(name, "src/main.kor"));
+    echo("SUCCESS: Project '@{name}' created.");
+}

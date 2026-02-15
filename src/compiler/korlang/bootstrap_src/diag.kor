@@ -1,0 +1,60 @@
+// Self-hosted frontend diagnostics
+
+module diag
+
+struct Position {
+  line: Int;
+  column: Int;
+  offset: Int;
+}
+
+fun Position_new(line: Int, column: Int, offset: Int) -> Position {
+  Position { line: line, column: column, offset: offset }
+}
+
+struct Span {
+  start: Position;
+  end: Position;
+}
+
+fun Span_new(start: Position, end: Position) -> Span {
+  Span { start: start, end: end }
+}
+
+struct Diagnostic {
+  message: String;
+  span: Span;
+}
+
+fun Diagnostic_new(message: String, span: Span) -> Diagnostic {
+  Diagnostic { message: message, span: span }
+}
+
+struct SourceFile {
+    path: String;
+    content: String;
+    line_offsets: List<Int>;
+}
+
+struct SourceMap {
+    files: List<SourceFile>;
+}
+
+fun SourceMap_new() -> SourceMap {
+    SourceMap { files: List.new() }
+}
+
+fun SourceMap_add_file(self: SourceMap, path: String, content: String) -> SourceFile {
+    let offsets = List.new<Int>();
+    offsets.push(0);
+    let i = 0;
+    while (i < content.length()) {
+        if (content.char_at(i) == '\n') {
+            offsets.push(i + 1);
+        }
+        i = i + 1;
+    }
+    let file = SourceFile { path: path, content: content, line_offsets: offsets };
+    self.files.push(file);
+    file
+}

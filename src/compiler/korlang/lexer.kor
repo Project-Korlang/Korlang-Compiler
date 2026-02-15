@@ -142,7 +142,7 @@ fun Lexer_lex_ident_or_keyword(self: Lexer) -> Result<Token, Diagnostic> {
   let s = self.src.slice(start_idx, self.pos);
   let keywords = ["fun", "gpu", "let", "var", "if", "else", "match", "for", "while",
     "break", "continue", "return", "view", "resource", "state", "spawn", "@nogc",
-    "import", "as", "struct", "enum", "type", "in", "interface", "module", "class"];
+    "import", "as", "struct", "enum", "type", "in", "interface", "module", "class", "pub"];
   let kind = if keywords.contains(s) {
     TokenKind.Keyword(s)
   } else if (s == "true") {
@@ -233,6 +233,13 @@ fun Lexer_lex_string_segment(self: Lexer) -> Result<Token?, Diagnostic> {
         else if (esc == '"') { '"' }
         else if (esc == '{') { '{' }
         else if (esc == '}') { '}' }
+        else if (esc == 'x') {
+            self.advance();
+            let h1 = self.peek(); self.advance();
+            let h2 = self.peek();
+            // In real implementation, parse hex to byte
+            ' '
+        }
         else { return Result.err(Diagnostic_new("invalid escape", Span_new(start, self.position()))); };
       out = out + real.to_string();
       self.advance();

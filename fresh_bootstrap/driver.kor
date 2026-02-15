@@ -1,0 +1,9 @@
+// Self-hosted compiler driver (Stage 2)
+
+module compiler.driver
+
+fun main() -> Int {
+  // Delegate to native driver while the Korlang pipeline is wired.
+  @import("korlang_driver");
+  0
+}

@@ -1,0 +1,6 @@
+module driver
+import lexer
+
+fun main() {
+    print("Lexer Import Test\n");
+}

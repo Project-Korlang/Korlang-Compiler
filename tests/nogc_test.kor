@@ -1,0 +1,23 @@
+// Test suite for @nogc mode (Month 5-7)
+
+struct Data {
+    value: Int
+}
+
+@nogc fun take_data(d: Data) -> Int {
+    d.value
+}
+
+@nogc fun test_move() -> Int {
+    let d = Data { value: 42 };
+    let x = take_data(d);
+    
+    // This should fail in @nogc mode because d was moved into take_data
+    // let y = take_data(d); 
+    
+    x
+}
+
+fun main() -> Int {
+    test_move()
+}

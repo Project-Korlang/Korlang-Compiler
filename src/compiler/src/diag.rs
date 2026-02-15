@@ -23,15 +23,60 @@ impl Span {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiagnosticLevel {
+    Error,
+    Warning,
+    Note,
+    Bug,
+}
+
+impl DiagnosticLevel {
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            Self::Error => "error",
+            Self::Warning => "warning",
+            Self::Note => "note",
+            Self::Bug => "internal compiler error",
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Diagnostic {
+    pub level: DiagnosticLevel,
     pub message: String,
     pub span: Span,
 }
 
 impl Diagnostic {
-    pub fn new(message: impl Into<String>, span: Span) -> Self {
+    pub fn error(message: impl Into<String>, span: Span) -> Self {
         Self {
+            level: DiagnosticLevel::Error,
+            message: message.into(),
+            span,
+        }
+    }
+
+    pub fn warning(message: impl Into<String>, span: Span) -> Self {
+        Self {
+            level: DiagnosticLevel::Warning,
+            message: message.into(),
+            span,
+        }
+    }
+
+    pub fn note(message: impl Into<String>, span: Span) -> Self {
+        Self {
+            level: DiagnosticLevel::Note,
+            message: message.into(),
+            span,
+        }
+    }
+
+    pub fn bug(message: impl Into<String>, span: Span) -> Self {
+        Self {
+            level: DiagnosticLevel::Bug,
             message: message.into(),
             span,
         }

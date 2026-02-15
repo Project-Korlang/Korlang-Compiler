@@ -1,0 +1,28 @@
+// Runtime Validation Suite
+// This file tests core language features and runtime stability.
+
+fun test_math() -> Int {
+    let x = 10;
+    let y = 20;
+    if (x + y == 30) { 0 } else { 1 }
+}
+
+fun test_memory() -> Int {
+    // Basic allocation/access test
+    let arr = [1, 2, 3, 4, 5];
+    if (arr[2] == 3) { 0 } else { 1 }
+}
+
+fun main() -> Int {
+    let mut failures = 0;
+    
+    if (test_math() != 0) {
+        failures = failures + 1;
+    }
+    
+    if (test_memory() != 0) {
+        failures = failures + 1;
+    }
+    
+    failures
+}

@@ -27,20 +27,20 @@ fun Parser_parse_program(self: Parser) -> Result<Program, List<Diagnostic>>
 
 // Item parsing
 fun Parser_parse_item(self: Parser) -> Result<Item, Bool>
-fun Parser_parse_fun(self: Parser, nogc: Bool) -> Result<FunDecl, Bool>
-fun Parser_parse_struct(self: Parser) -> Result<StructDecl, Bool>
-fun Parser_parse_enum(self: Parser) -> Result<EnumDecl, Bool>
-fun Parser_parse_type_alias(self: Parser) -> Result<TypeAliasDecl, Bool>
-fun Parser_parse_view(self: Parser) -> Result<ViewDecl, Bool>
+fun Parser_parse_fun(self: Parser, is_pub: Bool, nogc: Bool) -> Result<FunDecl, Bool>
+fun Parser_parse_struct(self: Parser, is_pub: Bool) -> Result<StructDecl, Bool>
+fun Parser_parse_enum(self: Parser, is_pub: Bool) -> Result<EnumDecl, Bool>
+fun Parser_parse_type_alias(self: Parser, is_pub: Bool) -> Result<TypeAliasDecl, Bool>
+fun Parser_parse_view(self: Parser, is_pub: Bool) -> Result<ViewDecl, Bool>
 fun Parser_parse_view_block(self: Parser) -> Result<List<ViewNode>, Bool>
 fun Parser_parse_view_args(self: Parser) -> Result<List<ViewArg>, Bool>
 fun Parser_parse_view_arg(self: Parser) -> Result<ViewArg, Bool>
-fun Parser_parse_resource(self: Parser) -> Result<ResourceDecl, Bool>
+fun Parser_parse_resource(self: Parser, is_pub: Bool) -> Result<ResourceDecl, Bool>
 
 // Statements
 fun Parser_parse_stmt(self: Parser) -> Result<Stmt, Bool>
 fun Parser_parse_var_decl(self: Parser) -> Result<VarDecl, Bool>
-fun Parser_parse_var_decl_with(self: Parser, immutable: Bool) -> Result<VarDecl, Bool>
+fun Parser_parse_var_decl_with(self: Parser, is_pub: Bool, immutable: Bool) -> Result<VarDecl, Bool>
 fun Parser_parse_block(self: Parser) -> Result<Block, Bool>
 
 // Expressions
@@ -111,37 +111,43 @@ fun Parser_parse_program(self: Parser) -> Result<Program, List<Diagnostic>> {
 }
 
 fun Parser_parse_item(self: Parser) -> Result<Item, Bool> {
+  let is_pub = self.match_keyword("pub");
+  
   if (self.match_keyword("@nogc")) {
     self.expect_keyword("fun")?;
-    return Result.ok(Item.Fun(self.parse_fun(true)?));
+    let f = self.parse_fun(is_pub, true)?;
+    return Result.ok(Item.Fun(f));
   }
   if (self.match_keyword("gpu")) {
     self.expect_keyword("fun")?;
-    return Result.ok(Item.Fun(self.parse_fun(false)?));
+    let f = self.parse_fun(is_pub, false)?;
+    return Result.ok(Item.Fun(f));
   }
-  if (self.match_keyword("fun")) { return Result.ok(Item.Fun(self.parse_fun(false)?)); }
-  if (self.match_keyword("struct")) { return Result.ok(Item.Struct(self.parse_struct()?)); }
-  if (self.match_keyword("enum")) { return Result.ok(Item.Enum(self.parse_enum()?)); }
-  if (self.match_keyword("type")) { return Result.ok(Item.TypeAlias(self.parse_type_alias()?)); }
-  if (self.match_keyword("view")) { return Result.ok(Item.View(self.parse_view()?)); }
-  if (self.match_keyword("resource")) { return Result.ok(Item.Resource(self.parse_resource()?)); }
+  if (self.match_keyword("fun")) { return Result.ok(Item.Fun(self.parse_fun(is_pub, false)?)); }
+  if (self.match_keyword("struct")) { return Result.ok(Item.Struct(self.parse_struct(is_pub)?)); }
+  if (self.match_keyword("enum")) { return Result.ok(Item.Enum(self.parse_enum(is_pub)?)); }
+  if (self.match_keyword("type")) { return Result.ok(Item.TypeAlias(self.parse_type_alias(is_pub)?)); }
+  if (self.match_keyword("view")) { return Result.ok(Item.View(self.parse_view(is_pub)?)); }
+  if (self.match_keyword("resource")) { return Result.ok(Item.Resource(self.parse_resource(is_pub)?)); }
   if (self.check_keyword("let") || self.check_keyword("var")) {
-    return Result.ok(Item.Const(self.parse_var_decl()?));
+    let decl = self.parse_var_decl()?;
+    decl.is_pub = is_pub;
+    return Result.ok(Item.Const(decl));
   }
   Result.ok(Item.Stmt(self.parse_stmt()?))
 }
 
-fun Parser_parse_fun(self: Parser, nogc: Bool) -> Result<FunDecl, Bool> {
+fun Parser_parse_fun(self: Parser, is_pub: Bool, nogc: Bool) -> Result<FunDecl, Bool> {
   let start = self.prev_span();
   let name = self.expect_ident()?;
   let params = self.parse_param_list()?;
   let ret = if (self.match_kind(TokenKind.Arrow)) { self.parse_type_ref()? } else { null };
   let body = self.parse_block()?;
   let end = body.span.end;
-  Result.ok(FunDecl { name: name, params: params, ret: ret, body: body, nogc: nogc, span: Span_new(start.start, end) })
+  Result.ok(FunDecl { is_pub: is_pub, name: name, params: params, ret: ret, body: body, nogc: nogc, span: Span_new(start.start, end) })
 }
 
-fun Parser_parse_struct(self: Parser) -> Result<StructDecl, Bool> {
+fun Parser_parse_struct(self: Parser, is_pub: Bool) -> Result<StructDecl, Bool> {
   let start = self.prev_span();
   let name = self.expect_ident()?;
   self.expect_kind(TokenKind.LBrace)?;
@@ -154,10 +160,10 @@ fun Parser_parse_struct(self: Parser) -> Result<StructDecl, Bool> {
     fields.push(FieldDecl { name: field_name, ty: ty, span: semi.span });
   }
   let end = self.expect_kind(TokenKind.RBrace)?;
-  Result.ok(StructDecl { name: name, fields: fields, span: Span_new(start.start, end.span.end) })
+  Result.ok(StructDecl { is_pub: is_pub, name: name, fields: fields, span: Span_new(start.start, end.span.end) })
 }
 
-fun Parser_parse_enum(self: Parser) -> Result<EnumDecl, Bool> {
+fun Parser_parse_enum(self: Parser, is_pub: Bool) -> Result<EnumDecl, Bool> {
   let start = self.prev_span();
   let name = self.expect_ident()?;
   self.expect_kind(TokenKind.LBrace)?;
@@ -176,25 +182,25 @@ fun Parser_parse_enum(self: Parser) -> Result<EnumDecl, Bool> {
     variants.push(VariantDecl { name: vname, payload: payload, span: semi.span });
   }
   let end = self.expect_kind(TokenKind.RBrace)?;
-  Result.ok(EnumDecl { name: name, variants: variants, span: Span_new(start.start, end.span.end) })
+  Result.ok(EnumDecl { is_pub: is_pub, name: name, variants: variants, span: Span_new(start.start, end.span.end) })
 }
 
-fun Parser_parse_type_alias(self: Parser) -> Result<TypeAliasDecl, Bool> {
+fun Parser_parse_type_alias(self: Parser, is_pub: Bool) -> Result<TypeAliasDecl, Bool> {
   let start = self.prev_span();
   let name = self.expect_ident()?;
   self.expect_kind(TokenKind.Eq)?;
   let target = self.parse_type_ref()?;
   let end = self.expect_kind(TokenKind.Semi)?;
-  Result.ok(TypeAliasDecl { name: name, target: target, span: Span_new(start.start, end.span.end) })
+  Result.ok(TypeAliasDecl { is_pub: is_pub, name: name, target: target, span: Span_new(start.start, end.span.end) })
 }
 
-fun Parser_parse_view(self: Parser) -> Result<ViewDecl, Bool> {
+fun Parser_parse_view(self: Parser, is_pub: Bool) -> Result<ViewDecl, Bool> {
   let start = self.prev_span();
   let name = self.expect_ident()?;
   let params = self.parse_param_list()?;
   let body = self.parse_view_block()?;
   let end = if (body.len() > 0) { body[body.len() - 1].span } else { start };
-  Result.ok(ViewDecl { name: name, params: params, body: body, span: Span_new(start.start, end.end) })
+  Result.ok(ViewDecl { is_pub: is_pub, name: name, params: params, body: body, span: Span_new(start.start, end.end) })
 }
 
 fun Parser_parse_view_block(self: Parser) -> Result<List<ViewNode>, Bool> {
@@ -233,7 +239,7 @@ fun Parser_parse_view_arg(self: Parser) -> Result<ViewArg, Bool> {
   Result.ok(ViewArg { name: name, value: value, span: Span_new(start.start, self.prev_span().end) })
 }
 
-fun Parser_parse_resource(self: Parser) -> Result<ResourceDecl, Bool> {
+fun Parser_parse_resource(self: Parser, is_pub: Bool) -> Result<ResourceDecl, Bool> {
   let start = self.prev_span();
   let name = self.expect_ident()?;
   self.expect_kind(TokenKind.LParen)?;
@@ -249,12 +255,12 @@ fun Parser_parse_resource(self: Parser) -> Result<ResourceDecl, Bool> {
     entries.push(ResourceEntry { key: key, value: value, span: semi.span });
   }
   let end = self.expect_kind(TokenKind.RBrace)?;
-  Result.ok(ResourceDecl { name: name, resource_type: resource_type, entries: entries, span: Span_new(start.start, end.span.end) })
+  Result.ok(ResourceDecl { is_pub: is_pub, name: name, resource_type: resource_type, entries: entries, span: Span_new(start.start, end.span.end) })
 }
 
 fun Parser_parse_stmt(self: Parser) -> Result<Stmt, Bool> {
-  if (self.match_keyword("let")) { return Result.ok(Stmt.Var(self.parse_var_decl_with(true)?)); }
-  if (self.match_keyword("var")) { return Result.ok(Stmt.Var(self.parse_var_decl_with(false)?)); }
+  if (self.match_keyword("let")) { return Result.ok(Stmt.Var(self.parse_var_decl_with(false, true)?)); }
+  if (self.match_keyword("var")) { return Result.ok(Stmt.Var(self.parse_var_decl_with(false, false)?)); }
   if (self.match_keyword("return")) {
     let start = self.prev_span();
     let expr = if (self.check_kind(TokenKind.Semi)) { null } else { self.parse_expr()? };
@@ -323,19 +329,19 @@ fun Parser_parse_stmt(self: Parser) -> Result<Stmt, Bool> {
 }
 
 fun Parser_parse_var_decl(self: Parser) -> Result<VarDecl, Bool> {
-  if (self.match_keyword("let")) { self.parse_var_decl_with(true) }
-  else if (self.match_keyword("var")) { self.parse_var_decl_with(false) }
+  if (self.match_keyword("let")) { self.parse_var_decl_with(false, true) }
+  else if (self.match_keyword("var")) { self.parse_var_decl_with(false, false) }
   else { self.error("expected 'let' or 'var'"); Result.err(false) }
 }
 
-fun Parser_parse_var_decl_with(self: Parser, immutable: Bool) -> Result<VarDecl, Bool> {
+fun Parser_parse_var_decl_with(self: Parser, is_pub: Bool, immutable: Bool) -> Result<VarDecl, Bool> {
   let start = self.prev_span();
   let name = self.expect_ident()?;
   let ty = if (self.match_kind(TokenKind.Colon)) { self.parse_type_ref()? } else { null };
   self.expect_kind(TokenKind.Eq)?;
   let value = self.parse_expr()?;
   let end = if (self.match_kind(TokenKind.Semi)) { self.prev_span() } else { self.prev_span() };
-  Result.ok(VarDecl { mutable: !immutable, name: name, ty: ty, value: value, span: Span_new(start.start, end.end) })
+  Result.ok(VarDecl { is_pub: is_pub, mutable: !immutable, name: name, ty: ty, value: value, span: Span_new(start.start, end.end) })
 }
 
 fun Parser_parse_block(self: Parser) -> Result<Block, Bool> {
@@ -497,9 +503,7 @@ fun Parser_parse_pattern(self: Parser) -> Result<Pattern, Bool> {
   match (tok.kind) {
     TokenKind.Identifier(name) => {
       self.advance();
-      if (name == "_") { return Result.ok(Pattern.Wildcard(tok.span)); } self.advance(); Result.ok(Pattern.Wildcard(tok.span)) }
-    TokenKind.Identifier(name) => {
-      self.advance();
+      if (name == "_") { return Result.ok(Pattern.Wildcard(tok.span)); } 
       if (self.match_kind(TokenKind.LBrace)) {
         let fields = List.new();
         if (!self.check_kind(TokenKind.RBrace)) {
@@ -525,7 +529,7 @@ fun Parser_parse_pattern(self: Parser) -> Result<Pattern, Bool> {
       let elems = List.new();
       if (!self.check_kind(TokenKind.RParen)) {
         elems.push(self.parse_pattern()?);
-        while (self.match_kind(TokenKind.Comma)) { elems.push(self.parse_pattern()?); }
+        while (self.match_kind(TokenKind.Comma)) { elems.push(self.pattern_list()?); }
       }
       let end = self.expect_kind(TokenKind.RParen)?;
       Result.ok(Pattern.Tuple(elems, Span_new(tok.span.start, end.span.end)))

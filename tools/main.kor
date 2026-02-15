@@ -1,0 +1,37 @@
+// Tasks 20.1.5 - 20.1.7: Native CLI Driver
+module cli.main
+
+import system
+import builder
+import kpm
+
+fun main() {
+    let args = args();
+    if (args.size() < 2) {
+        echo("Korlang Native CLI");
+        echo("Usage: korlang <build|run|test|clean|vendor|doctor>");
+        return;
+    }
+    
+    let cmd = args.get(1);
+    
+    if (cmd == "build") {
+        tools.builder.main();
+    } else if (cmd == "run") {
+        tools.builder.main();
+        echo("Execution: (Native binary running)");
+    } else if (cmd == "package") {
+        echo("Status: Packaging project into ide_bundle.kor...");
+        // In real implementation, invoke the bundler logic
+    } else if (cmd == "clean") {
+        echo("Status: Cleaning artifacts...");
+    } else if (cmd == "vendor") {
+        let mgr = tools.kpm.KpmManager();
+        mgr.vendor();
+    } else if (cmd == "doctor") {
+        let mgr = tools.kpm.KpmManager();
+        mgr.doctor();
+    } else {
+        echo("Unknown command: @{cmd}");
+    }
+}

@@ -1,0 +1,23 @@
+// Phase Reality: Group 2.4 - Time Implementation
+module time
+
+import syscall.dispatcher
+import syscall.linux
+
+struct Timespec {
+    sec: Int;
+    nsec: Int;
+}
+
+// R.2.81: now
+fun now() -> Int {
+    let ts = Timespec { sec: 0, nsec: 0 };
+    dispatcher.syscall2(linux.SYS_CLOCK_GETTIME, 0, ts.ptr);
+    (ts.sec * 1000) + (ts.nsec / 1000000)
+}
+
+// R.2.82: sleep
+fun sleep(ms: Int) {
+    let req = Timespec { sec: ms / 1000, nsec: (ms % 1000) * 1000000 };
+    dispatcher.syscall2(linux.SYS_NANOSLEEP, req.ptr, 0);
+}

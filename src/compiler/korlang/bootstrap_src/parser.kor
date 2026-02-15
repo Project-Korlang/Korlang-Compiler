@@ -1,0 +1,839 @@
+// Self-hosted frontend parser (Korlang-in-Korlang)
+
+module parser
+
+import ast
+import diag
+import token
+
+struct Parser {
+  tokens: List<Token>;
+  pos: Int;
+  diags: List<Diagnostic>;
+}
+
+enum InfixOp {
+  Binary(BinaryOp);
+  Assign(AssignOp);
+}
+struct InfixPower {
+  l_bp: Int;
+  r_bp: Int;
+  op: InfixOp;
+}
+
+fun Parser_new(tokens: List<Token>) -> Parser
+fun Parser_parse_program(self: Parser) -> Result<Program, List<Diagnostic>>
+
+// Item parsing
+fun Parser_parse_item(self: Parser) -> Result<Item, Bool>
+fun Parser_parse_fun(self: Parser, nogc: Bool) -> Result<FunDecl, Bool>
+fun Parser_parse_struct(self: Parser) -> Result<StructDecl, Bool>
+fun Parser_parse_enum(self: Parser) -> Result<EnumDecl, Bool>
+fun Parser_parse_type_alias(self: Parser) -> Result<TypeAliasDecl, Bool>
+fun Parser_parse_view(self: Parser) -> Result<ViewDecl, Bool>
+fun Parser_parse_view_block(self: Parser) -> Result<List<ViewNode>, Bool>
+fun Parser_parse_view_args(self: Parser) -> Result<List<ViewArg>, Bool>
+fun Parser_parse_view_arg(self: Parser) -> Result<ViewArg, Bool>
+fun Parser_parse_resource(self: Parser) -> Result<ResourceDecl, Bool>
+
+// Statements
+fun Parser_parse_stmt(self: Parser) -> Result<Stmt, Bool>
+fun Parser_parse_var_decl(self: Parser) -> Result<VarDecl, Bool>
+fun Parser_parse_var_decl_with(self: Parser, immutable: Bool) -> Result<VarDecl, Bool>
+fun Parser_parse_block(self: Parser) -> Result<Block, Bool>
+
+// Expressions
+fun Parser_parse_expr(self: Parser) -> Result<Expr, Bool>
+fun Parser_parse_expr_bp(self: Parser, min_bp: Int) -> Result<Expr, Bool>
+fun Parser_parse_prefix(self: Parser) -> Result<Expr, Bool>
+fun Parser_parse_if_expr(self: Parser) -> Result<Expr, Bool>
+fun Parser_parse_match_expr(self: Parser) -> Result<Expr, Bool>
+fun Parser_parse_match_arms(self: Parser) -> Result<List<MatchArm>, Bool>
+fun Parser_parse_pattern(self: Parser) -> Result<Pattern, Bool>
+fun Parser_parse_array_literal(self: Parser) -> Result<Expr, Bool>
+fun Parser_parse_tensor_literal(self: Parser, start: Span) -> Result<Expr, Bool>
+fun Parser_parse_tensor_row(self: Parser) -> Result<List<Expr>, Bool>
+fun Parser_parse_interpolated_string(self: Parser, first: Expr) -> Result<Expr, Bool>
+
+// Types
+fun Parser_parse_type_ref(self: Parser) -> Result<TypeRef, Bool>
+fun Parser_parse_shape_ref(self: Parser) -> Result<List<ShapeDim>, Bool>
+fun Parser_parse_shape_dim(self: Parser) -> Result<ShapeDim, Bool>
+
+// Params/idents
+fun Parser_parse_param_list(self: Parser) -> Result<List<Param>, Bool>
+fun Parser_parse_param(self: Parser) -> Result<Param, Bool>
+fun Parser_parse_qualified_ident(self: Parser) -> Result<String, Bool>
+
+// Helpers
+fun Parser_infix_binding_power(self: Parser) -> InfixPower?
+fun Parser_current(self: Parser) -> Token
+fun Parser_current_span(self: Parser) -> Span
+fun Parser_prev_span(self: Parser) -> Span
+fun Parser_span_of(self: Parser, expr: Expr) -> Span
+fun Parser_advance(self: Parser) -> Token
+fun Parser_at_eof(self: Parser) -> Bool
+fun Parser_check_kind(self: Parser, kind: TokenKind) -> Bool
+fun Parser_peek_kind(self: Parser, kind: TokenKind) -> Bool
+fun Parser_match_kind(self: Parser, kind: TokenKind) -> Bool
+fun Parser_match_keyword(self: Parser, kw: String) -> Bool
+fun Parser_check_keyword(self: Parser, kw: String) -> Bool
+fun Parser_expect_keyword(self: Parser, kw: String) -> Result<Bool, Bool>
+fun Parser_expect_kind(self: Parser, kind: TokenKind) -> Result<Token, Bool>
+fun Parser_expect_ident(self: Parser) -> Result<String, Bool>
+fun Parser_error(self: Parser, msg: String)
+fun Parser_error_at(self: Parser, span: Span, msg: String)
+fun Parser_synchronize(self: Parser)
+
+// --- Implementation ---
+
+fun Parser_new(tokens: List<Token>) -> Parser {
+  Parser { tokens: tokens, pos: 0, diags: List.new() }
+}
+
+fun Parser_parse_program(self: Parser) -> Result<Program, List<Diagnostic>> {
+  let items = List.new();
+  while (!self.at_eof()) {
+    let item = self.parse_item();
+    if (item.is_ok()) {
+      items.push(item.ok());
+    } else {
+      self.synchronize();
+    }
+  }
+
+  if (self.diags.len() == 0) {
+    Result.ok(Program { items: items })
+  } else {
+    Result.err(self.diags)
+  }
+}
+
+fun Parser_parse_item(self: Parser) -> Result<Item, Bool> {
+  let attrs = self.parse_attributes()?;
+  if (self.match_keyword("@nogc")) {
+    self.expect_keyword("fun")?;
+    return Result.ok(Item.Fun(self.parse_fun(true)?, attrs, Visibility.Public));
+  }
+  if (self.match_keyword("gpu")) {
+    self.expect_keyword("fun")?;
+    return Result.ok(Item.Fun(self.parse_fun(false)?));
+  }
+  if (self.match_keyword("fun")) { return Result.ok(Item.Fun(self.parse_fun(false)?, attrs, Visibility.Public)); }
+  if (self.match_keyword("struct")) { return Result.ok(Item.Struct(self.parse_struct()?, attrs, Visibility.Public)); }
+  if (self.match_keyword("enum")) { return Result.ok(Item.Enum(self.parse_enum()?, attrs, Visibility.Public)); }
+  if (self.match_keyword("type")) { return Result.ok(Item.TypeAlias(self.parse_type_alias()?, attrs, Visibility.Public)); }
+  if (self.match_keyword("view")) { return Result.ok(Item.View(self.parse_view()?, attrs, Visibility.Public)); }
+  if (self.match_keyword("resource")) { return Result.ok(Item.Resource(self.parse_resource()?, attrs, Visibility.Public)); }
+  if (self.check_keyword("let") || self.check_keyword("var")) {
+    return Result.ok(Item.Const(self.parse_var_decl()?, attrs, Visibility.Public));
+  }
+  Result.ok(Item.Stmt(self.parse_stmt()?))
+}
+
+fun Parser_parse_fun(self: Parser, nogc: Bool) -> Result<FunDecl, Bool> {
+  let start = self.prev_span();
+  let name = self.expect_ident()?;
+  let generics = List.new<String>(); // Simplified placeholder
+  let params = self.parse_param_list()?;
+  let ret = if (self.match_kind(TokenKind.Arrow)) { self.parse_type_ref()? } else { null };
+  let body = self.parse_block()?;
+  let end = body.span.end;
+  Result.ok(FunDecl { name: name, generics: generics, params: params, ret: ret, body: body, nogc: nogc, span: Span_new(start.start, end) })
+}
+
+fun Parser_parse_struct(self: Parser) -> Result<StructDecl, Bool> {
+  let start = self.prev_span();
+  let name = self.expect_ident()?;
+  let generics = List.new<String>(); // Simplified placeholder
+  self.expect_kind(TokenKind.LBrace)?;
+  let fields = List.new();
+  while (!self.check_kind(TokenKind.RBrace) && !self.at_eof()) {
+    let field_name = self.expect_ident()?;
+    self.expect_kind(TokenKind.Colon)?;
+    let ty = self.parse_type_ref()?;
+    let semi = self.expect_kind(TokenKind.Semi)?;
+    fields.push(FieldDecl { name: field_name, ty: ty, span: semi.span });
+  }
+  let end = self.expect_kind(TokenKind.RBrace)?;
+  Result.ok(StructDecl { name: name, generics: generics, fields: fields, span: Span_new(start.start, end.span.end) })
+}
+
+fun Parser_parse_enum(self: Parser) -> Result<EnumDecl, Bool> {
+  let start = self.prev_span();
+  let name = self.expect_ident()?;
+  self.expect_kind(TokenKind.LBrace)?;
+  let variants = List.new();
+  while (!self.check_kind(TokenKind.RBrace) && !self.at_eof()) {
+    let vname = self.expect_ident()?;
+    let payload = List.new();
+    if (self.match_kind(TokenKind.LParen)) {
+      if (!self.check_kind(TokenKind.RParen)) {
+        payload.push(self.parse_type_ref()?);
+        while (self.match_kind(TokenKind.Comma)) { payload.push(self.parse_type_ref()?); }
+      }
+      self.expect_kind(TokenKind.RParen)?;
+    }
+    let semi = self.expect_kind(TokenKind.Semi)?;
+    variants.push(VariantDecl { name: vname, payload: payload, span: semi.span });
+  }
+  let end = self.expect_kind(TokenKind.RBrace)?;
+  Result.ok(EnumDecl { name: name, variants: variants, span: Span_new(start.start, end.span.end) })
+}
+
+fun Parser_parse_type_alias(self: Parser) -> Result<TypeAliasDecl, Bool> {
+  let start = self.prev_span();
+  let name = self.expect_ident()?;
+  self.expect_kind(TokenKind.Eq)?;
+  let target = self.parse_type_ref()?;
+  let end = self.expect_kind(TokenKind.Semi)?;
+  Result.ok(TypeAliasDecl { name: name, target: target, span: Span_new(start.start, end.span.end) })
+}
+
+fun Parser_parse_view(self: Parser) -> Result<ViewDecl, Bool> {
+  let start = self.prev_span();
+  let name = self.expect_ident()?;
+  let params = self.parse_param_list()?;
+  let body = self.parse_view_block()?;
+  let end = if (body.len() > 0) { body[body.len() - 1].span } else { start };
+  Result.ok(ViewDecl { name: name, params: params, body: body, span: Span_new(start.start, end.end) })
+}
+
+fun Parser_parse_view_block(self: Parser) -> Result<List<ViewNode>, Bool> {
+  self.expect_kind(TokenKind.LBrace)?;
+  let nodes = List.new();
+  while (!self.check_kind(TokenKind.RBrace) && !self.at_eof()) {
+    let name = self.expect_ident()?;
+    let args = self.parse_view_args()?;
+    let children = if (self.check_kind(TokenKind.LBrace)) { self.parse_view_block()? } else { List.new() };
+    let semi = self.expect_kind(TokenKind.Semi)?;
+    nodes.push(ViewNode { name: name, args: args, children: children, span: semi.span });
+  }
+  self.expect_kind(TokenKind.RBrace)?;
+  Result.ok(nodes)
+}
+
+fun Parser_parse_view_args(self: Parser) -> Result<List<ViewArg>, Bool> {
+  self.expect_kind(TokenKind.LParen)?;
+  let args = List.new();
+  if (!self.check_kind(TokenKind.RParen)) {
+    args.push(self.parse_view_arg()?);
+    while (self.match_kind(TokenKind.Comma)) { args.push(self.parse_view_arg()?); }
+  }
+  self.expect_kind(TokenKind.RParen)?;
+  Result.ok(args)
+}
+
+fun Parser_parse_view_arg(self: Parser) -> Result<ViewArg, Bool> {
+  let start = self.current_span();
+  let name = null;
+  if (self.current().kind.is_identifier() && self.peek_kind(TokenKind.Colon)) {
+    name = self.expect_ident()?;
+    self.expect_kind(TokenKind.Colon)?;
+  }
+  let value = self.parse_expr()?;
+  Result.ok(ViewArg { name: name, value: value, span: Span_new(start.start, self.prev_span().end) })
+}
+
+fun Parser_parse_resource(self: Parser) -> Result<ResourceDecl, Bool> {
+  let start = self.prev_span();
+  let name = self.expect_ident()?;
+  self.expect_kind(TokenKind.LParen)?;
+  let resource_type = self.parse_qualified_ident()?;
+  self.expect_kind(TokenKind.RParen)?;
+  self.expect_kind(TokenKind.LBrace)?;
+  let entries = List.new();
+  while (!self.check_kind(TokenKind.RBrace) && !self.at_eof()) {
+    let key = self.expect_ident()?;
+    self.expect_kind(TokenKind.Colon)?;
+    let value = self.parse_expr()?;
+    let semi = self.expect_kind(TokenKind.Semi)?;
+    entries.push(ResourceEntry { key: key, value: value, span: semi.span });
+  }
+  let end = self.expect_kind(TokenKind.RBrace)?;
+  Result.ok(ResourceDecl { name: name, resource_type: resource_type, entries: entries, span: Span_new(start.start, end.span.end) })
+}
+
+fun Parser_parse_stmt(self: Parser) -> Result<Stmt, Bool> {
+  if (self.match_keyword("let")) { return Result.ok(Stmt.Var(self.parse_var_decl_with(true)?)); }
+  if (self.match_keyword("var")) { return Result.ok(Stmt.Var(self.parse_var_decl_with(false)?)); }
+  if (self.match_keyword("return")) {
+    let start = self.prev_span();
+    let expr = if (self.check_kind(TokenKind.Semi)) { null } else { self.parse_expr()? };
+    let end = self.expect_kind(TokenKind.Semi)?;
+    return Result.ok(Stmt.Return(expr, Span_new(start.start, end.span.end)));
+  }
+  if (self.match_keyword("break")) {
+    let start = self.prev_span();
+    let end = self.expect_kind(TokenKind.Semi)?;
+    return Result.ok(Stmt.Break(Span_new(start.start, end.span.end)));
+  }
+  if (self.match_keyword("continue")) {
+    let start = self.prev_span();
+    let end = self.expect_kind(TokenKind.Semi)?;
+    return Result.ok(Stmt.Continue(Span_new(start.start, end.span.end)));
+  }
+  if (self.match_keyword("if")) {
+    let start = self.prev_span();
+    let cond = self.parse_expr()?;
+    let then_block = self.parse_block()?;
+    let else_stmt = null;
+    if (self.match_keyword("else")) {
+      if (self.check_keyword("if")) {
+        else_stmt = self.parse_stmt()?;
+      } else {
+        else_stmt = Stmt.Block(self.parse_block()?);
+      }
+    }
+    let end = if (else_stmt != null) {
+      match (else_stmt) {
+        Stmt.Block(b) => b.span.end
+        Stmt.If(_, _, _, s) => s.end
+        _ => then_block.span.end
+      }
+    } else { then_block.span.end };
+    return Result.ok(Stmt.If(cond, then_block, else_stmt, Span_new(start.start, end)));
+  }
+  if (self.match_keyword("while")) {
+    let start = self.prev_span();
+    let cond = self.parse_expr()?;
+    let body = self.parse_block()?;
+    return Result.ok(Stmt.While(cond, body, Span_new(start.start, body.span.end)));
+  }
+  if (self.match_keyword("for")) {
+    let start = self.prev_span();
+    let name = self.expect_ident()?;
+    self.expect_keyword("in")?;
+    let iter = self.parse_expr()?;
+    let body = self.parse_block()?;
+    return Result.ok(Stmt.For(name, iter, body, Span_new(start.start, body.span.end)));
+  }
+  if (self.match_keyword("match")) {
+    let start = self.prev_span();
+    let expr = self.parse_expr()?;
+    let arms = self.parse_match_arms()?;
+    let end = if (arms.len() > 0) { arms[arms.len() - 1].span.end } else { start.end };
+    return Result.ok(Stmt.Match(expr, arms, Span_new(start.start, end)));
+  }
+  if (self.check_kind(TokenKind.LBrace)) {
+    return Result.ok(Stmt.Block(self.parse_block()?));
+  }
+
+  let expr = self.parse_expr()?;
+  let end = self.expect_kind(TokenKind.Semi)?;
+  Result.ok(Stmt.Expr(expr, Span_new(end.span.start, end.span.end)))
+}
+
+fun Parser_parse_var_decl(self: Parser) -> Result<VarDecl, Bool> {
+  if (self.match_keyword("let")) { self.parse_var_decl_with(true) }
+  else if (self.match_keyword("var")) { self.parse_var_decl_with(false) }
+  else { self.error("expected 'let' or 'var'"); Result.err(false) }
+}
+
+fun Parser_parse_var_decl_with(self: Parser, immutable: Bool) -> Result<VarDecl, Bool> {
+  let start = self.prev_span();
+  let name = self.expect_ident()?;
+  let ty = if (self.match_kind(TokenKind.Colon)) { self.parse_type_ref()? } else { null };
+  self.expect_kind(TokenKind.Eq)?;
+  let value = self.parse_expr()?;
+  let end = if (self.match_kind(TokenKind.Semi)) { self.prev_span() } else { self.prev_span() };
+  Result.ok(VarDecl { mutable: !immutable, name: name, ty: ty, value: value, span: Span_new(start.start, end.end) })
+}
+
+fun Parser_parse_block(self: Parser) -> Result<Block, Bool> {
+  let start = self.expect_kind(TokenKind.LBrace)?;
+  let stmts = List.new();
+  let tail = null;
+  while (!self.check_kind(TokenKind.RBrace) && !self.at_eof()) {
+    if self.check_keyword("let") || self.check_keyword("var") || self.check_keyword("return") ||
+      self.check_keyword("break") || self.check_keyword("continue") || self.check_keyword("if") ||
+      self.check_keyword("while") || self.check_keyword("for") || self.check_keyword("match") ||
+      self.check_kind(TokenKind.LBrace) {
+      stmts.push(self.parse_stmt()?);
+      continue;
+    }
+    let expr = self.parse_expr()?;
+    if (self.match_kind(TokenKind.Semi)) {
+      stmts.push(Stmt.Expr(expr, self.prev_span()));
+    } else {
+      tail = expr;
+      break;
+    }
+  }
+  let end = self.expect_kind(TokenKind.RBrace)?;
+  Result.ok(Block { stmts: stmts, tail: tail, span: Span_new(start.span.start, end.span.end) })
+}
+
+fun Parser_parse_expr(self: Parser) -> Result<Expr, Bool> { self.parse_expr_bp(0) }
+
+fun Parser_parse_expr_bp(self: Parser, min_bp: Int) -> Result<Expr, Bool> {
+  let lhs = self.parse_prefix()?;
+  while (true) {
+    if (self.match_kind(TokenKind.LParen)) {
+      let args = List.new();
+      if (!self.check_kind(TokenKind.RParen)) {
+        args.push(self.parse_expr()?);
+        while (self.match_kind(TokenKind.Comma)) { args.push(self.parse_expr()?); }
+      }
+      let end = self.expect_kind(TokenKind.RParen)?;
+      let span = Span_new(self.span_of(lhs).start, end.span.end);
+      lhs = Expr.Call(lhs, args, span);
+      continue;
+    }
+    if (self.match_kind(TokenKind.Dot)) {
+      let name = self.expect_ident()?;
+      let span = Span_new(self.span_of(lhs).start, self.prev_span().end);
+      lhs = Expr.Member(lhs, name, span);
+      continue;
+    }
+    if (self.match_kind(TokenKind.LBracket)) {
+      let index = self.parse_expr()?;
+      let end = self.expect_kind(TokenKind.RBracket)?;
+      let span = Span_new(self.span_of(lhs).start, end.span.end);
+      lhs = Expr.Index(lhs, index, span);
+      continue;
+    }
+
+    let infix = self.infix_binding_power();
+    if (infix == null) { break; }
+    let l_bp = infix.l_bp;
+    let r_bp = infix.r_bp;
+    let op = infix.op;
+    if (l_bp < min_bp) { break; }
+    self.advance();
+    let rhs = self.parse_expr_bp(r_bp)?;
+    let span = Span_new(self.span_of(lhs).start, self.span_of(rhs).end);
+    lhs = match (op) {
+      InfixOp.Binary(b) => Expr.Binary(lhs, b, rhs, span)
+      InfixOp.Assign(a) => Expr.Assign(lhs, a, rhs, span)
+    };
+  }
+  Result.ok(lhs)
+}
+
+fun Parser_parse_prefix(self: Parser) -> Result<Expr, Bool> {
+  let tok = self.current();
+  match (tok.kind) {
+    TokenKind.IntLiteral(v) => { self.advance(); Result.ok(Expr.Literal(Literal.Int(v), tok.span)) }
+    TokenKind.FloatLiteral(v) => { self.advance(); Result.ok(Expr.Literal(Literal.Float(v), tok.span)) }
+    TokenKind.StringLiteral(s) => {
+      self.advance();
+      if (self.check_kind(TokenKind.InterpStart)) {
+        self.parse_interpolated_string(Expr.Literal(Literal.String(s), tok.span))
+      } else {
+        Result.ok(Expr.Literal(Literal.String(s), tok.span))
+      }
+    }
+    TokenKind.CharLiteral(c) => { self.advance(); Result.ok(Expr.Literal(Literal.Char(c), tok.span)) }
+    TokenKind.BoolLiteral(b) => { self.advance(); Result.ok(Expr.Literal(Literal.Bool(b), tok.span)) }
+    TokenKind.Identifier(name) => {
+      self.advance();
+      if (name == "tensor" && self.check_kind(TokenKind.LBracket)) {
+        return self.parse_tensor_literal(tok.span);
+      }
+      Result.ok(Expr.Ident(name, tok.span))
+    }
+    TokenKind.Keyword(k) => {
+      if (k == "if") { return self.parse_if_expr(); }
+      if (k == "match") { return self.parse_match_expr(); }
+      if (k.starts_with("@")) {
+        self.advance();
+        Result.ok(Expr.Ident(k, tok.span))
+      } else { self.error_at(tok.span, "unexpected token in expression"); Result.err(false) }
+    }
+    TokenKind.LParen => { self.advance(); let expr = self.parse_expr()?; self.expect_kind(TokenKind.RParen)?; Result.ok(expr) }
+    TokenKind.LBracket => self.parse_array_literal()
+    TokenKind.LBrace => { let block = self.parse_block()?; Result.ok(Expr.Block(block)) }
+    TokenKind.Minus => {
+      self.advance(); let expr = self.parse_expr_bp(70)?; let span = Span_new(tok.span.start, self.span_of(expr).end);
+      Result.ok(Expr.Unary(UnaryOp.Neg, expr, span))
+    }
+    TokenKind.Plus => {
+      self.advance(); let expr = self.parse_expr_bp(70)?; let span = Span_new(tok.span.start, self.span_of(expr).end);
+      Result.ok(Expr.Unary(UnaryOp.Pos, expr, span))
+    }
+    TokenKind.Not => {
+      self.advance(); let expr = self.parse_expr_bp(70)?; let span = Span_new(tok.span.start, self.span_of(expr).end);
+      Result.ok(Expr.Unary(UnaryOp.Not, expr, span))
+    }
+    _ => { self.error_at(tok.span, "unexpected token in expression"); Result.err(false) }
+  }
+}
+
+fun Parser_parse_if_expr(self: Parser) -> Result<Expr, Bool> {
+  let start = self.current_span();
+  self.advance();
+  let cond = self.parse_expr()?;
+  let then_block = self.parse_block()?;
+  self.expect_keyword("else")?;
+  let else_block = self.parse_block()?;
+  let span = Span_new(start.start, else_block.span.end);
+  Result.ok(Expr.If(cond, then_block, else_block, span))
+}
+
+fun Parser_parse_match_expr(self: Parser) -> Result<Expr, Bool> {
+  let start = self.current_span();
+  self.advance();
+  let expr = self.parse_expr()?;
+  let arms = self.parse_match_arms()?;
+  let end = if (arms.len() > 0) { arms[arms.len() - 1].span.end } else { start.end };
+  Result.ok(Expr.Match(expr, arms, Span_new(start.start, end)))
+}
+
+fun Parser_parse_match_arms(self: Parser) -> Result<List<MatchArm>, Bool> {
+  self.expect_kind(TokenKind.LBrace)?;
+  let arms = List.new();
+  while (!self.check_kind(TokenKind.RBrace) && !self.at_eof()) {
+    let pat = self.parse_pattern()?;
+    self.expect_kind(TokenKind.FatArrow)?;
+    let body = if (self.check_kind(TokenKind.LBrace)) { Expr.Block(self.parse_block()?) } else { self.parse_expr()? };
+    let end = self.expect_kind(TokenKind.Semi)?;
+    arms.push(MatchArm { pat: pat, body: body, span: Span_new(end.span.start, end.span.end) });
+  }
+  self.expect_kind(TokenKind.RBrace)?;
+  Result.ok(arms)
+}
+
+fun Parser_parse_pattern(self: Parser) -> Result<Pattern, Bool> {
+  let tok = self.current();
+  match (tok.kind) {
+    TokenKind.Identifier(name) => {
+      self.advance();
+      if (name == "_") { return Result.ok(Pattern.Wildcard(tok.span)); } self.advance(); Result.ok(Pattern.Wildcard(tok.span)) }
+    TokenKind.Identifier(name) => {
+      self.advance();
+      if (self.match_kind(TokenKind.LBrace)) {
+        let fields = List.new();
+        if (!self.check_kind(TokenKind.RBrace)) {
+          while (true) {
+            let field = self.expect_ident()?;
+            let pat = if (self.match_kind(TokenKind.Colon)) { self.parse_pattern()? } else { Pattern.Ident(field, self.prev_span()) };
+            fields.push(FieldPattern { name: field, pat: pat });
+            if (!self.match_kind(TokenKind.Comma)) { break; }
+          }
+        }
+        let end = self.expect_kind(TokenKind.RBrace)?;
+        return Result.ok(Pattern.Struct(name, fields, Span_new(tok.span.start, end.span.end)));
+      }
+      Result.ok(Pattern.Ident(name, tok.span))
+    }
+    TokenKind.IntLiteral(v) => { self.advance(); Result.ok(Pattern.Literal(Literal.Int(v), tok.span)) }
+    TokenKind.FloatLiteral(v) => { self.advance(); Result.ok(Pattern.Literal(Literal.Float(v), tok.span)) }
+    TokenKind.StringLiteral(s) => { self.advance(); Result.ok(Pattern.Literal(Literal.String(s), tok.span)) }
+    TokenKind.CharLiteral(c) => { self.advance(); Result.ok(Pattern.Literal(Literal.Char(c), tok.span)) }
+    TokenKind.BoolLiteral(b) => { self.advance(); Result.ok(Pattern.Literal(Literal.Bool(b), tok.span)) }
+    TokenKind.LParen => {
+      self.advance();
+      let elems = List.new();
+      if (!self.check_kind(TokenKind.RParen)) {
+        elems.push(self.parse_pattern()?);
+        while (self.match_kind(TokenKind.Comma)) { elems.push(self.parse_pattern()?); }
+      }
+      let end = self.expect_kind(TokenKind.RParen)?;
+      Result.ok(Pattern.Tuple(elems, Span_new(tok.span.start, end.span.end)))
+    }
+    _ => { self.error_at(tok.span, "invalid pattern"); Result.err(false) }
+  }
+}
+
+fun Parser_parse_array_literal(self: Parser) -> Result<Expr, Bool> {
+  let start = self.expect_kind(TokenKind.LBracket)?;
+  let items = List.new();
+  if (!self.check_kind(TokenKind.RBracket)) {
+    items.push(self.parse_expr()?);
+    while (self.match_kind(TokenKind.Comma)) { items.push(self.parse_expr()?); }
+  }
+  let end = self.expect_kind(TokenKind.RBracket)?;
+  Result.ok(Expr.Array(items, Span_new(start.span.start, end.span.end)))
+}
+
+fun Parser_parse_tensor_literal(self: Parser, start: Span) -> Result<Expr, Bool> {
+  self.expect_kind(TokenKind.LBracket)?;
+  let rows = List.new();
+  if (!self.check_kind(TokenKind.RBracket)) {
+    rows.push(self.parse_tensor_row()?);
+    while (self.match_kind(TokenKind.Comma)) { rows.push(self.parse_tensor_row()?); }
+  }
+  let end = self.expect_kind(TokenKind.RBracket)?;
+  Result.ok(Expr.Tensor(rows, Span_new(start.start, end.span.end)))
+}
+
+fun Parser_parse_tensor_row(self: Parser) -> Result<List<Expr>, Bool> {
+  self.expect_kind(TokenKind.LBracket)?;
+  let row = List.new();
+  if (!self.check_kind(TokenKind.RBracket)) {
+    row.push(self.parse_expr()?);
+    while (self.match_kind(TokenKind.Comma)) { row.push(self.parse_expr()?); }
+  }
+  self.expect_kind(TokenKind.RBracket)?;
+  Result.ok(row)
+}
+
+fun Parser_parse_interpolated_string(self: Parser, first: Expr) -> Result<Expr, Bool> {
+  let parts = List.new();
+  parts.push(first);
+  while (self.match_kind(TokenKind.InterpStart)) {
+    let expr = self.parse_expr()?;
+    self.expect_kind(TokenKind.InterpEnd)?;
+    parts.push(expr);
+    if (self.current().kind.is_string_literal()) {
+      let span = self.current().span;
+      let s = self.current().kind.string_value();
+      self.advance();
+      parts.push(Expr.Literal(Literal.String(s), span));
+    } else {
+      break;
+    }
+  }
+  let span = Span_new(self.span_of(parts[0]).start, self.span_of(parts[parts.len() - 1]).end);
+  Result.ok(Expr.Interpolated(parts, span))
+}
+
+fun Parser_parse_type_ref(self: Parser) -> Result<TypeRef, Bool> {
+  let base = if (self.match_kind(TokenKind.LParen)) {
+    let start = self.prev_span();
+    let elems = List.new();
+    if (!self.check_kind(TokenKind.RParen)) {
+      elems.push(self.parse_type_ref()?);
+      while (self.match_kind(TokenKind.Comma)) { elems.push(self.parse_type_ref()?); }
+    }
+    let end = self.expect_kind(TokenKind.RParen)?;
+    TypeRef.Tuple(elems, Span_new(start.start, end.span.end))
+  } else if (self.match_kind(TokenKind.LBracket)) {
+    let start = self.prev_span();
+    let inner = self.parse_type_ref()?;
+    let end = self.expect_kind(TokenKind.RBracket)?;
+    TypeRef.Array(inner, Span_new(start.start, end.span.end))
+  } else {
+    let name = self.parse_qualified_ident()?;
+    let span = self.prev_span();
+    if (name == "Tensor" && self.match_kind(TokenKind.Lt)) {
+      let elem = self.parse_type_ref()?;
+      self.expect_kind(TokenKind.Comma)?;
+      let shape = self.parse_shape_ref()?;
+      let end = self.expect_kind(TokenKind.Gt)?;
+      TypeRef.Tensor(elem, shape, Span_new(span.start, end.span.end))
+    } else if (self.match_kind(TokenKind.Lt)) { 
+      let args = List.new();
+      args.push(self.parse_type_ref()?);
+      while (self.match_kind(TokenKind.Comma)) { args.push(self.parse_type_ref()?); }
+      let end = self.expect_kind(TokenKind.Gt)?;
+      TypeRef.Named(name, args, Span_new(span.start, end.span.end))
+    } else {
+      TypeRef.Named(name, List.new(), span)
+    }
+  };
+
+  if (self.match_kind(TokenKind.Question)) {
+    let span = self.prev_span();
+    Result.ok(TypeRef.Optional(base, span))
+  } else if (self.match_kind(TokenKind.Not)) {
+    let span = self.prev_span();
+    Result.ok(TypeRef.NonNull(base, span))
+  } else {
+    Result.ok(base)
+  }
+}
+
+fun Parser_parse_shape_ref(self: Parser) -> Result<List<ShapeDim>, Bool> {
+  self.expect_kind(TokenKind.LBracket)?;
+  let dims = List.new();
+  if (!self.check_kind(TokenKind.RBracket)) {
+    dims.push(self.parse_shape_dim()?);
+    while (self.match_kind(TokenKind.Comma)) { dims.push(self.parse_shape_dim()?); }
+  }
+  self.expect_kind(TokenKind.RBracket)?;
+  Result.ok(dims)
+}
+
+fun Parser_parse_shape_dim(self: Parser) -> Result<ShapeDim, Bool> {
+  let tok = self.current();
+  match (tok.kind) {
+    TokenKind.IntLiteral(v) => { self.advance(); Result.ok(ShapeDim.Int(v)) }
+    TokenKind.Identifier(name) => { self.advance(); Result.ok(if (name == "_") { ShapeDim.Unknown } else { ShapeDim.Ident(name) }) }
+    _ => { self.error_at(tok.span, "invalid shape dimension"); Result.err(false) }
+  }
+}
+
+fun Parser_parse_param_list(self: Parser) -> Result<List<Param>, Bool> {
+  self.expect_kind(TokenKind.LParen)?;
+  let params = List.new();
+  if (!self.check_kind(TokenKind.RParen)) {
+    params.push(self.parse_param()?);
+    while (self.match_kind(TokenKind.Comma)) { params.push(self.parse_param()?); }
+  }
+  self.expect_kind(TokenKind.RParen)?;
+  Result.ok(params)
+}
+
+fun Parser_parse_param(self: Parser) -> Result<Param, Bool> {
+  let start = self.current_span();
+  let name = self.expect_ident()?;
+  self.expect_kind(TokenKind.Colon)?;
+  let ty = self.parse_type_ref()?;
+  Result.ok(Param { name: name, ty: ty, span: Span_new(start.start, self.prev_span().end) })
+}
+
+fun Parser_parse_qualified_ident(self: Parser) -> Result<String, Bool> {
+  let name = self.expect_ident()?;
+  while (self.match_kind(TokenKind.Dot)) {
+    let part = self.expect_ident()?;
+    name = name + "." + part;
+  }
+  Result.ok(name)
+}
+
+fun Parser_infix_binding_power(self: Parser) -> InfixPower? {
+  let k = self.current().kind;
+  if (k == TokenKind.Star) { return InfixPower { l_bp: 60, r_bp: 61, op: InfixOp.Binary(BinaryOp.Mul) }; }
+  if (k == TokenKind.Slash) { return InfixPower { l_bp: 60, r_bp: 61, op: InfixOp.Binary(BinaryOp.Div) }; }
+  if (k == TokenKind.Percent) { return InfixPower { l_bp: 60, r_bp: 61, op: InfixOp.Binary(BinaryOp.Mod) }; }
+  if (k == TokenKind.DotStar) { return InfixPower { l_bp: 60, r_bp: 61, op: InfixOp.Binary(BinaryOp.DotMul) }; }
+  if (k == TokenKind.DotSlash) { return InfixPower { l_bp: 60, r_bp: 61, op: InfixOp.Binary(BinaryOp.DotDiv) }; }
+  if (k == TokenKind.At) { return InfixPower { l_bp: 60, r_bp: 61, op: InfixOp.Binary(BinaryOp.MatMul) }; }
+  if (k == TokenKind.Plus) { return InfixPower { l_bp: 50, r_bp: 51, op: InfixOp.Binary(BinaryOp.Add) }; }
+  if (k == TokenKind.Minus) { return InfixPower { l_bp: 50, r_bp: 51, op: InfixOp.Binary(BinaryOp.Sub) }; }
+  if (k == TokenKind.DotPlus) { return InfixPower { l_bp: 50, r_bp: 51, op: InfixOp.Binary(BinaryOp.DotAdd) }; }
+  if (k == TokenKind.DotMinus) { return InfixPower { l_bp: 50, r_bp: 51, op: InfixOp.Binary(BinaryOp.DotSub) }; }
+  if (k == TokenKind.Lt) { return InfixPower { l_bp: 40, r_bp: 41, op: InfixOp.Binary(BinaryOp.Lt) }; }
+  if (k == TokenKind.LtEq) { return InfixPower { l_bp: 40, r_bp: 41, op: InfixOp.Binary(BinaryOp.LtEq) }; }
+  if (k == TokenKind.Gt) { return InfixPower { l_bp: 40, r_bp: 41, op: InfixOp.Binary(BinaryOp.Gt) }; }
+  if (k == TokenKind.GtEq) { return InfixPower { l_bp: 40, r_bp: 41, op: InfixOp.Binary(BinaryOp.GtEq) }; }
+  if (k == TokenKind.EqEq) { return InfixPower { l_bp: 35, r_bp: 36, op: InfixOp.Binary(BinaryOp.Eq) }; }
+  if (k == TokenKind.NotEq) { return InfixPower { l_bp: 35, r_bp: 36, op: InfixOp.Binary(BinaryOp.NotEq) }; }
+  if (k == TokenKind.AndAnd) { return InfixPower { l_bp: 30, r_bp: 31, op: InfixOp.Binary(BinaryOp.And) }; }
+  if (k == TokenKind.OrOr) { return InfixPower { l_bp: 25, r_bp: 26, op: InfixOp.Binary(BinaryOp.Or) }; }
+  if (k == TokenKind.NullCoalesce) { return InfixPower { l_bp: 20, r_bp: 20, op: InfixOp.Binary(BinaryOp.NullCoalesce) }; }
+  if (k == TokenKind.Pipe) { return InfixPower { l_bp: 15, r_bp: 16, op: InfixOp.Binary(BinaryOp.Pipe) }; }
+  if (k == TokenKind.Arrow) { return InfixPower { l_bp: 15, r_bp: 16, op: InfixOp.Binary(BinaryOp.Arrow) }; }
+  if (k == TokenKind.Eq) { return InfixPower { l_bp: 10, r_bp: 10, op: InfixOp.Assign(AssignOp.Assign) }; }
+  if (k == TokenKind.PlusEq) { return InfixPower { l_bp: 10, r_bp: 10, op: InfixOp.Assign(AssignOp.AddAssign) }; }
+  if (k == TokenKind.MinusEq) { return InfixPower { l_bp: 10, r_bp: 10, op: InfixOp.Assign(AssignOp.SubAssign) }; }
+  if (k == TokenKind.StarEq) { return InfixPower { l_bp: 10, r_bp: 10, op: InfixOp.Assign(AssignOp.MulAssign) }; }
+  if (k == TokenKind.SlashEq) { return InfixPower { l_bp: 10, r_bp: 10, op: InfixOp.Assign(AssignOp.DivAssign) }; }
+  if (k == TokenKind.PercentEq) { return InfixPower { l_bp: 10, r_bp: 10, op: InfixOp.Assign(AssignOp.ModAssign) }; }
+  null
+}
+
+fun Parser_current(self: Parser) -> Token { self.tokens[self.pos] }
+fun Parser_current_span(self: Parser) -> Span { self.current().span }
+fun Parser_prev_span(self: Parser) -> Span {
+  let idx = if (self.pos > 0) { self.pos - 1 } else { 0 };
+  self.tokens[idx].span
+}
+
+fun Parser_span_of(self: Parser, expr: Expr) -> Span {
+  match (expr) {
+    Expr.Literal(_, s) => s
+    Expr.Ident(_, s) => s
+    Expr.Unary(_, _, s) => s
+    Expr.Binary(_, _, _, s) => s
+    Expr.Assign(_, _, _, s) => s
+    Expr.Call(_, _, s) => s
+    Expr.Member(_, _, s) => s
+    Expr.Index(_, _, s) => s
+    Expr.If(_, _, _, s) => s
+    Expr.Match(_, _, s) => s
+    Expr.Block(b) => b.span
+    Expr.Array(_, s) => s
+    Expr.Tensor(_, s) => s
+    Expr.Interpolated(_, s) => s
+  }
+}
+
+fun Parser_advance(self: Parser) -> Token {
+  if (!self.at_eof()) { self.pos = self.pos + 1; }
+  self.tokens[self.pos - 1]
+}
+
+fun Parser_at_eof(self: Parser) -> Bool { self.current().kind == TokenKind.Eof }
+
+fun Parser_check_kind(self: Parser, kind: TokenKind) -> Bool { self.current().kind == kind }
+
+fun Parser_peek_kind(self: Parser, kind: TokenKind) -> Bool {
+  if (self.pos + 1 >= self.tokens.len()) { false } else { self.tokens[self.pos + 1].kind == kind }
+}
+
+fun Parser_match_kind(self: Parser, kind: TokenKind) -> Bool {
+  if (self.check_kind(kind)) { self.advance(); true } else { false }
+}
+
+fun Parser_match_keyword(self: Parser, kw: String) -> Bool {
+  if (self.check_keyword(kw)) { self.advance(); true } else { false }
+}
+
+fun Parser_check_keyword(self: Parser, kw: String) -> Bool {
+  self.current().kind.is_keyword(kw)
+}
+
+fun Parser_expect_keyword(self: Parser, kw: String) -> Result<Bool, Bool> {
+  if (self.check_keyword(kw)) { self.advance(); Result.ok(true) } else { self.error("expected keyword '" + kw + "'"); Result.err(false) }
+}
+
+fun Parser_expect_kind(self: Parser, kind: TokenKind) -> Result<Token, Bool> {
+  if (self.check_kind(kind)) { Result.ok(self.advance()) } else { self.error("expected token"); Result.err(false) }
+}
+
+fun Parser_expect_ident(self: Parser) -> Result<String, Bool> {
+  let k = self.current().kind;
+  if (k.is_identifier()) {
+    let name = k.ident_value();
+    self.advance();
+    Result.ok(name)
+  } else {
+    self.error("expected identifier");
+    Result.err(false)
+  }
+}
+
+fun Parser_error(self: Parser, msg: String) {
+  let span = self.current_span();
+  self.diags.push(Diagnostic_new(msg, span));
+}
+
+fun Parser_error_at(self: Parser, span: Span, msg: String) {
+  self.diags.push(Diagnostic_new(msg, span));
+}
+
+fun Parser_synchronize(self: Parser) {
+  while (!self.at_eof()) {
+    let k = self.current().kind;
+    if (k == TokenKind.Semi || k == TokenKind.RBrace) { self.advance(); break; }
+    if (self.check_keyword("fun") 
+        || self.check_keyword("gpu") 
+        || self.check_keyword("struct") 
+        || self.check_keyword("enum") 
+        || self.check_keyword("type") 
+        || self.check_keyword("view") 
+        || self.check_keyword("resource") 
+        || self.check_keyword("let") 
+        || self.check_keyword("var") 
+        || self.check_keyword("if") 
+        || self.check_keyword("while") 
+        || self.check_keyword("for") 
+        || self.check_keyword("match") 
+        || self.check_keyword("return")) {
+      break;
+    }
+    self.advance();
+  }
+}
+
+fun Parser_parse_attributes(self: Parser) -> Result<List<Attribute>, Bool> {
+  let attrs = List.new();
+  while (self.check_kind(TokenKind.At)) {
+    let start = self.advance().span;
+    let name = self.expect_ident()?;
+    let args = List.new();
+    if (self.match_kind(TokenKind.LParen)) {
+      if (!self.check_kind(TokenKind.RParen)) {
+        args.push(self.parse_expr()?);
+        while (self.match_kind(TokenKind.Comma)) { args.push(self.parse_expr()?); }
+      }
+      self.expect_kind(TokenKind.RParen)?;
+    }
+    attrs.push(Attribute { name: name, args: args, span: Span_new(start.start, self.prev_span().end) });
+  }
+  Result.ok(attrs)
+}

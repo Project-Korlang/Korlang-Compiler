@@ -1,0 +1,53 @@
+// Self-hosted semantic analysis entry point
+
+module compiler.sema
+
+import compiler.ast
+import compiler.diag
+import compiler.infer
+import compiler.nogc
+import compiler.region
+import compiler.linear
+import compiler.smartptr
+
+struct Sema {
+  diags: List<Diagnostic>;
+}
+
+fun Sema_new() -> Sema
+fun Sema_check_program(self: Sema, prog: Program) -> Result<Program, List<Diagnostic>>
+
+fun Sema_new() -> Sema {
+  Sema { diags: List.new() }
+}
+
+fun Sema_check_program(self: Sema, prog: Program) -> Result<Program, List<Diagnostic>> {
+  let inferred = infer_program(prog);
+  if (inferred.is_err()) {
+    return Result.err(inferred.err());
+  }
+
+  let all_diags = List.new();
+
+  let nogc_diags = validate_nogc(inferred.ok());
+  let i = 0;
+  while (i < nogc_diags.len()) { all_diags.push(nogc_diags[i]); i = i + 1; }
+
+  let region_diags = region_infer_program(inferred.ok());
+  let j = 0;
+  while (j < region_diags.len()) { all_diags.push(region_diags[j]); j = j + 1; }
+
+  let linear_diags = linear_check_program(inferred.ok());
+  let k = 0;
+  while (k < linear_diags.len()) { all_diags.push(linear_diags[k]); k = k + 1; }
+
+  let ptr_diags = smartptr_validate_program(inferred.ok());
+  let m = 0;
+  while (m < ptr_diags.len()) { all_diags.push(ptr_diags[m]); m = m + 1; }
+
+  if (all_diags.len() > 0) {
+    return Result.err(all_diags);
+  }
+
+  Result.ok(inferred.ok())
+}

@@ -1,0 +1,28 @@
+/*
+   Korlang Minimal Verification
+*/
+
+fun main() -> Int {
+    echo("=== START ===");
+    let a = 10;
+    let b = 20;
+    let c = a + b;
+    echo("Sum 10 + 20:");
+    echo(c);
+    
+    if (c == 30) {
+        echo("IF: SUCCESS");
+    } else {
+        echo("IF: FAILURE");
+    }
+
+    let i = 0;
+    echo("LOOP:");
+    while (i < 3) {
+        echo(i);
+        i = i + 1;
+    }
+    
+    echo("=== END ===");
+    0
+}

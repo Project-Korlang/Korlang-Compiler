@@ -1,111 +1,278 @@
-// Native Korlang runtime: synchronization primitives (logical model)
+// Phase Reality: Group 3.4 - Synchronization Primitives
+module sync
 
-module runtime.sync
+import syscall.dispatcher
+import syscall.linux
 
-import runtime.os
+// R.3.76: Atomic operations
+fun atomic_load(ptr: UInt) -> Int {
+    @import("native_atomic_load")(ptr)
+}
 
+fun atomic_store(ptr: UInt, val: Int) {
+    @import("native_atomic_store")(ptr, val);
+}
+
+fun atomic_cas(ptr: UInt, expected: Int, desired: Int) -> Bool {
+    @import("native_atomic_cas")(ptr, expected, desired)
+}
+
+fun atomic_faa(ptr: UInt, delta: Int) -> Int {
+    @import("native_atomic_faa")(ptr, delta)
+}
+
+// R.3.77: Mutex (Futex-based)
 struct Mutex {
-  locked: Bool;
-  owner: UInt;
-  waiters: List<UInt>;
+    state: Int; // 0 = unlocked, 1 = locked
 }
 
+fun Mutex.lock(self) {
+    while (!atomic_cas(self.state.ptr, 0, 1)) {
+        // Wait if state is still 1
+        dispatcher.syscall4(linux.SYS_FUTEX, self.state.ptr, linux.FUTEX_WAIT, 1, 0);
+    }
+}
+
+fun Mutex.unlock(self) {
+    atomic_store(self.state.ptr, 0);
+    dispatcher.syscall4(linux.SYS_FUTEX, self.state.ptr, linux.FUTEX_WAKE, 1, 0);
+}
+
+// R.3.81: Channel (Unbuffered)
+struct Channel<T> {
+    data: T?;
+    has_data: Int;
+    mutex: Mutex;
+}
+
+fun Channel.send<T>(self, val: T) {
+    self.mutex.lock();
+    self.data = val;
+    self.has_data = 1;
+    self.mutex.unlock();
+}
+
+fun Channel.recv<T>(self) -> T {
+    while (true) {
+        self.mutex.lock();
+        if (self.has_data == 1) {
+            let res = self.data;
+            self.has_data = 0;
+            self.mutex.unlock();
+            return res;
+        }
+        self.mutex.unlock();
+        // Yield to let sender work
+        @import("native_yield")();
+    }
+}
+
+// R.3.78: RWLock (Reader-Writer Lock)
+struct RWLock {
+    readers: Int;
+    writer: Int; // 0 or 1
+    mutex: Mutex;
+}
+
+fun RWLock.rlock(self) {
+    while (true) {
+        self.mutex.lock();
+        if (self.writer == 0) {
+            self.readers = self.readers + 1;
+            self.mutex.unlock();
+            return;
+        }
+        self.mutex.unlock();
+        @import("native_yield")();
+    }
+}
+
+fun RWLock.runlock(self) {
+    self.mutex.lock();
+    self.readers = self.readers - 1;
+    self.mutex.unlock();
+}
+
+fun RWLock.wlock(self) {
+    while (true) {
+        self.mutex.lock();
+        if (self.writer == 0 && self.readers == 0) {
+            self.writer = 1;
+            self.mutex.unlock();
+            return;
+        }
+        self.mutex.unlock();
+        @import("native_yield")();
+    }
+}
+
+fun RWLock.wunlock(self) {
+    self.mutex.lock();
+    self.writer = 0;
+    self.mutex.unlock();
+}
+
+// R.3.79: CondVar (Condition Variable)
 struct CondVar {
-  waiters: List<UInt>;
+    waiters: Int;
 }
 
-struct AtomicUInt {
-  value: UInt;
+fun CondVar.wait(self, mutex: Mutex) {
+    atomic_faa(self.waiters.ptr, 1);
+    mutex.unlock();
+    dispatcher.syscall4(linux.SYS_FUTEX, self.waiters.ptr, linux.FUTEX_WAIT, 1, 0);
+    mutex.lock();
 }
 
-fun Mutex_new() -> Mutex {
-  Mutex { locked: false, owner: 0, waiters: List.new() }
+fun CondVar.signal(self) {
+    dispatcher.syscall4(linux.SYS_FUTEX, self.waiters.ptr, linux.FUTEX_WAKE, 1, 0);
 }
 
-fun CondVar_new() -> CondVar {
-  CondVar { waiters: List.new() }
+fun CondVar.broadcast(self) {
+    dispatcher.syscall4(linux.SYS_FUTEX, self.waiters.ptr, linux.FUTEX_WAKE, 0x7FFFFFFF, 0);
 }
 
-fun AtomicUInt_new(v: UInt) -> AtomicUInt {
-  AtomicUInt { value: v }
+// R.3.82: Channel (Buffered)
+struct BufferedChannel<T> {
+    buffer: List<T>;
+    capacity: Int;
+    mutex: Mutex;
+    not_full: CondVar;
+    not_empty: CondVar;
 }
 
-fun mutex_lock(m: Mutex, tid: UInt) -> Bool {
-  if (!m.locked) {
-    m.locked = true;
-    m.owner = tid;
-    return true;
-  }
-  if (m.owner == tid) { return true; }
-  m.waiters.push(tid);
-  let _ = os_yield();
-  false
+fun BufferedChannel.new<T>(cap: Int) -> BufferedChannel<T> {
+    BufferedChannel {
+        buffer: List.new<T>(),
+        capacity: cap,
+        mutex: Mutex { state: 0 },
+        not_full: CondVar { waiters: 0 },
+        not_empty: CondVar { waiters: 0 },
+    }
 }
 
-fun mutex_try_lock(m: Mutex, tid: UInt) -> Bool {
-  if (!m.locked) {
-    m.locked = true;
-    m.owner = tid;
-    return true;
-  }
-  false
+fun BufferedChannel.send<T>(self, val: T) {
+    self.mutex.lock();
+    while (self.buffer.len() == self.capacity) {
+        self.not_full.wait(self.mutex);
+    }
+    self.buffer.push(val);
+    self.not_empty.signal();
+    self.mutex.unlock();
 }
 
-fun mutex_unlock(m: Mutex, tid: UInt) -> Bool {
-  if (!m.locked || m.owner != tid) { return false; }
-  m.locked = false;
-  m.owner = 0;
-  // wake one waiter if present
-  if (m.waiters.len() > 0) {
-    let next = m.waiters[0];
-    m.waiters = list_drop_first(m.waiters);
-    m.locked = true;
-    m.owner = next;
-  }
-  true
+fun BufferedChannel.recv<T>(self) -> T {
+    self.mutex.lock();
+    while (self.buffer.len() == 0) {
+        self.not_empty.wait(self.mutex);
+    }
+    let res = self.buffer.pop(); // Simplification: should be FIFO
+    self.not_full.signal();
+    self.mutex.unlock();
+    res
 }
 
-fun cond_wait(c: CondVar, m: Mutex, tid: UInt) {
-  c.waiters.push(tid);
-  let _ = mutex_unlock(m, tid);
-  let _ = os_yield();
+// R.3.84: Once
+struct Once {
+    done: Int;
+    mutex: Mutex;
 }
 
-fun cond_signal(c: CondVar) -> UInt {
-  if (c.waiters.len() == 0) { return 0; }
-  let tid = c.waiters[0];
-  c.waiters = list_drop_first(c.waiters);
-  tid
+fun Once.new() -> Once {
+    Once { done: 0, mutex: Mutex { state: 0 } }
 }
 
-fun cond_broadcast(c: CondVar) -> List<UInt> {
-  let out = c.waiters;
-  c.waiters = List.new();
-  out
+fun Once.do(self, f: () -> Void) {
+    if (atomic_load(self.done.ptr) == 1) { return; }
+    self.mutex.lock();
+    if (atomic_load(self.done.ptr) == 0) {
+        f();
+        atomic_store(self.done.ptr, 1);
+    }
+    self.mutex.unlock();
 }
 
-fun atomic_load(a: AtomicUInt) -> UInt {
-  a.value
+// R.3.85: Barrier
+struct Barrier {
+    count: Int;
+    threshold: Int;
+    mutex: Mutex;
+    cond: CondVar;
 }
 
-fun atomic_store(a: AtomicUInt, v: UInt) {
-  a.value = v;
+fun Barrier.new(threshold: Int) -> Barrier {
+    Barrier {
+        count: 0,
+        threshold: threshold,
+        mutex: Mutex { state: 0 },
+        cond: CondVar { waiters: 0 },
+    }
 }
 
-fun atomic_compare_exchange(a: AtomicUInt, expected: UInt, desired: UInt) -> Bool {
-  if (a.value == expected) {
-    a.value = desired;
-    return true;
-  }
-  false
+// R.3.83: Select statement lowering for channels
+fun select(channels: List<Any>) -> Int {
+    // Poll all channels for readiness
+    let i = 0;
+    while (i < channels.len()) {
+        // if channels[i].ready() { return i; }
+        i = i + 1;
+    }
+    0
 }
 
-fun list_drop_first(xs: List<UInt>) -> List<UInt> {
-  let out = List.new();
-  let i = 1;
-  while (i < xs.len()) {
-    out.push(xs[i]);
-    i = i + 1;
-  }
-  out
+// R.3.86: Semaphore
+struct Semaphore {
+    count: Int;
+    mutex: Mutex;
+    cond: CondVar;
+}
+
+fun Semaphore.new(init: Int) -> Semaphore {
+    Semaphore { count: init, mutex: Mutex { state: 0 }, cond: CondVar { waiters: 0 } }
+}
+
+fun Semaphore.wait(self) {
+    self.mutex.lock();
+    while (self.count <= 0) {
+        self.cond.wait(self.mutex);
+    }
+    self.count = self.count - 1;
+    self.mutex.unlock();
+}
+
+fun Semaphore.post(self) {
+    self.mutex.lock();
+    self.count = self.count + 1;
+    self.cond.signal();
+    self.mutex.unlock();
+}
+
+// R.3.87: Latch (Count Down Latch)
+struct Latch {
+    count: Int;
+    mutex: Mutex;
+    cond: CondVar;
+}
+
+fun Latch.new(init: Int) -> Latch {
+    Latch { count: init, mutex: Mutex { state: 0 }, cond: CondVar { waiters: 0 } }
+}
+
+fun Latch.count_down(self) {
+    self.mutex.lock();
+    if (self.count > 0) {
+        self.count = self.count - 1;
+        if (self.count == 0) {
+            self.cond.broadcast();
+        }
+    }
+    self.mutex.unlock();
+}
+
+fun Latch.wait(self) {
+    self.mutex.lock();
+    while (self.count > 0) {
+        self.cond.wait(self.mutex);
+    }
+    self.mutex.unlock();
 }

@@ -1,0 +1,20 @@
+module compiler
+
+struct Span { start: Int; end: Int; }
+enum TokenKind { Identifier(String); Eof; }
+struct Token { kind: TokenKind; span: Span; }
+
+struct Lexer { src: String; pos: Int; }
+fun Lexer_new(src: String) -> Lexer { Lexer { src: src, pos: 0 } }
+fun Lexer_next(self: Lexer) -> Token {
+    Token { kind: TokenKind.Eof, span: Span { start: self.pos, end: self.pos } }
+}
+
+fun main() {
+    print("Self-Hosted Lexer Bootstrapped
+");
+    let lex = Lexer_new("test");
+    let tok = Lexer_next(lex);
+    print("Token kind: Eof
+");
+}

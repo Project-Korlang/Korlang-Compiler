@@ -1,0 +1,44 @@
+// Task 20.1.164: Native I/O multiplexer using Linux epoll_wait
+// Task 20.1.167: Native high-resolution timer using timerfd on Linux
+
+module os.linux_io
+
+import syscall.dispatcher
+import syscall.linux
+
+struct EpollEvent {
+    events: UInt;
+    data: UInt;
+}
+
+struct Poller {
+    epfd: Int;
+}
+
+fun Poller_new() -> Poller {
+    let fd = dispatcher.syscall1(linux.SYS_EPOLL_CREATE1, 0);
+    Poller { epfd: fd }
+}
+
+fun Poller_add(self: Poller, fd: Int, events: UInt, data: UInt) {
+    let ev = EpollEvent { events: events, data: data };
+    dispatcher.syscall4(linux.SYS_EPOLL_CTL, self.epfd, linux.EPOLL_CTL_ADD, fd, ev.ptr);
+}
+
+fun Poller_wait(self: Poller, max_events: Int, timeout_ms: Int) -> List<EpollEvent> {
+    let events = List.new<EpollEvent>();
+    // Pre-allocate buffer
+    let i = 0; while (i < max_events) { events.push(EpollEvent { events: 0, data: 0 }); i = i + 1; }
+    
+    let n = dispatcher.syscall4(linux.SYS_EPOLL_WAIT, self.epfd, events.ptr, max_events, timeout_ms);
+    
+    // Logic to trim list to n (stub)
+    events
+}
+
+// TimerFD integration
+fun create_timer(ms: Int) -> Int {
+    let fd = dispatcher.syscall2(linux.SYS_TIMERFD_CREATE, linux.CLOCK_MONOTONIC, 0);
+    // itimerspec logic (stub)
+    fd
+}

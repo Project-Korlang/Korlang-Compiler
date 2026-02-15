@@ -32,6 +32,15 @@ const R13: UInt = 13;
 const R14: UInt = 14;
 const R15: UInt = 15;
 
+const XMM0: UInt = 0;
+const XMM1: UInt = 1;
+const XMM2: UInt = 2;
+const XMM3: UInt = 3;
+const XMM4: UInt = 4;
+const XMM5: UInt = 5;
+const XMM6: UInt = 6;
+const XMM7: UInt = 7;
+
 fun abi_info(cc: CallingConv) -> AbiInfo {
   match (cc) {
     CallingConv.SysV => AbiInfo {

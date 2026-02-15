@@ -1,0 +1,9 @@
+// Native Korlang Self-Hosted Compiler (New Version)
+module driver
+
+import lexer
+
+fun main() -> Int {
+    print("Test build Lexer OK\n");
+    0
+}

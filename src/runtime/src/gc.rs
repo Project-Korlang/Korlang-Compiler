@@ -1,7 +1,12 @@
 use std::alloc::{alloc, dealloc, Layout};
 use std::collections::{HashSet, VecDeque};
 use std::sync::{Mutex, atomic::{AtomicBool, Ordering}, LazyLock};
+use std::time::Instant;
 use super::{gc_trace, finalizer};
+use crate::profiler::PROFILER;
+
+pub mod tuner;
+pub mod cross_heap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Color {
@@ -37,6 +42,7 @@ impl GcHeap {
     }
 
     pub fn alloc(&self, size: usize, align: usize) -> *mut u8 {
+        PROFILER.record_allocation(size);
         let layout = Layout::from_size_align(size, align.max(1)).unwrap();
         let ptr = unsafe { alloc(layout) };
         let obj = GcObject {
@@ -60,7 +66,12 @@ impl GcHeap {
         self.roots.lock().unwrap().remove(&(ptr as usize));
     }
 
+    pub fn predict_pause(&self) -> std::time::Duration {
+        PROFILER.get_average_pause()
+    }
+
     pub fn collect(&self) {
+        let start = Instant::now();
         let roots = self.roots.lock().unwrap().clone();
         let mut objs = self.objects.lock().unwrap();
 
@@ -115,6 +126,7 @@ impl GcHeap {
             }
         }
         *self.roots.lock().unwrap() = updated_roots;
+        PROFILER.record_gc_pause(start.elapsed());
     }
 
     pub fn set_concurrent(&self, enabled: bool) {

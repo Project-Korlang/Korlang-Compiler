@@ -1,0 +1,26 @@
+// Phase Reality: Simplified System for Bootstrap
+module system
+
+fun now() -> Int {
+    @import("native_time_now")()
+}
+
+// R.2.82: sleep
+fun sleep(ms: Int) {
+    @import("native_time_sleep")(ms)
+}
+
+// R.2.83: args
+fun args() -> List<String> {
+    @import("native_os_args")()
+}
+
+// R.2.84: env
+fun env(key: String) -> String? {
+    @import("native_os_env")(key)
+}
+
+// R.2.85: exit
+fun exit(code: Int) {
+    @import("native_os_exit")(code)
+}

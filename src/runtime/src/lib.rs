@@ -1,6 +1,7 @@
 use std::alloc::{alloc, dealloc, Layout};
 
-mod gc;
+pub mod profiler;
+pub mod gc;
 mod gc_trace;
 mod stack_alloc;
 mod arc;

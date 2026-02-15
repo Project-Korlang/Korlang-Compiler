@@ -1,0 +1,23 @@
+// Phase Reality: Group 4.3 - Layout Algorithms
+module ui.layout
+
+// R.4.90 - R.4.91: Stack Layouts
+fun vstack(children: List<Element>) {
+    let y = 0;
+    let i = 0;
+    while (i < children.len()) {
+        children[i].set_pos(0, y);
+        y = y + children[i].height();
+        i = i + 1;
+    }
+}
+
+fun hstack(children: List<Element>) {
+    let x = 0;
+    let i = 0;
+    while (i < children.len()) {
+        children[i].set_pos(x, 0);
+        x = x + children[i].width();
+        i = i + 1;
+    }
+}

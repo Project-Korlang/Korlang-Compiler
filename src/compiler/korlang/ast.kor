@@ -20,6 +20,7 @@ enum Item {
 }
 
 struct FunDecl {
+  is_pub: Bool;
   name: String;
   params: List<Param>;
   ret: TypeRef?;
@@ -35,6 +36,7 @@ struct Param {
 }
 
 struct StructDecl {
+  is_pub: Bool;
   name: String;
   fields: List<FieldDecl>;
   span: Span;
@@ -47,6 +49,7 @@ struct FieldDecl {
 }
 
 struct EnumDecl {
+  is_pub: Bool;
   name: String;
   variants: List<VariantDecl>;
   span: Span;
@@ -59,12 +62,14 @@ struct VariantDecl {
 }
 
 struct TypeAliasDecl {
+  is_pub: Bool;
   name: String;
   target: TypeRef;
   span: Span;
 }
 
 struct ViewDecl {
+  is_pub: Bool;
   name: String;
   params: List<Param>;
   body: List<ViewNode>;
@@ -85,6 +90,7 @@ struct ViewArg {
 }
 
 struct ResourceDecl {
+  is_pub: Bool;
   name: String;
   resource_type: String;
   entries: List<ResourceEntry>;
@@ -98,6 +104,7 @@ struct ResourceEntry {
 }
 
 struct VarDecl {
+  is_pub: Bool;
   mutable: Bool;
   name: String;
   ty: TypeRef?;

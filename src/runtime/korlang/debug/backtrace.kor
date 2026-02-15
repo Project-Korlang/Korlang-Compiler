@@ -1,0 +1,38 @@
+// Task 20.1.155: Native stack-trace capture without libunwind
+module debug.backtrace
+
+struct StackFrame {
+    pc: UInt;
+    fp: UInt;
+}
+
+fun capture_backtrace() -> List<StackFrame> {
+    let frames = List.new<StackFrame>();
+    
+    // In Korlang, we can access RBP/EBP via asm block or intrinsic
+    let current_fp = @import("native_get_fp")();
+    
+    while (current_fp != 0) {
+        // [current_fp] is previous FP
+        // [current_fp + 8] is Return Address (PC)
+        let pc = @import("native_read_mem_u64")(current_fp + 8);
+        let next_fp = @import("native_read_mem_u64")(current_fp);
+        
+        frames.push(StackFrame { pc: pc, fp: current_fp });
+        
+        if (next_fp <= current_fp) { break; } // Sanity check
+        current_fp = next_fp;
+    }
+    
+    frames
+}
+
+fun print_backtrace() {
+    let frames = capture_backtrace();
+    echo("--- Native Backtrace ---");
+    let i = 0;
+    while (i < frames.len()) {
+        echo("#" + i + "  0x" + frames[i].pc + "");
+        i = i + 1;
+    }
+}

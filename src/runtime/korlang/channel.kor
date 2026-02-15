@@ -1,0 +1,78 @@
+// Phase Reality: Group 3.3 - Channel Implementation
+module channel
+
+import sync
+
+struct Channel<T> {
+    buffer: [T?];
+    capacity: Int;
+    lock: sync.Mutex;
+    not_full: sync.CondVar;
+    not_empty: sync.CondVar;
+    head: Int;
+    tail: Int;
+    size: Int;
+    closed: Bool;
+}
+
+fun new<T>(capacity: Int) -> Channel<T> {
+    Channel {
+        buffer: [null; capacity],
+        capacity: capacity,
+        lock: sync.Mutex { state: 0 },
+        not_full: sync.CondVar { counter: 0 },
+        not_empty: sync.CondVar { counter: 0 },
+        head: 0,
+        tail: 0,
+        size: 0,
+        closed: false,
+    }
+}
+
+// R.3.82: MPMC Send
+fun Channel.send(self, val: T) -> Bool {
+    self.lock.lock();
+    while (self.size == self.capacity && !self.closed) {
+        self.not_full.wait(self.lock);
+    }
+    if (self.closed) {
+        self.lock.unlock();
+        return false;
+    }
+    
+    self.buffer[self.tail] = val;
+    self.tail = (self.tail + 1) % self.capacity;
+    self.size = self.size + 1;
+    
+    self.not_empty.notify_one();
+    self.lock.unlock();
+    true
+}
+
+// R.3.82: MPMC Recv
+fun Channel.recv(self) -> T? {
+    self.lock.lock();
+    while (self.size == 0 && !self.closed) {
+        self.not_empty.wait(self.lock);
+    }
+    if (self.size == 0 && self.closed) {
+        self.lock.unlock();
+        return null;
+    }
+    
+    let val = self.buffer[self.head];
+    self.head = (self.head + 1) % self.capacity;
+    self.size = self.size - 1;
+    
+    self.not_full.notify_one();
+    self.lock.unlock();
+    val
+}
+
+fun Channel.close(self) {
+    self.lock.lock();
+    self.closed = true;
+    self.not_full.notify_all();
+    self.not_empty.notify_all();
+    self.lock.unlock();
+}

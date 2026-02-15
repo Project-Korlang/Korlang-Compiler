@@ -1,0 +1,22 @@
+// Phase Reality: Group 4.3 - IDE High Performance Buffer
+module core.buffer
+
+struct Piece {
+    buffer_id: Int; // 0: original, 1: added
+    offset: Int;
+    length: Int;
+}
+
+class PieceTable {
+    pieces: List<Piece>;
+    original: String;
+    added: String;
+
+    // R.4.104: Table implementation
+    fun insert(self, pos: Int, text: String) {
+        let start = self.added.length();
+        self.added = self.added + text;
+        let new_piece = Piece { buffer_id: 1, offset: start, length: text.length() };
+        self.pieces.insert(pos, new_piece);
+    }
+}

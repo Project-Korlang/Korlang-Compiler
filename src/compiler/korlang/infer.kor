@@ -334,6 +334,22 @@ fun unify(ctx: InferCtx, a: Type, b: Type, span: Span, diags: List<Diagnostic>) 
 
   if (ra == rb) { return; }
 
+  // E.2.4: Nothing converts to any Optional
+  match (ra) {
+    Type.Nothing => match (rb) {
+        Type.Optional(_) => return
+        _ => {}
+    }
+    _ => {}
+  }
+  match (rb) {
+    Type.Nothing => match (ra) {
+        Type.Optional(_) => return
+        _ => {}
+    }
+    _ => {}
+  }
+
   match (ra) {
     Type.Var(id) => {
       if (occurs(id, rb, ctx)) { diags.push(Diagnostic_new("recursive type", span)); return; }

@@ -1,8 +1,41 @@
-// Korlang standard library: io
-
+// Phase Reality: Group 2.1 - Core I/O Implementation (Bootstrap Compatible)
 module io
 
-fun print(value: Any) -> Void
-fun println(value: Any) -> Void
-fun readLine() -> String?
-fun toString(value: Any) -> String
+// R.2.1: print
+fun print(val: Any) {
+    let s = val.to_string();
+    @import("native_write")(1, s.ptr, s.length());
+}
+
+// R.2.2: echo
+fun echo(val: Any) {
+    print(val);
+    print("\n");
+}
+
+// R.2.3: input
+fun input() -> Any {
+    return "";
+}
+
+// R.2.4: input with prompt
+fun input_prompt(msg: String) -> String {
+    print(msg);
+    input()
+}
+
+// R.2.5: write (alias for print)
+fun write(val: Any) {
+    print(val);
+}
+
+// R.2.6: error
+fun error(val: Any) {
+    let s = val.to_string();
+    @import("native_write")(2, s.ptr, s.length());
+}
+
+// R.2.7: clear
+fun clear() {
+    echo("Status: Screen cleared.");
+}

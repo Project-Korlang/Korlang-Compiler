@@ -1,0 +1,232 @@
+// Phase 15.1: region-based lifetime inference (conservative)
+
+module region
+
+import ast
+import diag
+
+struct VarRegion {
+  name: String;
+  region: Int;
+  alloc_like: Bool;
+}
+
+struct RegionCtx {
+  next_region: Int;
+  root_region: Int;
+  vars: List<VarRegion>;
+}
+
+fun region_infer_program(prog: Program) -> List<Diagnostic>
+
+fun region_check_item(ctx: RegionCtx, item: Item, diags: List<Diagnostic>)
+fun region_check_fun(ctx: RegionCtx, f: FunDecl, diags: List<Diagnostic>)
+fun region_check_block(ctx: RegionCtx, b: Block, region: Int, diags: List<Diagnostic>)
+fun region_check_stmt(ctx: RegionCtx, stmt: Stmt, region: Int, diags: List<Diagnostic>)
+fun region_check_expr(ctx: RegionCtx, expr: Expr, region: Int, diags: List<Diagnostic>)
+
+fun region_is_alloc_expr(expr: Expr) -> Bool
+fun region_lookup_var_region(ctx: RegionCtx, name: String) -> VarRegion?
+fun region_set_var_region(ctx: RegionCtx, name: String, region: Int, alloc_like: Bool)
+
+fun region_infer_program(prog: Program) -> List<Diagnostic> {
+  let diags = List.new();
+  let ctx = RegionCtx { next_region: 1, root_region: 0, vars: List.new() };
+
+  let i = 0;
+  while (i < prog.items.len()) {
+    region_check_item(ctx, prog.items[i], diags);
+    i = i + 1;
+  }
+  diags
+}
+
+fun region_check_item(ctx: RegionCtx, item: Item, diags: List<Diagnostic>) {
+  match (item) {
+    Item.Fun(f) => region_check_fun(ctx, f, diags)
+    Item.Const(v) => {
+      let alloc_like = region_is_alloc_expr(v.value);
+      region_set_var_region(ctx, v.name, 0, alloc_like);
+      region_check_expr(ctx, v.value, 0, diags);
+    }
+    Item.Stmt(s) => region_check_stmt(ctx, s, 0, diags)
+    _ => {}
+  }
+}
+
+fun region_check_fun(ctx: RegionCtx, f: FunDecl, diags: List<Diagnostic>) {
+  let saved = ctx.vars;
+  let root = ctx.next_region;
+  ctx.next_region = ctx.next_region + 1;
+  ctx.root_region = root;
+
+  let i = 0;
+  while (i < f.params.len()) {
+    region_set_var_region(ctx, f.params[i].name, root, false);
+    i = i + 1;
+  }
+
+  region_check_block(ctx, f.body, root, diags);
+
+  ctx.vars = saved;
+}
+
+fun region_check_block(ctx: RegionCtx, b: Block, region: Int, diags: List<Diagnostic>) {
+  let i = 0;
+  while (i < b.stmts.len()) {
+    region_check_stmt(ctx, b.stmts[i], region, diags);
+    i = i + 1;
+  }
+  if (b.tail != null) {
+    region_check_expr(ctx, b.tail, region, diags);
+  }
+}
+
+fun region_check_stmt(ctx: RegionCtx, stmt: Stmt, region: Int, diags: List<Diagnostic>) {
+  match (stmt) {
+    Stmt.Var(v) => {
+      let alloc_like = region_is_alloc_expr(v.value);
+      region_set_var_region(ctx, v.name, region, alloc_like);
+      region_check_expr(ctx, v.value, region, diags);
+    }
+    Stmt.Return(e, span) => {
+      if (e != null) {
+        region_check_expr(ctx, e, region, diags);
+        match (e) {
+          Expr.Ident(name, _) => {
+            let vr = region_lookup_var_region(ctx, name);
+            if (vr != null && vr.alloc_like && vr.region != ctx.root_region) {
+              diags.push(Diagnostic_new("region escape: local allocation returned from narrower scope", span));
+            }
+          }
+          _ => {}
+        }
+      }
+    }
+    Stmt.If(cond, then_block, else_stmt, _) => {
+      region_check_expr(ctx, cond, region, diags);
+      let r1 = ctx.next_region;
+      ctx.next_region = ctx.next_region + 1;
+      region_check_block(ctx, then_block, r1, diags);
+      if (else_stmt != null) {
+        match (else_stmt) {
+          Stmt.Block(b) => {
+            let r2 = ctx.next_region;
+            ctx.next_region = ctx.next_region + 1;
+            region_check_block(ctx, b, r2, diags);
+          }
+          _ => region_check_stmt(ctx, else_stmt, region, diags)
+        }
+      }
+    }
+    Stmt.While(cond, body, _) => {
+      region_check_expr(ctx, cond, region, diags);
+      let r = ctx.next_region;
+      ctx.next_region = ctx.next_region + 1;
+      region_check_block(ctx, body, r, diags);
+    }
+    Stmt.For(name, iter, body, _) => {
+      region_check_expr(ctx, iter, region, diags);
+      let r = ctx.next_region;
+      ctx.next_region = ctx.next_region + 1;
+      region_set_var_region(ctx, name, r, false);
+      region_check_block(ctx, body, r, diags);
+    }
+    Stmt.Match(e, arms, _) => {
+      region_check_expr(ctx, e, region, diags);
+      let i = 0;
+      while (i < arms.len()) {
+        region_check_expr(ctx, arms[i].body, region, diags);
+        i = i + 1;
+      }
+    }
+    Stmt.Block(b) => {
+      let r = ctx.next_region;
+      ctx.next_region = ctx.next_region + 1;
+      region_check_block(ctx, b, r, diags);
+    }
+    Stmt.Expr(e, _) => region_check_expr(ctx, e, region, diags)
+    _ => {}
+  }
+}
+
+fun region_check_expr(ctx: RegionCtx, expr: Expr, region: Int, diags: List<Diagnostic>) {
+  match (expr) {
+    Expr.Unary(_, e, _) => region_check_expr(ctx, e, region, diags)
+    Expr.Binary(l, _, r, _) => { region_check_expr(ctx, l, region, diags); region_check_expr(ctx, r, region, diags); }
+    Expr.Assign(l, _, r, _) => { region_check_expr(ctx, l, region, diags); region_check_expr(ctx, r, region, diags); }
+    Expr.Call(c, args, _) => {
+      region_check_expr(ctx, c, region, diags);
+      let i = 0;
+      while (i < args.len()) { region_check_expr(ctx, args[i], region, diags); i = i + 1; }
+    }
+    Expr.Member(t, _, _) => region_check_expr(ctx, t, region, diags)
+    Expr.Index(t, i, _) => { region_check_expr(ctx, t, region, diags); region_check_expr(ctx, i, region, diags); }
+    Expr.If(c, tb, eb, _) => {
+      region_check_expr(ctx, c, region, diags);
+      region_check_block(ctx, tb, region, diags);
+      region_check_block(ctx, eb, region, diags);
+    }
+    Expr.Match(e, arms, _) => {
+      region_check_expr(ctx, e, region, diags);
+      let i = 0;
+      while (i < arms.len()) { region_check_expr(ctx, arms[i].body, region, diags); i = i + 1; }
+    }
+    Expr.Block(b) => region_check_block(ctx, b, region, diags)
+    Expr.Array(items, _) => {
+      let i = 0;
+      while (i < items.len()) { region_check_expr(ctx, items[i], region, diags); i = i + 1; }
+    }
+    Expr.Tensor(rows, _) => {
+      let r = 0;
+      while (r < rows.len()) {
+        let c = 0;
+        while (c < rows[r].len()) { region_check_expr(ctx, rows[r][c], region, diags); c = c + 1; }
+        r = r + 1;
+      }
+    }
+    Expr.Interpolated(parts, _) => {
+      let i = 0;
+      while (i < parts.len()) { region_check_expr(ctx, parts[i], region, diags); i = i + 1; }
+    }
+    _ => {}
+  }
+}
+
+fun region_is_alloc_expr(expr: Expr) -> Bool {
+  match (expr) {
+    Expr.Array(_, _) => true
+    Expr.Tensor(_, _) => true
+    Expr.Interpolated(_, _) => true
+    Expr.Literal(l, _) => match (l) { Literal.String(_) => true _ => false }
+    Expr.Call(callee, _, _) => {
+      match (callee) {
+        Expr.Ident(name, _) => name == "alloc" || name == "unique_new" || name == "shared_new"
+        _ => false
+      }
+    }
+    _ => false
+  }
+}
+
+fun region_lookup_var_region(ctx: RegionCtx, name: String) -> VarRegion? {
+  let i = 0;
+  while (i < ctx.vars.len()) {
+    if (ctx.vars[i].name == name) { return ctx.vars[i]; }
+    i = i + 1;
+  }
+  null
+}
+
+fun region_set_var_region(ctx: RegionCtx, name: String, region: Int, alloc_like: Bool) {
+  let i = 0;
+  while (i < ctx.vars.len()) {
+    if (ctx.vars[i].name == name) {
+      ctx.vars[i].region = region;
+      ctx.vars[i].alloc_like = alloc_like;
+      return;
+    }
+    i = i + 1;
+  }
+  ctx.vars.push(VarRegion { name: name, region: region, alloc_like: alloc_like });
+}

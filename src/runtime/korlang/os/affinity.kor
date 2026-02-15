@@ -1,0 +1,17 @@
+// Task 20.1.168: CPU core affinity manager
+module os.affinity
+
+import syscall.dispatcher
+import syscall.linux
+
+fun set_thread_affinity(tid: Int, cpu_id: Int) {
+    // cpu_set_t is a bitmask
+    let mask: UInt = 1 << cpu_id;
+    // sched_setaffinity(pid, size, mask)
+    dispatcher.syscall3(linux.SYS_SCHED_SETAFFINITY, tid, 8, mask.ptr);
+}
+
+fun get_cpu_count() -> Int {
+    // Simplified: in real implementation, read /proc/cpuinfo or use syscall
+    @import("native_get_cpu_count")()
+}

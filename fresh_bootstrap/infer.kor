@@ -1,0 +1,421 @@
+// Self-hosted semantic analysis: type inference + unification
+
+module compiler.infer
+
+import compiler.ast
+import compiler.diag
+import compiler.types
+import compiler.symtab
+
+struct Constraint {
+  left: Type;
+  right: Type;
+  span: Span;
+}
+
+struct Subst {
+  id: Int;
+  ty: Type;
+}
+
+struct InferCtx {
+  next_var: Int;
+  constraints: List<Constraint>;
+  subs: List<Subst>;
+  symtab: SymbolTable;
+}
+
+fun infer_program(prog: Program) -> Result<Program, List<Diagnostic>>
+
+// internal helpers
+fun infer_item(ctx: InferCtx, item: Item, diags: List<Diagnostic>)
+fun infer_fun(ctx: InferCtx, f: FunDecl, diags: List<Diagnostic>)
+fun infer_stmt(ctx: InferCtx, stmt: Stmt, diags: List<Diagnostic>) -> Type
+fun infer_block(ctx: InferCtx, block: Block, diags: List<Diagnostic>) -> Type
+fun infer_expr(ctx: InferCtx, expr: Expr, diags: List<Diagnostic>) -> Type
+fun infer_pattern(ctx: InferCtx, pat: Pattern, diags: List<Diagnostic>) -> Type
+
+fun fresh_var(ctx: InferCtx) -> Type
+fun add_constraint(ctx: InferCtx, a: Type, b: Type, span: Span)
+fun unify_all(ctx: InferCtx, diags: List<Diagnostic>)
+fun unify(ctx: InferCtx, a: Type, b: Type, span: Span, diags: List<Diagnostic>)
+fun resolve(ctx: InferCtx, t: Type) -> Type
+fun occurs(id: Int, t: Type, ctx: InferCtx) -> Bool
+
+fun is_number(t: Type) -> Bool
+
+fun infer_program(prog: Program) -> Result<Program, List<Diagnostic>> {
+  let diags = List.new();
+  let ctx = InferCtx {
+    next_var: 0,
+    constraints: List.new(),
+    subs: List.new(),
+    symtab: SymbolTable_new(),
+  };
+
+  // Predefine function signatures.
+  let i = 0;
+  while (i < prog.items.len()) {
+    match (prog.items[i]) {
+      Item.Fun(f) => {
+        let params = List.new();
+        let j = 0;
+        while (j < f.params.len()) {
+          params.push(type_from_ref(f.params[j].ty));
+          j = j + 1;
+        }
+        let ret = if (f.ret != null) { type_from_ref(f.ret) } else { Type.Unit };
+        ctx.symtab.define(f.name, Type.Func(params, ret), false, SymbolKind.Func);
+      }
+      _ => {}
+    }
+    i = i + 1;
+  }
+
+  let k = 0;
+  while (k < prog.items.len()) {
+    infer_item(ctx, prog.items[k], diags);
+    k = k + 1;
+  }
+
+  unify_all(ctx, diags);
+
+  if (diags.len() == 0) { Result.ok(prog) } else { Result.err(diags) }
+}
+
+fun infer_item(ctx: InferCtx, item: Item, diags: List<Diagnostic>) {
+  match (item) {
+    Item.Fun(f) => infer_fun(ctx, f, diags)
+    Item.Const(v) => {
+      let ty = infer_expr(ctx, v.value, diags);
+      if (v.ty != null) { add_constraint(ctx, type_from_ref(v.ty), ty, v.span); }
+      ctx.symtab.define(v.name, ty, v.mutable, SymbolKind.Var);
+    }
+    Item.Stmt(s) => { infer_stmt(ctx, s, diags); }
+    _ => {}
+  }
+}
+
+fun infer_fun(ctx: InferCtx, f: FunDecl, diags: List<Diagnostic>) {
+  ctx.symtab.enter();
+  let i = 0;
+  while (i < f.params.len()) {
+    let p = f.params[i];
+    ctx.symtab.define(p.name, type_from_ref(p.ty), false, SymbolKind.Var);
+    i = i + 1;
+  }
+  let body_ty = infer_block(ctx, f.body, diags);
+  if (f.ret != null) {
+    add_constraint(ctx, type_from_ref(f.ret), body_ty, f.span);
+  }
+  ctx.symtab.exit();
+}
+
+fun infer_stmt(ctx: InferCtx, stmt: Stmt, diags: List<Diagnostic>) -> Type {
+  match (stmt) {
+    Stmt.Var(v) => {
+      let ty = infer_expr(ctx, v.value, diags);
+      if (v.ty != null) { add_constraint(ctx, type_from_ref(v.ty), ty, v.span); }
+      ctx.symtab.define(v.name, ty, v.mutable, SymbolKind.Var);
+      Type.Unit
+    }
+    Stmt.Expr(e, _) => { infer_expr(ctx, e, diags); Type.Unit }
+    Stmt.Return(e, _) => { if (e != null) { infer_expr(ctx, e, diags) } else { Type.Unit } }
+    Stmt.Break(_) => Type.Nothing
+    Stmt.Continue(_) => Type.Nothing
+    Stmt.If(cond, then_block, else_stmt, span) => {
+      let ct = infer_expr(ctx, cond, diags);
+      add_constraint(ctx, Type.Bool, ct, span);
+      let tt = infer_block(ctx, then_block, diags);
+      let et = if (else_stmt != null) {
+        match (else_stmt) {
+          Stmt.Block(b) => infer_block(ctx, b, diags)
+          _ => infer_stmt(ctx, else_stmt, diags)
+        }
+      } else { Type.Unit };
+      if (tt == et) { tt } else { Type.Any }
+    }
+    Stmt.While(cond, body, span) => {
+      let ct = infer_expr(ctx, cond, diags);
+      add_constraint(ctx, Type.Bool, ct, span);
+      infer_block(ctx, body, diags);
+      Type.Unit
+    }
+    Stmt.For(name, iter, body, span) => {
+      let it = infer_expr(ctx, iter, diags);
+      let elem = match (it) {
+        Type.Array(inner) => inner
+        _ => { diags.push(Diagnostic_new("for-in expects array", span)); Type.Unknown }
+      };
+      ctx.symtab.enter();
+      ctx.symtab.define(name, elem, false, SymbolKind.Var);
+      infer_block(ctx, body, diags);
+      ctx.symtab.exit();
+      Type.Unit
+    }
+    Stmt.Match(expr, arms, _) => {
+      let _ = infer_expr(ctx, expr, diags);
+      let ty = Type.Unknown;
+      let i = 0;
+      while (i < arms.len()) {
+        let at = infer_expr(ctx, arms[i].body, diags);
+        ty = if (ty == Type.Unknown) { at } else if (ty == at) { ty } else { Type.Any };
+        i = i + 1;
+      }
+      ty
+    }
+    Stmt.Block(b) => infer_block(ctx, b, diags)
+  }
+}
+
+fun infer_block(ctx: InferCtx, block: Block, diags: List<Diagnostic>) -> Type {
+  ctx.symtab.enter();
+  let i = 0;
+  while (i < block.stmts.len()) {
+    infer_stmt(ctx, block.stmts[i], diags);
+    i = i + 1;
+  }
+  let ty = if (block.tail != null) { infer_expr(ctx, block.tail, diags) } else { Type.Unit };
+  ctx.symtab.exit();
+  ty
+}
+
+fun infer_expr(ctx: InferCtx, expr: Expr, diags: List<Diagnostic>) -> Type {
+  match (expr) {
+    Expr.Literal(l, _) => match (l) {
+      Literal.Int(_) => Type.Int
+      Literal.Float(_) => Type.Float
+      Literal.String(_) => Type.String
+      Literal.Char(_) => Type.Char
+      Literal.Bool(_) => Type.Bool
+    }
+    Expr.Ident(name, span) => {
+      let sym = ctx.symtab.lookup(name);
+      if (sym == null) { diags.push(Diagnostic_new("undefined symbol '" + name + "'", span)); return Type.Unknown; }
+      sym.ty
+    }
+    Expr.Unary(op, e, span) => {
+      let t = infer_expr(ctx, e, diags);
+      match (op) {
+        UnaryOp.Not => { add_constraint(ctx, Type.Bool, t, span); Type.Bool }
+        UnaryOp.Neg => { if (!is_number(t)) { add_constraint(ctx, Type.Number, t, span); } Type.Float }
+        UnaryOp.Pos => { if (!is_number(t)) { add_constraint(ctx, Type.Number, t, span); } Type.Float }
+        UnaryOp.BitNot => { add_constraint(ctx, Type.Int, t, span); Type.Int }
+      }
+    }
+    Expr.Binary(left, op, right, span) => {
+      let lt = infer_expr(ctx, left, diags);
+      let rt = infer_expr(ctx, right, diags);
+      if (op == BinaryOp.Add || op == BinaryOp.Sub || op == BinaryOp.Mul || op == BinaryOp.Div || op == BinaryOp.Mod) {
+        add_constraint(ctx, Type.Number, lt, span);
+        add_constraint(ctx, Type.Number, rt, span);
+        if (lt == rt) { lt } else { Type.Float }
+      } else if (op == BinaryOp.DotAdd || op == BinaryOp.DotSub || op == BinaryOp.DotMul || op == BinaryOp.DotDiv || op == BinaryOp.MatMul) {
+        Type.Tensor(Type.Float)
+      } else if (op == BinaryOp.Eq || op == BinaryOp.NotEq || op == BinaryOp.Lt || op == BinaryOp.LtEq || op == BinaryOp.Gt || op == BinaryOp.GtEq) {
+        Type.Bool
+      } else if (op == BinaryOp.And || op == BinaryOp.Or) {
+        add_constraint(ctx, Type.Bool, lt, span);
+        add_constraint(ctx, Type.Bool, rt, span);
+        Type.Bool
+      } else if (op == BinaryOp.NullCoalesce) {
+        if (lt == rt) { lt } else { Type.Any }
+      } else {
+        rt
+      }
+    }
+    Expr.Assign(left, _, right, span) => {
+      let lt = infer_expr(ctx, left, diags);
+      let rt = infer_expr(ctx, right, diags);
+      add_constraint(ctx, lt, rt, span);
+      lt
+    }
+    Expr.Call(callee, args, span) => {
+      let ct = infer_expr(ctx, callee, diags);
+      match (ct) {
+        Type.Func(params, ret) => {
+          let i = 0;
+          while (i < args.len()) {
+            let at = infer_expr(ctx, args[i], diags);
+            if (i < params.len()) { add_constraint(ctx, params[i], at, span); }
+            i = i + 1;
+          }
+          ret
+        }
+        _ => { diags.push(Diagnostic_new("call to non-function", span)); Type.Unknown }
+      }
+    }
+    Expr.Member(target, _, _) => { infer_expr(ctx, target, diags); Type.Unknown }
+    Expr.Index(target, index, span) => {
+      let t = infer_expr(ctx, target, diags);
+      let _ = infer_expr(ctx, index, diags);
+      match (t) {
+        Type.Array(inner) => inner
+        _ => { diags.push(Diagnostic_new("indexing non-array", span)); Type.Unknown }
+      }
+    }
+    Expr.If(cond, then_block, else_block, span) => {
+      let ct = infer_expr(ctx, cond, diags);
+      add_constraint(ctx, Type.Bool, ct, span);
+      let tt = infer_block(ctx, then_block, diags);
+      let et = infer_block(ctx, else_block, diags);
+      if (tt == et) { tt } else { Type.Any }
+    }
+    Expr.Match(expr, arms, _) => {
+      let _ = infer_expr(ctx, expr, diags);
+      let ty = Type.Unknown;
+      let i = 0;
+      while (i < arms.len()) {
+        let at = infer_expr(ctx, arms[i].body, diags);
+        ty = if (ty == Type.Unknown) { at } else if (ty == at) { ty } else { Type.Any };
+        i = i + 1;
+      }
+      ty
+    }
+    Expr.Block(b) => infer_block(ctx, b, diags)
+    Expr.Array(items, span) => {
+      let elem = Type.Unknown;
+      let i = 0;
+      while (i < items.len()) {
+        let t = infer_expr(ctx, items[i], diags);
+        elem = if (elem == Type.Unknown) { t } else if (elem == t) { elem } else { Type.Any };
+        i = i + 1;
+      }
+      Type.Array(elem)
+    }
+    Expr.Tensor(_, _) => Type.Tensor(Type.Float)
+    Expr.Interpolated(parts, _) => { let i = 0; while (i < parts.len()) { infer_expr(ctx, parts[i], diags); i = i + 1; } Type.String }
+  }
+}
+
+fun infer_pattern(ctx: InferCtx, pat: Pattern, diags: List<Diagnostic>) -> Type {
+  match (pat) {
+    Pattern.Ident(_, _) => fresh_var(ctx)
+    Pattern.Wildcard(_) => fresh_var(ctx)
+    Pattern.Literal(l, _) => match (l) {
+      Literal.Int(_) => Type.Int
+      Literal.Float(_) => Type.Float
+      Literal.String(_) => Type.String
+      Literal.Char(_) => Type.Char
+      Literal.Bool(_) => Type.Bool
+    }
+    Pattern.Tuple(ps, _) => {
+      let tys = List.new();
+      let i = 0;
+      while (i < ps.len()) { tys.push(infer_pattern(ctx, ps[i], diags)); i = i + 1; }
+      Type.Tuple(tys)
+    }
+    Pattern.Struct(_, _, _) => fresh_var(ctx)
+  }
+}
+
+fun fresh_var(ctx: InferCtx) -> Type {
+  let id = ctx.next_var;
+  ctx.next_var = ctx.next_var + 1;
+  Type.Var(id)
+}
+
+fun add_constraint(ctx: InferCtx, a: Type, b: Type, span: Span) {
+  ctx.constraints.push(Constraint { left: a, right: b, span: span });
+}
+
+fun unify_all(ctx: InferCtx, diags: List<Diagnostic>) {
+  let i = 0;
+  while (i < ctx.constraints.len()) {
+    let c = ctx.constraints[i];
+    unify(ctx, c.left, c.right, c.span, diags);
+    i = i + 1;
+  }
+}
+
+fun unify(ctx: InferCtx, a: Type, b: Type, span: Span, diags: List<Diagnostic>) {
+  let ra = resolve(ctx, a);
+  let rb = resolve(ctx, b);
+
+  if (ra == rb) { return; }
+
+  match (ra) {
+    Type.Var(id) => {
+      if (occurs(id, rb, ctx)) { diags.push(Diagnostic_new("recursive type", span)); return; }
+      ctx.subs.push(Subst { id: id, ty: rb });
+      return;
+    }
+    _ => {}
+  }
+
+  match (rb) {
+    Type.Var(id) => {
+      if (occurs(id, ra, ctx)) { diags.push(Diagnostic_new("recursive type", span)); return; }
+      ctx.subs.push(Subst { id: id, ty: ra });
+      return;
+    }
+    _ => {}
+  }
+
+  if (ra == Type.Number && is_number(rb)) { return; }
+  if (rb == Type.Number && is_number(ra)) { return; }
+
+  match (ra) {
+    Type.Tuple(ae) => match (rb) { Type.Tuple(be) => {
+      if (ae.len() != be.len()) { diags.push(Diagnostic_new("tuple length mismatch", span)); return; }
+      let i = 0; while (i < ae.len()) { unify(ctx, ae[i], be[i], span, diags); i = i + 1; }
+      return;
+    } _ => {} }
+    Type.Array(at) => match (rb) { Type.Array(bt) => { unify(ctx, at, bt, span, diags); return; } _ => {} }
+    Type.Tensor(at) => match (rb) { Type.Tensor(bt) => { unify(ctx, at, bt, span, diags); return; } _ => {} }
+    Type.Func(ap, ar) => match (rb) { Type.Func(bp, br) => {
+      if (ap.len() != bp.len()) { diags.push(Diagnostic_new("function arity mismatch", span)); return; }
+      let i = 0; while (i < ap.len()) { unify(ctx, ap[i], bp[i], span, diags); i = i + 1; }
+      unify(ctx, ar, br, span, diags);
+      return;
+    } _ => {} }
+    _ => {}
+  }
+
+  diags.push(Diagnostic_new("type mismatch", span));
+}
+
+fun resolve(ctx: InferCtx, t: Type) -> Type {
+  match (t) {
+    Type.Var(id) => {
+      let i = 0;
+      while (i < ctx.subs.len()) {
+        if (ctx.subs[i].id == id) { return resolve(ctx, ctx.subs[i].ty); }
+        i = i + 1;
+      }
+      t
+    }
+    Type.Array(inner) => Type.Array(resolve(ctx, inner))
+    Type.Tensor(inner) => Type.Tensor(resolve(ctx, inner))
+    Type.Tuple(elems) => {
+      let out = List.new();
+      let i = 0; while (i < elems.len()) { out.push(resolve(ctx, elems[i])); i = i + 1; }
+      Type.Tuple(out)
+    }
+    Type.Func(params, ret) => {
+      let out = List.new();
+      let i = 0; while (i < params.len()) { out.push(resolve(ctx, params[i])); i = i + 1; }
+      Type.Func(out, resolve(ctx, ret))
+    }
+    _ => t
+  }
+}
+
+fun occurs(id: Int, t: Type, ctx: InferCtx) -> Bool {
+  let r = resolve(ctx, t);
+  match (r) {
+    Type.Var(v) => v == id
+    Type.Array(inner) => occurs(id, inner, ctx)
+    Type.Tensor(inner) => occurs(id, inner, ctx)
+    Type.Tuple(elems) => { let i = 0; while (i < elems.len()) { if (occurs(id, elems[i], ctx)) { return true; } i = i + 1; } false }
+    Type.Func(params, ret) => {
+      let i = 0; while (i < params.len()) { if (occurs(id, params[i], ctx)) { return true; } i = i + 1; }
+      occurs(id, ret, ctx)
+    }
+    _ => false
+  }
+}
+
+fun is_number(t: Type) -> Bool {
+  t == Type.Int || t == Type.UInt || t == Type.Float
+}

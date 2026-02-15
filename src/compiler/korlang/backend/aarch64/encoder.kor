@@ -2,69 +2,52 @@
 
 module compiler.backend.aarch64.encoder
 
-struct WordBuf {
-  words: List<UInt>;
+struct ByteBuf {
+  bytes: List<UInt>;
 }
 
-const X0: UInt = 0;
-const X1: UInt = 1;
-const X2: UInt = 2;
-const X3: UInt = 3;
-const X4: UInt = 4;
-const X5: UInt = 5;
-const X6: UInt = 6;
-const X7: UInt = 7;
-const X8: UInt = 8;
-const X9: UInt = 9;
-const X10: UInt = 10;
-const X11: UInt = 11;
-const X12: UInt = 12;
-const X13: UInt = 13;
-const X14: UInt = 14;
-const X15: UInt = 15;
-const X16: UInt = 16;
-const X17: UInt = 17;
-const X18: UInt = 18;
-const X19: UInt = 19;
-const X20: UInt = 20;
-const X21: UInt = 21;
-const X22: UInt = 22;
-const X23: UInt = 23;
-const X24: UInt = 24;
-const X25: UInt = 25;
-const X26: UInt = 26;
-const X27: UInt = 27;
-const X28: UInt = 28;
-const X29: UInt = 29;
-const X30: UInt = 30; // LR
-
-fun WordBuf_new() -> WordBuf { WordBuf { words: List.new() } }
-
-fun emit_u32(buf: WordBuf, v: UInt) { buf.words.push(v & 0xFFFFFFFF); }
-
-// Encode ADD (register): ADD Xd, Xn, Xm
-fun enc_add_rr(buf: WordBuf, dst: UInt, left: UInt, right: UInt) {
-  let op = 0x8B000000;
-  let word = op | ((right & 31) << 16) | ((left & 31) << 5) | (dst & 31);
-  emit_u32(buf, word);
+fun ByteBuf_new() -> ByteBuf {
+  ByteBuf { bytes: List.new() }
 }
 
-// Encode SUB (register): SUB Xd, Xn, Xm
-fun enc_sub_rr(buf: WordBuf, dst: UInt, left: UInt, right: UInt) {
-  let op = 0xCB000000;
-  let word = op | ((right & 31) << 16) | ((left & 31) << 5) | (dst & 31);
-  emit_u32(buf, word);
+fun emit_u32(buf: ByteBuf, v: UInt) {
+  buf.bytes.push(v & 0xFF);
+  buf.bytes.push((v >> 8) & 0xFF);
+  buf.bytes.push((v >> 16) & 0xFF);
+  buf.bytes.push((v >> 24) & 0xFF);
 }
 
-// Encode MOVZ (immediate): MOVZ Xd, imm16, shift
-fun enc_movz(buf: WordBuf, dst: UInt, imm16: UInt, shift: UInt) {
-  let op = 0xD2800000;
-  let hw = (shift / 16) & 3;
-  let word = op | ((imm16 & 0xFFFF) << 5) | ((hw & 3) << 21) | (dst & 31);
-  emit_u32(buf, word);
+// AArch64: Most instructions are 32-bit fixed width
+
+// ADD (extended register) - simple version
+fun enc_add_rr(buf: ByteBuf, rd: UInt, rn: UInt, rm: UInt) {
+  // 31:sf(1), 30-24:op(0001011), 21:0, 20-16:rm, 15-10:option/imm, 9-5:rn, 4-0:rd
+  let instr = 0x8B000000;
+  instr = instr | (rm << 16) | (rn << 5) | rd;
+  emit_u32(buf, instr);
 }
 
-// Encode RET
-fun enc_ret(buf: WordBuf) {
+fun enc_sub_rr(buf: ByteBuf, rd: UInt, rn: UInt, rm: UInt) {
+  let instr = 0xCB000000;
+  instr = instr | (rm << 16) | (rn << 5) | rd;
+  emit_u32(buf, instr);
+}
+
+fun enc_mul_rr(buf: ByteBuf, rd: UInt, rn: UInt, rm: UInt) {
+  let instr = 0x9B007C00;
+  instr = instr | (rm << 16) | (rn << 5) | rd;
+  emit_u32(buf, instr);
+}
+
+fun enc_ret(buf: ByteBuf) {
   emit_u32(buf, 0xD65F03C0);
+}
+
+// MOV (register) -> ORR rd, xzr, rm
+fun enc_mov_rr(buf: ByteBuf, rd: UInt, rm: UInt) {
+  let xzr = 31;
+  let instr = 0xAA0003E0; // ORR Xd, XZR, Xm
+  instr = (instr & 0xFFE0FFFF) | (rm << 16);
+  instr = (instr & 0xFFFFFFE0) | rd;
+  emit_u32(buf, instr);
 }

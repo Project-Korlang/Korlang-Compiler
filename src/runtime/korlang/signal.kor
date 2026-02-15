@@ -1,0 +1,32 @@
+// Task 20.1.156: Native signal handling without C shims
+module signal
+
+import syscall.dispatcher
+import syscall.linux
+
+struct SigAction {
+    handler: UInt;
+    flags: UInt;
+    restorer: UInt;
+    mask: UInt;
+}
+
+fun register_signal_handler(signum: Int, handler: (Sig: Int) -> Void) {
+    let sa = SigAction {
+        handler: handler as UInt,
+        flags: 0x04000000, // SA_RESTORER
+        restorer: @import("native_sig_restorer")(),
+        mask: 0
+    };
+    
+    // rt_sigaction(signum, &sa, NULL, 8)
+    dispatcher.syscall4(linux.SYS_RT_SIGACTION, signum, sa.ptr, 0, 8);
+}
+
+fun setup_fault_handlers() {
+    register_signal_handler(linux.SIGSEGV, fun(sig: Int) {
+        echo("Error: Segmentation Fault (" + sig + ")");
+        runtime.debug.backtrace.print_backtrace();
+        dispatcher.syscall1(linux.SYS_EXIT, 1);
+    });
+}

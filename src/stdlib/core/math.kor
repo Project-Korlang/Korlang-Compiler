@@ -1,9 +1,76 @@
-// Korlang standard library: math
-
+// Phase Reality: Group 2.2 - Simple Math Implementation
 module math
 
-fun abs(x: Int) -> Int
-fun fabs(x: Float) -> Float
-fun sqrt(x: Float) -> Float
-fun pow(x: Float, y: Float) -> Float
+// R.2.21: abs
+fun abs(n: Float) -> Float {
+    if (n < 0.0) { return -n; }
+    n
+}
 
+fun abs_int(n: Int) -> Int {
+    if (n < 0) { return -n; }
+    n
+}
+
+// R.2.22: sqrt (Newton's method)
+fun sqrt(n: Float) -> Float {
+    if (n < 0.0) { return 0.0; }
+    let x = n;
+    let y = 1.0;
+    let e = 0.000001;
+    while (x - y > e) {
+        x = (x + y) / 2.0;
+        y = n / x;
+    }
+    x
+}
+
+// R.2.26: ceil, floor, round
+fun floor(n: Float) -> Int {
+    n as Int
+}
+
+fun ceil(n: Float) -> Int {
+    let i = n as Int;
+    if (n > i as Float) { return i + 1; }
+    i
+}
+
+fun round(n: Float) -> Int {
+    (n + 0.5) as Int
+}
+
+// R.2.27: min, max
+fun min(a: Float, b: Float) -> Float {
+    if (a < b) { return a; }
+    b
+}
+
+fun max(a: Float, b: Float) -> Float {
+    if (a > b) { return a; }
+    b
+}
+
+// R.2.28: clamp
+fun clamp(v: Float, low: Float, hi: Float) -> Float {
+    max(low, min(v, hi))
+}
+
+// R.2.23: sin, cos
+fun sin(x: Float) -> Float {
+    // Simplified Taylor series for bootstrap
+    let x2 = x * x;
+    let x3 = x2 * x;
+    let x5 = x3 * x2;
+    x - (x3 / 6.0) + (x5 / 120.0)
+}
+
+fun cos(x: Float) -> Float {
+    let x2 = x * x;
+    let x4 = x2 * x2;
+    1.0 - (x2 / 2.0) + (x4 / 24.0)
+}
+
+// R.2.30: Constants
+const PI: Float = 3.1415926535;
+const E: Float = 2.7182818284;

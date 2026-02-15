@@ -1,0 +1,48 @@
+
+
+module reloc
+
+import elf
+
+
+let R_X86_64_NONE: UInt = 0;
+let R_X86_64_64: UInt = 1;
+let R_X86_64_PC32: UInt = 2;
+let R_X86_64_PLT32: UInt = 4;
+let R_X86_64_COPY: UInt = 5;
+let R_X86_64_GLOB_DAT: UInt = 6;
+let R_X86_64_JUMP_SLOT: UInt = 7;
+let R_X86_64_RELATIVE: UInt = 8;
+
+struct Relocation {
+    offset: UInt;
+    symbol_index: UInt;
+    typ: UInt;
+    addend: Int;
+}
+
+
+fun write_relocation_entry(buf: List<UInt>, reloc: Relocation) {
+    
+    linker.elf.push_u64(buf, reloc.offset);
+    
+    
+    let info_lo = reloc.typ;
+    let info_hi = reloc.symbol_index; 
+    linker.elf.push_u32(buf, info_lo);
+    linker.elf.push_u32(buf, info_hi);
+    
+    
+    
+    let addend_u = reloc.addend as UInt; 
+    linker.elf.push_u64(buf, addend_u);
+}
+
+fun create_plt_reloc(offset: UInt, sym_idx: UInt) -> Relocation {
+    Relocation {
+        offset: offset,
+        symbol_index: sym_idx,
+        typ: R_X86_64_PLT32,
+        addend: -4 
+    }
+}

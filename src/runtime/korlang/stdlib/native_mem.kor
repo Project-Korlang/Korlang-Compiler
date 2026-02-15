@@ -1,0 +1,44 @@
+// Task 20.1.151: Native malloc/free replacement in Korlang
+// Using mmap/munmap for raw block management
+
+module std.native_mem
+
+import syscall.dispatcher
+import syscall.linux
+
+struct RawBlock {
+    ptr: UInt;
+    size: UInt;
+}
+
+// Simple bump-allocator style manager for raw memory or free-list
+struct RawAllocator {
+    blocks: List<RawBlock>;
+}
+
+fun RawAllocator_new() -> RawAllocator {
+    RawAllocator { blocks: List.new() }
+}
+
+// Task 20.1.154: Implement native mmap/munmap resource tracking
+fun raw_alloc(size: UInt) -> UInt {
+    // mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0)
+    let prot = linux.PROT_READ | linux.PROT_WRITE;
+    let flags = linux.MAP_PRIVATE | linux.MAP_ANONYMOUS;
+    let ptr = dispatcher.syscall6(linux.SYS_MMAP, 0, size, prot, flags, -1, 0);
+    ptr
+}
+
+fun raw_free(ptr: UInt, size: UInt) {
+    dispatcher.syscall2(linux.SYS_MUNMAP, ptr, size);
+}
+
+// Simple malloc implementation
+fun malloc(size: UInt) -> UInt {
+    // In a full implementation, this would use a buddy allocator or dlmalloc
+    raw_alloc(size)
+}
+
+fun free(ptr: UInt, size: UInt) {
+    raw_free(ptr, size)
+}

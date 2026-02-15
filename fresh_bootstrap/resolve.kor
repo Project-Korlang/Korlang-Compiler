@@ -1,0 +1,34 @@
+// Native linker: symbol resolution stubs
+
+module compiler.linker.resolve
+
+struct Symbol {
+  name: String;
+  addr: UInt;
+}
+
+struct Reloc {
+  name: String;
+  offset: UInt;
+}
+
+fun resolve_symbols(symbols: List<Symbol>, relocs: List<Reloc>) -> Bool {
+  let i = 0;
+  while (i < relocs.len()) {
+    let r = relocs[i];
+    let found = find_symbol(symbols, r.name);
+    if (found == null) { return false; }
+    // Placeholder: would patch section data at offset
+    i = i + 1;
+  }
+  true
+}
+
+fun find_symbol(symbols: List<Symbol>, name: String) -> Symbol? {
+  let i = 0;
+  while (i < symbols.len()) {
+    if (symbols[i].name == name) { return symbols[i]; }
+    i = i + 1;
+  }
+  null
+}

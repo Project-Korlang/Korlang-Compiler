@@ -1,0 +1,84 @@
+// Self-hosted semantic analysis: symbol table with scope tree
+
+module symtab
+
+import types
+import ast
+
+enum SymbolKind {
+  Var;
+  Func;
+  Struct;
+  Enum;
+  TypeAlias;
+}
+
+struct Symbol {
+  name: String;
+  ty: Type;
+  mutable: Bool;
+  kind: SymbolKind;
+  visibility: Visibility;
+}
+
+struct Scope {
+  symbols: List<Symbol>;
+  parent: Int;
+}
+
+struct SymbolTable {
+  scopes: List<Scope>;
+  current: Int;
+}
+
+fun SymbolTable_new() -> SymbolTable
+fun SymbolTable_enter(self: SymbolTable) -> Int
+fun SymbolTable_exit(self: SymbolTable)
+fun SymbolTable_define(self: SymbolTable, name: String, ty: Type, mutable: Bool, kind: SymbolKind, visibility: Visibility) -> Bool
+fun SymbolTable_lookup(self: SymbolTable, name: String) -> Symbol?
+
+fun SymbolTable_new() -> SymbolTable {
+  let scopes = List.new();
+  scopes.push(Scope { symbols: List.new(), parent: -1 });
+  SymbolTable { scopes: scopes, current: 0 }
+}
+
+fun SymbolTable_enter(self: SymbolTable) -> Int {
+  let parent = self.current;
+  self.scopes.push(Scope { symbols: List.new(), parent: parent });
+  self.current = self.scopes.len() - 1;
+  self.current
+}
+
+fun SymbolTable_exit(self: SymbolTable) {
+  if (self.current != 0) {
+    self.current = self.scopes[self.current].parent;
+  }
+}
+
+fun SymbolTable_define(self: SymbolTable, name: String, ty: Type, mutable: Bool, kind: SymbolKind, visibility: Visibility) -> Bool {
+  let scope = self.scopes[self.current];
+  let i = 0;
+  while (i < scope.symbols.len()) {
+    if (scope.symbols[i].name == name) { return false; }
+    i = i + 1;
+  }
+  scope.symbols.push(Symbol { name: name, ty: ty, mutable: mutable, kind: kind, visibility: visibility });
+  true
+}
+
+fun SymbolTable_lookup(self: SymbolTable, name: String) -> Symbol? {
+  let idx = self.current;
+  let cur = idx;
+  while (cur >= 0) {
+    let scope = self.scopes[cur];
+    let j = 0;
+    while (j < scope.symbols.len()) {
+      if (scope.symbols[j].name == name) { return scope.symbols[j]; }
+      j = j + 1;
+    }
+    if (scope.parent < 0) { break; }
+    cur = scope.parent;
+  }
+  null
+}

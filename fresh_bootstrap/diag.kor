@@ -1,0 +1,31 @@
+// Self-hosted frontend diagnostics
+
+module compiler.diag
+
+struct Position {
+  line: Int;
+  column: Int;
+  offset: Int;
+}
+
+fun Position_new(line: Int, column: Int, offset: Int) -> Position {
+  Position { line: line, column: column, offset: offset }
+}
+
+struct Span {
+  start: Position;
+  end: Position;
+}
+
+fun Span_new(start: Position, end: Position) -> Span {
+  Span { start: start, end: end }
+}
+
+struct Diagnostic {
+  message: String;
+  span: Span;
+}
+
+fun Diagnostic_new(message: String, span: Span) -> Diagnostic {
+  Diagnostic { message: message, span: span }
+}

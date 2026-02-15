@@ -23,6 +23,15 @@ const R13: UInt = 13;
 const R14: UInt = 14;
 const R15: UInt = 15;
 
+const XMM0: UInt = 0;
+const XMM1: UInt = 1;
+const XMM2: UInt = 2;
+const XMM3: UInt = 3;
+const XMM4: UInt = 4;
+const XMM5: UInt = 5;
+const XMM6: UInt = 6;
+const XMM7: UInt = 7;
+
 fun ByteBuf_new() -> ByteBuf {
   ByteBuf { bytes: List.new() }
 }
@@ -75,6 +84,44 @@ fun enc_sub_rr(buf: ByteBuf, dst: UInt, src: UInt) {
   emit_u8(buf, modrm(3, src, dst));
 }
 
+fun enc_imul_rr(buf: ByteBuf, dst: UInt, src: UInt) {
+  emit_u8(buf, rex(true, dst, 0, src));
+  emit_u8(buf, 0x0F);
+  emit_u8(buf, 0xAF);
+  emit_u8(buf, modrm(3, dst, src));
+}
+
+// idiv r64 (divides RDX:RAX by reg)
+fun enc_idiv_r(buf: ByteBuf, reg: UInt) {
+  emit_u8(buf, rex(true, 0, 0, reg));
+  emit_u8(buf, 0xF7);
+  emit_u8(buf, modrm(3, 7, reg));
+}
+
+fun enc_cmp_rr(buf: ByteBuf, dst: UInt, src: UInt) {
+  emit_u8(buf, rex(true, src, 0, dst));
+  emit_u8(buf, 0x39);
+  emit_u8(buf, modrm(3, src, dst));
+}
+
+fun enc_jmp_rel32(buf: ByteBuf, offset: UInt) {
+  emit_u8(buf, 0xE9);
+  emit_u32(buf, offset);
+}
+
+// JE rel32
+fun enc_je_rel32(buf: ByteBuf, offset: UInt) {
+  emit_u8(buf, 0x0F);
+  emit_u8(buf, 0x84);
+  emit_u32(buf, offset);
+}
+
+fun enc_jne_rel32(buf: ByteBuf, offset: UInt) {
+  emit_u8(buf, 0x0F);
+  emit_u8(buf, 0x85);
+  emit_u32(buf, offset);
+}
+
 fun enc_xor_rr(buf: ByteBuf, dst: UInt, src: UInt) {
   emit_u8(buf, rex(true, src, 0, dst));
   emit_u8(buf, 0x31);
@@ -110,4 +157,77 @@ fun enc_call_reg(buf: ByteBuf, reg: UInt) {
 
 fun enc_ret(buf: ByteBuf) {
   emit_u8(buf, 0xC3);
+}
+
+fun enc_prologue(buf: ByteBuf, stack_size: UInt) {
+  enc_push_r64(buf, RBP);
+  enc_mov_rr(buf, RBP, RSP);
+  if (stack_size > 0) {
+    // sub rsp, imm32
+    emit_u8(buf, rex(true, 0, 0, RSP));
+    emit_u8(buf, 0x81);
+    emit_u8(buf, modrm(3, 5, RSP));
+    emit_u32(buf, stack_size);
+  }
+}
+
+fun enc_epilogue(buf: ByteBuf, stack_size: UInt) {
+  if (stack_size > 0) {
+    // add rsp, imm32
+    emit_u8(buf, rex(true, 0, 0, RSP));
+    emit_u8(buf, 0x81);
+    emit_u8(buf, modrm(3, 0, RSP));
+    emit_u32(buf, stack_size);
+  }
+  enc_pop_r64(buf, RBP);
+}
+
+// R.1.137: Peephole: MOV RAX, 0 -> XOR EAX, EAX
+fun optimize_mov_zero(buf: ByteBuf, dst: UInt, imm: UInt) {
+  if (imm == 0) {
+    enc_xor_rr(buf, dst, dst);
+  } else {
+    enc_mov_ri64(buf, dst, imm);
+  }
+}
+
+// SSE Double Precision (SD)
+fun enc_addsd_rr(buf: ByteBuf, dst: UInt, src: UInt) {
+  emit_u8(buf, 0xF2);
+  if (src >= 8 || dst >= 8) { emit_u8(buf, rex(false, dst, 0, src)); }
+  emit_u8(buf, 0x0F);
+  emit_u8(buf, 0x58);
+  emit_u8(buf, modrm(3, dst, src));
+}
+
+fun enc_subsd_rr(buf: ByteBuf, dst: UInt, src: UInt) {
+  emit_u8(buf, 0xF2);
+  if (src >= 8 || dst >= 8) { emit_u8(buf, rex(false, dst, 0, src)); }
+  emit_u8(buf, 0x0F);
+  emit_u8(buf, 0x5C);
+  emit_u8(buf, modrm(3, dst, src));
+}
+
+fun enc_mulsd_rr(buf: ByteBuf, dst: UInt, src: UInt) {
+  emit_u8(buf, 0xF2);
+  if (src >= 8 || dst >= 8) { emit_u8(buf, rex(false, dst, 0, src)); }
+  emit_u8(buf, 0x0F);
+  emit_u8(buf, 0x59);
+  emit_u8(buf, modrm(3, dst, src));
+}
+
+fun enc_divsd_rr(buf: ByteBuf, dst: UInt, src: UInt) {
+  emit_u8(buf, 0xF2);
+  if (src >= 8 || dst >= 8) { emit_u8(buf, rex(false, dst, 0, src)); }
+  emit_u8(buf, 0x0F);
+  emit_u8(buf, 0x5E);
+  emit_u8(buf, modrm(3, dst, src));
+}
+
+fun enc_comisd_rr(buf: ByteBuf, dst: UInt, src: UInt) {
+  emit_u8(buf, 0x66);
+  if (src >= 8 || dst >= 8) { emit_u8(buf, rex(false, dst, 0, src)); }
+  emit_u8(buf, 0x0F);
+  emit_u8(buf, 0x2F);
+  emit_u8(buf, modrm(3, dst, src));
 }

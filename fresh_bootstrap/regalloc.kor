@@ -1,0 +1,144 @@
+// Native x86_64 register allocator (linear scan)
+
+module compiler.backend.x86_64.regalloc
+
+struct LiveRange {
+  vreg: String;
+  start: UInt;
+  end: UInt;
+}
+
+struct Alloc {
+  vreg: String;
+  reg: UInt;
+}
+
+const REG_POOL: List<UInt> = [0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+
+fun allocate_linear(ranges: List<LiveRange>) -> List<Alloc> {
+  let sorted = sort_ranges(ranges);
+  let active = List.new(); // List<LiveRange>
+  let allocs = List.new(); // List<Alloc>
+  let i = 0;
+  while (i < sorted.len()) {
+    let cur = sorted[i];
+    active = expire_old(active, cur.start, allocs);
+    let reg = pick_reg(active, allocs);
+    if (reg == 0xFFFFFFFF) {
+      // Spill policy: pick the one with the farthest end
+      let spill = select_spill(active, cur);
+      if (spill.vreg != "") {
+        // replace spill with current
+        update_alloc(allocs, spill.vreg, 0xFFFFFFFF);
+        active = remove_active(active, spill.vreg);
+        active.push(cur);
+        allocs.push(Alloc { vreg: cur.vreg, reg: spill_reg_for(allocs, spill.vreg) });
+      } else {
+        allocs.push(Alloc { vreg: cur.vreg, reg: 0xFFFFFFFF });
+      }
+    } else {
+      active.push(cur);
+      allocs.push(Alloc { vreg: cur.vreg, reg: reg });
+    }
+    i = i + 1;
+  }
+  allocs
+}
+
+fun sort_ranges(ranges: List<LiveRange>) -> List<LiveRange> {
+  // naive bubble sort by start
+  let out = ranges;
+  let i = 0;
+  while (i < out.len()) {
+    let j = 0;
+    while (j + 1 < out.len()) {
+      if (out[j].start > out[j + 1].start) {
+        let tmp = out[j];
+        out[j] = out[j + 1];
+        out[j + 1] = tmp;
+      }
+      j = j + 1;
+    }
+    i = i + 1;
+  }
+  out
+}
+
+fun expire_old(active: List<LiveRange>, start: UInt, allocs: List<Alloc>) -> List<LiveRange> {
+  let out = List.new();
+  let i = 0;
+  while (i < active.len()) {
+    if (active[i].end > start) {
+      out.push(active[i]);
+    }
+    i = i + 1;
+  }
+  out
+}
+
+fun pick_reg(active: List<LiveRange>, allocs: List<Alloc>) -> UInt {
+  let r = 0;
+  while (r < REG_POOL.len()) {
+    let reg = REG_POOL[r];
+    if (!reg_in_use(active, allocs, reg)) { return reg; }
+    r = r + 1;
+  }
+  0xFFFFFFFF
+}
+
+fun reg_in_use(active: List<LiveRange>, allocs: List<Alloc>, reg: UInt) -> Bool {
+  let i = 0;
+  while (i < active.len()) {
+    let v = active[i].vreg;
+    let a = find_alloc(allocs, v);
+    if (a != null && a.reg == reg) { return true; }
+    i = i + 1;
+  }
+  false
+}
+
+fun find_alloc(allocs: List<Alloc>, vreg: String) -> Alloc? {
+  let i = 0;
+  while (i < allocs.len()) {
+    if (allocs[i].vreg == vreg) { return allocs[i]; }
+    i = i + 1;
+  }
+  null
+}
+
+fun update_alloc(allocs: List<Alloc>, vreg: String, reg: UInt) {
+  let i = 0;
+  while (i < allocs.len()) {
+    if (allocs[i].vreg == vreg) { allocs[i].reg = reg; return; }
+    i = i + 1;
+  }
+}
+
+fun select_spill(active: List<LiveRange>, cur: LiveRange) -> LiveRange {
+  let spill = cur;
+  let i = 0;
+  while (i < active.len()) {
+    if (active[i].end > spill.end) { spill = active[i]; }
+    i = i + 1;
+  }
+  spill
+}
+
+fun spill_reg_for(allocs: List<Alloc>, vreg: String) -> UInt {
+  let i = 0;
+  while (i < allocs.len()) {
+    if (allocs[i].vreg == vreg) { return allocs[i].reg; }
+    i = i + 1;
+  }
+  0xFFFFFFFF
+}
+
+fun remove_active(active: List<LiveRange>, vreg: String) -> List<LiveRange> {
+  let out = List.new();
+  let i = 0;
+  while (i < active.len()) {
+    if (active[i].vreg != vreg) { out.push(active[i]); }
+    i = i + 1;
+  }
+  out
+}

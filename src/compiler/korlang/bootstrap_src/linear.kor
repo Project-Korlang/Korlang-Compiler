@@ -1,0 +1,265 @@
+// Phase 15.2: linear/move semantic checks (conservative)
+
+module linear
+
+import ast
+import diag
+
+struct BindState {
+  name: String;
+  unique_like: Bool;
+  moved: Bool;
+}
+
+struct LinearCtx {
+  binds: List<BindState>;
+}
+
+fun linear_check_program(prog: Program) -> List<Diagnostic>
+
+fun linear_check_item(ctx: LinearCtx, item: Item, diags: List<Diagnostic>)
+fun linear_check_fun(ctx: LinearCtx, f: FunDecl, diags: List<Diagnostic>)
+fun linear_check_stmt(ctx: LinearCtx, stmt: Stmt, diags: List<Diagnostic>)
+fun linear_check_expr(ctx: LinearCtx, expr: Expr, diags: List<Diagnostic>, in_move_arg: Bool)
+
+fun linear_add_bind(ctx: LinearCtx, name: String, unique_like: Bool)
+fun linear_lookup_bind(ctx: LinearCtx, name: String) -> BindState?
+fun linear_mark_moved(ctx: LinearCtx, name: String)
+fun linear_is_unique_decl(v: VarDecl) -> Bool
+
+fun linear_check_program(prog: Program) -> List<Diagnostic> {
+  let diags = List.new();
+  let ctx = LinearCtx { binds: List.new() };
+
+  let i = 0;
+  while (i < prog.items.len()) {
+    linear_check_item(ctx, prog.items[i], diags);
+    i = i + 1;
+  }
+  diags
+}
+
+fun linear_check_item(ctx: LinearCtx, item: Item, diags: List<Diagnostic>) {
+  match (item) {
+    Item.Fun(f) => linear_check_fun(ctx, f, diags)
+    Item.Const(v) => {
+      linear_add_bind(ctx, v.name, linear_is_unique_decl(v));
+      linear_check_expr(ctx, v.value, diags, false);
+    }
+    Item.Stmt(s) => linear_check_stmt(ctx, s, diags)
+    _ => {}
+  }
+}
+
+fun linear_check_fun(ctx: LinearCtx, f: FunDecl, diags: List<Diagnostic>) {
+  let saved = ctx.binds;
+  ctx.binds = List.new();
+
+  let i = 0;
+  while (i < f.params.len()) {
+    let is_unique = match (f.params[i].ty) {
+      TypeRef.Named(name, _) => name == "Unique"
+      _ => false
+    };
+    linear_add_bind(ctx, f.params[i].name, is_unique);
+    i = i + 1;
+  }
+
+  let j = 0;
+  while (j < f.body.stmts.len()) {
+    linear_check_stmt(ctx, f.body.stmts[j], diags);
+    j = j + 1;
+  }
+  if (f.body.tail != null) {
+    linear_check_expr(ctx, f.body.tail, diags, false);
+  }
+
+  ctx.binds = saved;
+}
+
+fun linear_check_stmt(ctx: LinearCtx, stmt: Stmt, diags: List<Diagnostic>) {
+  match (stmt) {
+    Stmt.Var(v) => {
+      linear_add_bind(ctx, v.name, linear_is_unique_decl(v));
+      linear_check_expr(ctx, v.value, diags, false);
+    }
+    Stmt.Expr(e, _) => linear_check_expr(ctx, e, diags, false)
+    Stmt.Return(e, _) => { if (e != null) { linear_check_expr(ctx, e, diags, false); } }
+    Stmt.If(c, tb, es, _) => {
+      linear_check_expr(ctx, c, diags, false);
+      let i = 0;
+      while (i < tb.stmts.len()) { linear_check_stmt(ctx, tb.stmts[i], diags); i = i + 1; }
+      if (tb.tail != null) { linear_check_expr(ctx, tb.tail, diags, false); }
+      if (es != null) { linear_check_stmt(ctx, es, diags); }
+    }
+    Stmt.While(c, b, _) => {
+      linear_check_expr(ctx, c, diags, false);
+      let i = 0;
+      while (i < b.stmts.len()) { linear_check_stmt(ctx, b.stmts[i], diags); i = i + 1; }
+      if (b.tail != null) { linear_check_expr(ctx, b.tail, diags, false); }
+    }
+    Stmt.For(name, iter, b, _) => {
+      linear_add_bind(ctx, name, false);
+      linear_check_expr(ctx, iter, diags, false);
+      let i = 0;
+      while (i < b.stmts.len()) { linear_check_stmt(ctx, b.stmts[i], diags); i = i + 1; }
+      if (b.tail != null) { linear_check_expr(ctx, b.tail, diags, false); }
+    }
+    Stmt.Match(e, arms, _) => {
+      linear_check_expr(ctx, e, diags, false);
+      let i = 0;
+      while (i < arms.len()) { linear_check_expr(ctx, arms[i].body, diags, false); i = i + 1; }
+    }
+    Stmt.Block(b) => {
+      let i = 0;
+      while (i < b.stmts.len()) { linear_check_stmt(ctx, b.stmts[i], diags); i = i + 1; }
+      if (b.tail != null) { linear_check_expr(ctx, b.tail, diags, false); }
+    }
+    _ => {}
+  }
+}
+
+fun linear_check_expr(ctx: LinearCtx, expr: Expr, diags: List<Diagnostic>, in_move_arg: Bool) {
+  match (expr) {
+    Expr.Ident(name, span) => {
+      let b = linear_lookup_bind(ctx, name);
+      if (b != null && b.unique_like && b.moved && !in_move_arg) {
+        diags.push(Diagnostic_new("use after move: '" + name + "'", span));
+      }
+    }
+    Expr.Call(callee, args, span) => {
+      let is_move = false;
+      match (callee) {
+        Expr.Ident(name, _) => { if (name == "move") { is_move = true; } }
+        _ => {}
+      }
+
+      linear_check_expr(ctx, callee, diags, false);
+
+      let i = 0;
+      while (i < args.len()) {
+        let a = args[i];
+        linear_check_expr(ctx, a, diags, is_move);
+
+        if (is_move) {
+          match (a) {
+            Expr.Ident(name, _) => linear_mark_moved(ctx, name)
+            _ => diags.push(Diagnostic_new("move() expects an identifier", span))
+          }
+        } else {
+          match (a) {
+            Expr.Ident(name, arg_span) => {
+              let b = linear_lookup_bind(ctx, name);
+              if (b != null && b.unique_like && !b.moved) {
+                diags.push(Diagnostic_new("copy of Unique value requires move()", arg_span));
+              }
+            }
+            _ => {}
+          }
+        }
+        i = i + 1;
+      }
+    }
+    Expr.Assign(l, _, r, span) => {
+      linear_check_expr(ctx, l, diags, false);
+      linear_check_expr(ctx, r, diags, false);
+      match (r) {
+        Expr.Ident(name, _) => {
+          let b = linear_lookup_bind(ctx, name);
+          if (b != null && b.unique_like && !b.moved) {
+            diags.push(Diagnostic_new("assignment from Unique requires move()", span));
+          }
+        }
+        _ => {}
+      }
+    }
+    Expr.Unary(_, e, _) => linear_check_expr(ctx, e, diags, false)
+    Expr.Binary(l, _, r, _) => { linear_check_expr(ctx, l, diags, false); linear_check_expr(ctx, r, diags, false); }
+    Expr.Member(t, _, _) => linear_check_expr(ctx, t, diags, false)
+    Expr.Index(t, i, _) => { linear_check_expr(ctx, t, diags, false); linear_check_expr(ctx, i, diags, false); }
+    Expr.If(c, tb, eb, _) => {
+      linear_check_expr(ctx, c, diags, false);
+      let i = 0; while (i < tb.stmts.len()) { linear_check_stmt(ctx, tb.stmts[i], diags); i = i + 1; }
+      if (tb.tail != null) { linear_check_expr(ctx, tb.tail, diags, false); }
+      let j = 0; while (j < eb.stmts.len()) { linear_check_stmt(ctx, eb.stmts[j], diags); j = j + 1; }
+      if (eb.tail != null) { linear_check_expr(ctx, eb.tail, diags, false); }
+    }
+    Expr.Match(e, arms, _) => {
+      linear_check_expr(ctx, e, diags, false);
+      let i = 0; while (i < arms.len()) { linear_check_expr(ctx, arms[i].body, diags, false); i = i + 1; }
+    }
+    Expr.Block(b) => {
+      let i = 0; while (i < b.stmts.len()) { linear_check_stmt(ctx, b.stmts[i], diags); i = i + 1; }
+      if (b.tail != null) { linear_check_expr(ctx, b.tail, diags, false); }
+    }
+    Expr.Array(items, _) => {
+      let i = 0; while (i < items.len()) { linear_check_expr(ctx, items[i], diags, false); i = i + 1; }
+    }
+    Expr.Tensor(rows, _) => {
+      let r = 0;
+      while (r < rows.len()) {
+        let c = 0;
+        while (c < rows[r].len()) { linear_check_expr(ctx, rows[r][c], diags, false); c = c + 1; }
+        r = r + 1;
+      }
+    }
+    Expr.Interpolated(parts, _) => {
+      let i = 0; while (i < parts.len()) { linear_check_expr(ctx, parts[i], diags, false); i = i + 1; }
+    }
+    _ => {}
+  }
+}
+
+fun linear_add_bind(ctx: LinearCtx, name: String, unique_like: Bool) {
+  let i = 0;
+  while (i < ctx.binds.len()) {
+    if (ctx.binds[i].name == name) {
+      ctx.binds[i].unique_like = unique_like;
+      ctx.binds[i].moved = false;
+      return;
+    }
+    i = i + 1;
+  }
+  ctx.binds.push(BindState { name: name, unique_like: unique_like, moved: false });
+}
+
+fun linear_lookup_bind(ctx: LinearCtx, name: String) -> BindState? {
+  let i = 0;
+  while (i < ctx.binds.len()) {
+    if (ctx.binds[i].name == name) { return ctx.binds[i]; }
+    i = i + 1;
+  }
+  null
+}
+
+fun linear_mark_moved(ctx: LinearCtx, name: String) {
+  let i = 0;
+  while (i < ctx.binds.len()) {
+    if (ctx.binds[i].name == name) {
+      if (ctx.binds[i].unique_like) {
+        ctx.binds[i].moved = true;
+      }
+      return;
+    }
+    i = i + 1;
+  }
+}
+
+fun linear_is_unique_decl(v: VarDecl) -> Bool {
+  if (v.ty != null) {
+    match (v.ty) {
+      TypeRef.Named(name, _) => { if (name == "Unique") { return true; } }
+      _ => {}
+    }
+  }
+
+  match (v.value) {
+    Expr.Call(callee, _, _) => {
+      match (callee) {
+        Expr.Ident(name, _) => name == "unique_new" || name == "unique_from_raw"
+        _ => false
+      }
+    }
+    _ => false
+  }
+}

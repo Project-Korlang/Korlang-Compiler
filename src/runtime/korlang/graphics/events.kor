@@ -1,0 +1,20 @@
+// Phase Reality: Group 4.1 - Native Event Decoding
+module graphics.events
+
+enum EventType {
+    KeyPress;
+    MouseMove;
+    MouseClick;
+    Close;
+}
+
+struct Event {
+    type: EventType;
+    data1: Int;
+    data2: Int;
+}
+
+// R.4.23 - R.4.25: Event Loop
+fun poll_events() -> Event? {
+    @import("native_poll_events")()
+}
