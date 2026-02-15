@@ -39,6 +39,7 @@ pub struct FunSig {
     pub name: String,
     pub params: Vec<Param>,
     pub ret: Option<TypeRef>,
+    pub is_async: bool,
     pub span: Span,
 }
 

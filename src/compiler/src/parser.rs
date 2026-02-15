@@ -36,14 +36,18 @@ impl Parser {
     fn parse_item(&mut self) -> Result<Item, ()> {
         if self.match_keyword("@nogc") {
             self.expect_keyword("fun")?;
-            return self.parse_fun(true).map(Item::Fun);
+            return self.parse_fun(true, false).map(Item::Fun);
         }
         if self.match_keyword("gpu") {
             self.expect_keyword("fun")?;
-            return self.parse_fun(false).map(Item::Fun);
+            return self.parse_fun(false, false).map(Item::Fun);
+        }
+        if self.match_keyword("async") {
+            self.expect_keyword("fun")?;
+            return self.parse_fun(false, true).map(Item::Fun);
         }
         if self.match_keyword("fun") {
-            return self.parse_fun(false).map(Item::Fun);
+            return self.parse_fun(false, false).map(Item::Fun);
         }
         if self.match_keyword("interface") {
             return self.parse_interface().map(Item::Interface);
@@ -83,6 +87,7 @@ impl Parser {
         self.expect_kind(TokenKind::LBrace)?;
         let mut methods = Vec::new();
         while !self.check_kind(TokenKind::RBrace) && !self.at_eof() {
+            let is_async = self.match_keyword("async");
             self.expect_keyword("fun")?;
             let m_name = self.expect_ident()?;
             let params = self.parse_param_list()?;
@@ -92,7 +97,7 @@ impl Parser {
                 None
             };
             self.expect_kind(TokenKind::Semi)?;
-            methods.push(FunSig { name: m_name, params, ret, span: self.prev_span() });
+            methods.push(FunSig { name: m_name, params, ret, is_async, span: self.prev_span() });
         }
         let end = self.expect_kind(TokenKind::RBrace)?.span;
         Ok(InterfaceDecl { name, generic_params, methods, span: Span::new(start.start, end.end) })
@@ -117,7 +122,7 @@ impl Parser {
         Ok(SealedDecl { name, generic_params, items, span: Span::new(start.start, end.end) })
     }
 
-    fn parse_fun(&mut self, nogc: bool) -> Result<FunDecl, ()> {
+    fn parse_fun(&mut self, nogc: bool, is_async: bool) -> Result<FunDecl, ()> {
         let start = self.prev_span();
         
         // Handle receiver for extension functions: fun Type.name(...)
@@ -142,7 +147,7 @@ impl Parser {
         };
         let body = self.parse_block()?;
         let end = body.span.end;
-        Ok(FunDecl { receiver, name, generic_params, params, ret, body, nogc, span: Span::new(start.start, end) })
+        Ok(FunDecl { receiver, name, generic_params, params, ret, body, nogc, is_async, span: Span::new(start.start, end) })
     }
 
     fn parse_struct(&mut self) -> Result<StructDecl, ()> {
