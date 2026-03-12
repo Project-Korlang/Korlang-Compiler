@@ -1,0 +1,105 @@
+// Korlang Intermediate Representation for Tensor Operations
+// HT.2.1: Custom IR for AI/tensor workloads
+// Written in Korlang (Korlang-first principle)
+
+module std.kir.tensor
+
+// ============================================================
+// Tensor IR Opcodes
+// ============================================================
+
+fun op_matmul() -> Int { 1 }
+fun op_relu() -> Int { 2 }
+fun op_softmax() -> Int { 3 }
+fun op_conv2d() -> Int { 4 }
+fun op_add() -> Int { 5 }
+fun op_mul() -> Int { 6 }
+fun op_reshape() -> Int { 7 }
+fun op_transpose() -> Int { 8 }
+fun op_reduce_sum() -> Int { 9 }
+fun op_reduce_mean() -> Int { 10 }
+
+// ============================================================
+// Tensor Shape Descriptor
+// ============================================================
+
+struct TensorShape {
+    dim0: Int
+    dim1: Int
+    dim2: Int
+    dim3: Int
+    rank: Int
+}
+
+fun shape_2d(rows: Int, cols: Int) -> TensorShape {
+    TensorShape { dim0: rows, dim1: cols, dim2: 1, dim3: 1, rank: 2 }
+}
+
+fun shape_4d(n: Int, c: Int, h: Int, w: Int) -> TensorShape {
+    TensorShape { dim0: n, dim1: c, dim2: h, dim3: w, rank: 4 }
+}
+
+fun shape_numel(s: TensorShape) -> Int {
+    s.dim0 * s.dim1 * s.dim2 * s.dim3
+}
+
+fun shape_to_string(s: TensorShape) -> String {
+    "[" + s.dim0 + "x" + s.dim1 + "x" + s.dim2 + "x" + s.dim3 + "]"
+}
+
+// ============================================================
+// KIR Instruction Node
+// ============================================================
+
+struct KirInstr {
+    opcode: Int
+    result_id: Int
+    input_a: Int
+    input_b: Int
+    shape_out: TensorShape
+}
+
+fun kir_matmul(result: Int, a: Int, b: Int, out_rows: Int, out_cols: Int) -> KirInstr {
+    KirInstr {
+        opcode: op_matmul(),
+        result_id: result,
+        input_a: a,
+        input_b: b,
+        shape_out: shape_2d(out_rows, out_cols)
+    }
+}
+
+fun kir_relu(result: Int, input: Int, rows: Int, cols: Int) -> KirInstr {
+    KirInstr {
+        opcode: op_relu(),
+        result_id: result,
+        input_a: input,
+        input_b: 0,
+        shape_out: shape_2d(rows, cols)
+    }
+}
+
+fun kir_instr_to_string(k: KirInstr) -> String {
+    let op_name = "op" + k.opcode
+    "%v" + k.result_id + " = " + op_name + "(%v" + k.input_a + ", %v" + k.input_b + ") " + shape_to_string(k.shape_out)
+}
+
+// ============================================================
+// KIR Program (sequence of instructions)
+// ============================================================
+
+fun kir_demo() {
+    println("=== HT.2.1: Korlang Tensor IR Demo ===")
+
+    let i1 = kir_matmul(1, 0, 0, 128, 64)
+    let i2 = kir_relu(2, 1, 128, 64)
+    let i3 = kir_matmul(3, 2, 0, 128, 10)
+
+    println(kir_instr_to_string(i1))
+    println(kir_instr_to_string(i2))
+    println(kir_instr_to_string(i3))
+
+    let total_params = shape_numel(i3.shape_out)
+    println("Output tensor elements: " + total_params)
+    println("=== Tensor IR OK ===")
+}

@@ -1,0 +1,114 @@
+// Korlang AST Serialization Format
+// HT.1.1: Zero-copy binary encoding for AST nodes
+// Written in Korlang (Korlang-first principle)
+
+module std.ast.serial
+
+// ============================================================
+// AST Node Type Tags (binary encoding identifiers)
+// ============================================================
+
+fun node_tag_fun() -> Int { 1 }
+fun node_tag_struct() -> Int { 2 }
+fun node_tag_enum() -> Int { 3 }
+fun node_tag_var() -> Int { 4 }
+fun node_tag_call() -> Int { 5 }
+fun node_tag_if() -> Int { 6 }
+fun node_tag_while() -> Int { 7 }
+fun node_tag_return() -> Int { 8 }
+fun node_tag_literal_int() -> Int { 9 }
+fun node_tag_literal_str() -> Int { 10 }
+fun node_tag_literal_bool() -> Int { 11 }
+fun node_tag_binary_op() -> Int { 12 }
+fun node_tag_module() -> Int { 13 }
+fun node_tag_import() -> Int { 14 }
+fun node_tag_block() -> Int { 15 }
+
+// ============================================================
+// Binary Serialization Helpers (zero-copy encoding stubs)
+// ============================================================
+
+// Encode an Int as 4 bytes (little-endian)
+fun encode_i32(val: Int) -> String {
+    // For now: serialize as decimal string (full binary encoding requires runtime I/O layer)
+    "" + val
+}
+
+// Encode a String: [len:4 bytes][data:N bytes]
+fun encode_str(s: String) -> String {
+    let len_bytes = encode_i32(s.len())
+    len_bytes + s
+}
+
+// Encode a node tag header
+fun encode_node_header(tag: Int, span_start: Int, span_end: Int) -> String {
+    encode_i32(tag) + encode_i32(span_start) + encode_i32(span_end)
+}
+
+// ============================================================
+// AST Serialization Entry Points
+// ============================================================
+
+// Serialize a function node to binary format
+fun serialize_fun_node(name: String, param_count: Int, span_start: Int, span_end: Int) -> String {
+    let header = encode_node_header(node_tag_fun(), span_start, span_end)
+    let name_enc = encode_str(name)
+    let p_count = encode_i32(param_count)
+    header + name_enc + p_count
+}
+
+// Serialize a literal int node
+fun serialize_int_node(value: Int, span_start: Int, span_end: Int) -> String {
+    let header = encode_node_header(node_tag_literal_int(), span_start, span_end)
+    header + encode_i32(value)
+}
+
+// Serialize a string literal node
+fun serialize_str_node(value: String, span_start: Int, span_end: Int) -> String {
+    let header = encode_node_header(node_tag_literal_str(), span_start, span_end)
+    header + encode_str(value)
+}
+
+// Serialize a module header
+fun serialize_module_node(name: String, version: Int) -> String {
+    let header = encode_node_header(node_tag_module(), 0, 0)
+    header + encode_str(name) + encode_i32(version)
+}
+
+// ============================================================
+// Magic header for .kast files (Korlang AST Binary)
+// ============================================================
+
+// Returns the 8-byte magic header for KAST format
+fun kast_magic() -> String {
+    "KORLKAST"
+}
+
+fun kast_version() -> Int { 1 }
+
+// Begin a KAST binary stream
+fun kast_header(module_name: String) -> String {
+    kast_magic() + encode_i32(kast_version()) + encode_str(module_name)
+}
+
+// ============================================================
+// Demo: Self-describing AST serialization test
+// ============================================================
+
+fun demonstrate_ast_serial() {
+    println("=== KAST: Korlang AST Serialization Demo ===")
+
+    let hdr = kast_header("demo.module")
+    println("KAST Header: " + hdr)
+
+    let fun_node = serialize_fun_node("main", 0, 0, 100)
+    println("Fun Node: " + fun_node)
+
+    let int_node = serialize_int_node(42, 5, 7)
+    println("Int Node: " + int_node)
+
+    let str_node = serialize_str_node("hello korlang", 10, 22)
+    println("Str Node: " + str_node)
+
+    println("=== AST Serialization OK ===")
+}

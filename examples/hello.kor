@@ -1,4 +1,0 @@
-fun main() -> Int {
-  let x = 40 + 2;
-  x
-}

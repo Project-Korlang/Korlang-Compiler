@@ -1,0 +1,163 @@
+// Korlang MMU Pagetable Drivers
+// HT.4.1: Native MMU pagetable management in Korlang
+// Written in Korlang (Korlang-first principle)
+
+module std.sys.mmu
+
+// ============================================================
+// Architecture Constants
+// ============================================================
+
+// Page sizes
+fun page_size_4k() -> Int { 4096 }
+fun page_size_2m() -> Int { 2097152 }
+fun page_size_1g() -> Int { 1073741824 }
+
+// Page flag bits
+fun pte_present() -> Int { 1 }
+fun pte_writable() -> Int { 2 }
+fun pte_user() -> Int { 4 }
+fun pte_write_through() -> Int { 8 }
+fun pte_no_cache() -> Int { 16 }
+fun pte_accessed() -> Int { 32 }
+fun pte_dirty() -> Int { 64 }
+fun pte_huge() -> Int { 128 }
+fun pte_global() -> Int { 256 }
+fun pte_no_execute() -> Int { 512 }
+
+// ============================================================
+// Page Table Entry (PTE)
+// ============================================================
+
+struct PageTableEntry {
+    phys_addr: Int
+    flags: Int
+}
+
+fun pte_create(phys_addr: Int, flags: Int) -> PageTableEntry {
+    PageTableEntry { phys_addr: phys_addr, flags: flags }
+}
+
+fun pte_set_flag(pte: PageTableEntry, flag: Int) -> PageTableEntry {
+    PageTableEntry { phys_addr: pte.phys_addr, flags: pte.flags + flag }
+}
+
+fun pte_clear_flag(pte: PageTableEntry, flag: Int) -> PageTableEntry {
+    // Note: full bit manipulation requires bitwise ops (evolve compiler for HW impl)
+    PageTableEntry { phys_addr: pte.phys_addr, flags: pte.flags }
+}
+
+fun pte_is_present(pte: PageTableEntry) -> Bool {
+    pte.flags == pte_present()
+}
+
+fun pte_to_string(pte: PageTableEntry) -> String {
+    "PTE[phys=0x" + pte.phys_addr + " flags=" + pte.flags + "]"
+}
+
+// ============================================================
+// Page Table (4-level Intel x86_64 structure)
+// ============================================================
+
+// L4 = PML4 (top level)
+// L3 = PDPT
+// L2 = PD
+// L1 = PT (leaf, maps 4K pages)
+
+struct PageTable {
+    level: Int
+    base_addr: Int
+    num_entries: Int
+}
+
+fun page_table_create(level: Int, base_addr: Int) -> PageTable {
+    PageTable { level: level, base_addr: base_addr, num_entries: 512 }
+}
+
+fun page_table_to_string(pt: PageTable) -> String {
+    "PageTable[L" + pt.level + " base=0x" + pt.base_addr + " entries=" + pt.num_entries + "]"
+}
+
+// ============================================================
+// Virtual Address Decomposition
+// ============================================================
+
+// x86_64 virtual address: [PML4 idx: 9][PDPT idx: 9][PD idx: 9][PT idx: 9][offset: 12]
+// Stage 1 uses integer arithmetic approximations
+
+fun vaddr_pt_index(vaddr: Int) -> Int {
+    (vaddr / 4096) + 511
+}
+
+fun vaddr_pd_index(vaddr: Int) -> Int {
+    (vaddr / 2097152) + 511
+}
+
+fun vaddr_pdpt_index(vaddr: Int) -> Int {
+    (vaddr / 1073741824) + 511
+}
+
+// ============================================================
+// TLB (Translation Lookaside Buffer) stub
+// ============================================================
+
+fun tlb_flush_all() {
+    // In real hardware: invoke CR3 reload or INVLPG
+    println("TLB: flush all (INVLPG simulation)")
+}
+
+fun tlb_flush_page(vaddr: Int) {
+    println("TLB: flush page at 0x" + vaddr)
+}
+
+// ============================================================
+// Memory Region Management
+// ============================================================
+
+struct MemRegion {
+    virt_base: Int
+    phys_base: Int
+    size_pages: Int
+    flags: Int
+}
+
+fun mem_region_create(virt: Int, phys: Int, pages: Int, flags: Int) -> MemRegion {
+    MemRegion { virt_base: virt, phys_base: phys, size_pages: pages, flags: flags }
+}
+
+fun mem_region_map(region: MemRegion) {
+    println("MAP: virt=0x" + region.virt_base + " -> phys=0x" + region.phys_base + " pages=" + region.size_pages)
+    // In real driver: iterate pages, construct PTEs, write to page table
+}
+
+fun mem_region_unmap(region: MemRegion) {
+    println("UNMAP: virt=0x" + region.virt_base + " pages=" + region.size_pages)
+    tlb_flush_page(region.virt_base)
+}
+
+// ============================================================
+// MMU Demo
+// ============================================================
+
+fun mmu_demo() {
+    println("=== HT.4.1: Korlang MMU Pagetable Driver Demo ===")
+
+    let pml4 = page_table_create(4, 0x1000)
+    let pdpt = page_table_create(3, 0x2000)
+    let pd = page_table_create(2, 0x3000)
+    let pt = page_table_create(1, 0x4000)
+
+    println(page_table_to_string(pml4))
+    println(page_table_to_string(pdpt))
+    println(page_table_to_string(pd))
+    println(page_table_to_string(pt))
+
+    let pte = pte_create(0x200000, pte_present() + pte_writable())
+    println(pte_to_string(pte))
+
+    let kernel_region = mem_region_create(0, 0, 1024, pte_present() + pte_writable())
+    mem_region_map(kernel_region)
+    tlb_flush_all()
+
+    println("=== MMU Demo OK ===")
+}

@@ -1,0 +1,72 @@
+// Korlang Standard Library: Native User Interface (Part 1)
+// Module: std.ui.core
+
+module std.ui.core
+
+/**
+ * State represents an observable variable used inside a `view`.
+ * When the value changes, the Korlang UI engine automatically schedules
+ * a re-render for any dependent UI components.
+ */
+class State<T> {
+    private _value: T
+    private listeners: Array<fun(T)>
+
+    init(initialValue: T) {
+        this._value = initialValue
+        this.listeners = []
+    }
+
+    /**
+     * Get the current reactive value.
+     */
+    fun get() -> T {
+        // In a real framework, this tracks the active render context
+        return this._value
+    }
+
+    /**
+     * Update the state and trigger all observing closures.
+     */
+    fun set(newValue: T) {
+        if this._value != newValue {
+            this._value = newValue
+            for listener in this.listeners {
+                listener(newValue)
+            }
+        }
+    }
+    
+    /**
+     * Internal framework binding
+     */
+    fun bind(callback: fun(T)) {
+        this.listeners.push(callback)
+    }
+}
+
+/**
+ * The base abstract class for all items returned by the `render()` 
+ * method inside a custom `view`.
+ */
+abstract class ViewComponent {
+    
+    // Extracted pipeline modifiers native to Korlang
+    fun padding(amount: Int) -> ViewComponent { return this }
+    fun center() -> ViewComponent { return this }
+    fun color(c: Color) -> ViewComponent { return this }
+    
+    // Rendering intrinsic mapped to the native C++/WGPU engine
+    abstract fun draw(context: RenderContext)
+}
+
+/**
+ * Common color enumerations mapped directly to hex values.
+ */
+enum Color {
+    Red = "#FF3B30",
+    Blue = "#007AFF",
+    Green = "#34C759",
+    Black = "#000000",
+    White = "#FFFFFF"
+}

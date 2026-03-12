@@ -1,0 +1,48 @@
+// Korlang Competition Benchmarking Suite (Phase 27)
+
+@import("std.time")
+@import("std.math")
+
+/**
+ * Prime Number Sieve (Memory and CPU scaling benchmark)
+ */
+@nogc
+fun benchmarkPrimes(limit: Int) -> Int {
+    val start = std.time.now()
+    
+    // Manual memory to match C++ vector bool performance
+    val sieve = std.memory.allocate<Bool>(limit)
+    
+    @unsafe {
+        for i in 0..<limit { sieve[i] = true }
+        sieve[0] = false
+        sieve[1] = false
+
+        val root = std.math.sqrt(limit as Float) as Int
+        for p in 2..root {
+            if sieve[p] {
+                mut i = p * p
+                while i < limit {
+                    sieve[i] = false
+                    i += p
+                }
+            }
+        }
+        
+        mut count = 0
+        for i in 2..<limit {
+            if sieve[i] { count += 1 }
+        }
+        
+        std.memory.free(sieve)
+        
+        val elapsed = std.time.since(start)
+        print("Sieve({limit}) -> {count} primes found in {elapsed}ms")
+        return count
+    }
+}
+
+fun main() {
+    print("--- Korlang Official Benchmarking Suite ---")
+    benchmarkPrimes(10_000_000)
+}

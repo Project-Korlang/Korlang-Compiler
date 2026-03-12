@@ -1,0 +1,62 @@
+// Korlang Standard Library: Modern Web Development (Part 2)
+// Module: std.web
+
+@import("std.http.server")
+@import("std.json")
+
+module std.web
+
+/**
+ * Global functional fetch API, mirroring the JavaScript
+ * standard for zero-friction HTTP network requests.
+ */
+fun fetch(url: String, method: String = "GET", body: Any? = null) -> Result<String, Error> {
+    print("Fetching \[{method}\] {url}...")
+    
+    // [STUB] Uses the native networking loop behind the scenes
+    return Result.Ok("\{ \"response\": \"success\" \}")
+}
+
+/**
+ * App is an Express.js-inspired higher-level router wrapping `std.http.server`.
+ * It provides built-in JSON deserialization and middleware support.
+ */
+class App {
+    private server: std.http.server.Server
+    
+    init(port: Int = 3000) {
+        this.server = new std.http.server.Server(port)
+    }
+
+    /**
+     * Define a JSON GET endpoint.
+     */
+    fun get(path: String, handler: fun(std.http.server.Request) -> Any) {
+        this.server.get(path, req => {
+            val responseData = handler(req)
+            val jsonPayload = std.json.Json.stringify(responseData)
+            return std.http.server.Response(200, jsonPayload)
+        })
+    }
+
+    /**
+     * Define a JSON POST endpoint that automatically parses incoming bodies.
+     */
+    @macro
+    fun post<BodyType>(path: String, handler: fun(std.http.server.Request, BodyType) -> Any) {
+        // Macro generates the boilerplate request extraction and JSON parsing
+        this.server.post(path, req => {
+            val parsedBody = std.json.Json.decode<BodyType>(req.body).unwrap()
+            val responseData = handler(req, parsedBody)
+            return std.http.server.Response(200, std.json.Json.stringify(responseData))
+        })
+    }
+
+    /**
+     * Start listening for requests on the application thread.
+     */
+    fun listen() {
+        print("Web Application listening on localhost:{this.server.port}")
+        this.server.start()
+    }
+}

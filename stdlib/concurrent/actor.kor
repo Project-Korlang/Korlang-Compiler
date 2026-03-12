@@ -1,0 +1,50 @@
+// Korlang Standard Library: Distributed Actor Model (Phase 24)
+// Module: std.concurrent.actor
+
+module std.concurrent.actor
+
+/**
+ * An Actor encapsulates state and behavior, communicating only 
+ * via asynchronous message passing to guarantee thread-safe 
+ * execution without explicit locks.
+ */
+abstract class Actor<MessageT> {
+    
+    // Internal generic bounded channel for this actor's inbox
+    private inbox: Channel<MessageT>
+    
+    init(bufferSize: Int = 100) {
+        this.inbox = Channel<MessageT>(bufferSize)
+        
+        // Starts the actor message processing loop in a lightweight task
+        spawn {
+            this.runLoop()
+        }
+    }
+    
+    /**
+     * Called synchronously by senders to push events to the inbox.
+     */
+    fun send(msg: MessageT) {
+        this.inbox <- msg
+    }
+    
+    /**
+     * Primary abstraction method for handling incoming signals
+     */
+    abstract fun receive(msg: MessageT)
+
+    /**
+     * Managed by the Korlang Work-Stealing runtime.
+     */
+    private fun runLoop() {
+        for msg in this.inbox {
+            try {
+                this.receive(msg)
+            } catch e: Error {
+                print("Actor failed processing message: {e}")
+                // In a true supervisor tree, this escalates
+            }
+        }
+    }
+}

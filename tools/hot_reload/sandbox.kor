@@ -1,0 +1,56 @@
+// Korlang Developer Tooling: UI Sandbox (Part 1/3)
+// Module: tools.hot_reload
+
+@import("std.fs")
+@import("std.compiler.eval")
+
+module tools.hot_reload
+
+/**
+ * The Sandbox daemon watches a specific `.kor` file
+ * and dynamically recompiles and injects the new AST into
+ * the running memory space without restarting the OS window.
+ */
+class Sandbox {
+    targetFile: String
+    watchIntervalMs: Int = 100
+    
+    // Tracks the last compiled signature to detect changes
+    private lastHash: String
+    
+    init(targetFile: String) {
+        this.targetFile = targetFile
+        this.lastHash = ""
+    }
+    
+    /**
+     * Start the background daemon. 
+     * Executed by `korlang ui run <file>`
+     */
+    fun start() {
+        print("Starting Hot-Reload Sandbox for {this.targetFile}...")
+        
+        // Spawn a background task to watch the filesystem
+        spawn {
+            loop {
+                this.checkChanges()
+                std.time.sleep(this.watchIntervalMs)
+            }
+        }
+    }
+    
+    private fun checkChanges() {
+        val currentHash = std.fs.hashFile(this.targetFile)
+        
+        if currentHash != this.lastHash {
+            print("[Sandbox] Change detected in {this.targetFile}. Reloading UI...")
+            this.lastHash = currentHash
+            
+            // Re-evaluate the AST and swap the pointer in the active View tree
+            val newAst = std.compiler.eval.parseFile(this.targetFile)
+            @unsafe {
+                __intrinsic_swap_active_view(newAst)
+            }
+        }
+    }
+}

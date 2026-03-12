@@ -1,0 +1,39 @@
+// Korlang Standard Library: Regex (Part 4)
+// Module: std.regex
+
+module std.regex
+
+/**
+ * High-performance RegEx Engine matched to PCRE syntax.
+ */
+class Pattern {
+    source: String
+    private handle: RawPointer<Any>
+    
+    init(source: String) {
+        this.source = source
+        print("Compiling Regex pattern: {source}")
+        
+        @unsafe {
+            this.handle = __intrinsic_regex_compile(source)
+        }
+    }
+    
+    /**
+     * Test if a string contains the pattern.
+     */
+    fun isMatch(text: String) -> Bool {
+        @unsafe {
+            return __intrinsic_regex_ismatch(this.handle, text)
+        }
+    }
+    
+    /**
+     * Extracts instances of the pattern into arrays.
+     */
+    fun extract(text: String) -> Array<String> {
+        val matches = []
+        // [STUB] Extractor intrinsic
+        return matches
+    }
+}

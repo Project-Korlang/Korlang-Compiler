@@ -1,0 +1,41 @@
+// Korlang Standard Library: Unit Testing Suite (Part 3)
+// Module: std.test
+
+@import("std.meta.reflection")
+
+module std.test
+
+/**
+ * The standard Runner executing functions annotated with `@test`.
+ */
+class TestRunner {
+
+    @staticmethod
+    fun assert(condition: Bool, message: String = "Assertion failed") {
+        if !condition {
+            // Internally triggers a test failure stack trace without crashing
+            print("❌ TEST FAILED: {message}")
+            @unsafe { __intrinsic_test_fail() }
+        }
+    }
+
+    @staticmethod
+    fun assertEqual<T>(actual: T, expected: T, message: String = "") {
+        if actual != expected {
+            print("❌ TEST FAILED: Expected {expected}, got {actual}. {message}")
+            @unsafe { __intrinsic_test_fail() }
+        }
+    }
+    
+    /**
+     * Mocks a specific class method dynamically for isolation testing.
+     * Leverages AST macros to replace the pointer during the test lifecycle.
+     */
+    @staticmethod
+    @macro
+    fun mock<T>(methodName: String, mockImpl: Any) {
+        val typeInfo = std.meta.TypeInfo.of<T>()
+        print("Mocking {typeInfo.name}::{methodName}...")
+        // AST interception logic
+    }
+}

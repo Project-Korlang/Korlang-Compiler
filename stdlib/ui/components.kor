@@ -1,0 +1,68 @@
+// Korlang Standard Library: UI Components (Part 1)
+// Module: std.ui.components
+
+@import("std.ui.core")
+
+module std.ui.components
+
+/**
+ * Renders primitive text to the screen.
+ */
+class Text : ViewComponent {
+    content: String
+    fontSizeStr: String = "16px"
+    
+    init(content: String) {
+        this.content = content
+    }
+    
+    fun fontSize(size: Int) -> Text {
+        this.fontSizeStr = "{size}px"
+        return this
+    }
+    
+    override fun draw(context: RenderContext) {
+        // Submits text geometry to the Korlang rendering backend
+        context.drawText(this.content, this.fontSizeStr)
+    }
+}
+
+/**
+ * Interactive button component.
+ */
+class Button : ViewComponent {
+    label: String
+    action: fun()
+    
+    init(label: String) {
+        this.label = label
+        this.action = {} // No-op default
+    }
+    
+    fun onClick(callback: fun()) -> Button {
+        this.action = callback
+        return this
+    }
+    
+    override fun draw(context: RenderContext) {
+        context.drawButton(this.label, this.action)
+    }
+}
+
+/**
+ * Vertical standard layout stack.
+ */
+class VStack : ViewComponent {
+    gap: Int
+    children: Array<ViewComponent>
+    
+    init(gap: Int, closure: fun() -> Array<ViewComponent>) {
+        this.gap = gap
+        // The closure acts as the declarative DSL body
+        this.children = closure()
+    }
+    
+    override fun draw(context: RenderContext) {
+        context.layoutVertical(this.children, this.gap)
+    }
+}

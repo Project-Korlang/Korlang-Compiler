@@ -1,0 +1,102 @@
+// Korlang Standard Library: AI/ML Primitives (Phase 20)
+// Module: std.ai.tensor
+
+@import("std.math")
+@import("std.memory")
+
+module std.ai.tensor
+
+/**
+ * Tensor represents a multi-dimensional mathematical array.
+ * Built for high-performance vectorized operations (SIMD native).
+ */
+@nogc
+class Tensor {
+    // A 1D flattened representation of multi-dimensional data
+    data: RawPointer<Float>
+    shape: Array<Int>
+    size: Int
+    
+    /**
+     * Initialize a blank tensor with a given shape
+     */
+    init(shape: Array<Int>) {
+        this.shape = shape
+        this.size = shape.reduce((a, b) => a * b, 1)
+        this.data = allocate<Float>(this.size)
+    }
+
+    /**
+     * Clean up manual memory since Tensor is primarily @nogc optimized
+     */
+    fun free() {
+        if this.data != null {
+            std.memory.free(this.data)
+            this.data = null
+        }
+    }
+
+    /**
+     * Loads a pre-trained tensor from a binary `.bin` file format.
+     */
+    @staticmethod
+    fun load(filepath: String) -> Tensor {
+        // [STUB] Implement the cross-platform file reading and loading natively
+        print("Loading Tensor from: {filepath}")
+        return Tensor([1, 256, 256]) // Mock shape
+    }
+
+    /**
+     * Multiply this tensor with weights using SIMD instructions.
+     */
+    fun multiply(weights: Tensor) -> Tensor {
+        if this.size != weights.size {
+            // Usually this throws an explicit Error type but for now we trigger a failure
+            print("Tensor Dimension Mismatch: {this.shape} vs {weights.shape}")
+        }
+        
+        result = Tensor(this.shape)
+        
+        // In reality, this loop would be vectorized by the Korlang `@simd` codegen system.
+        @unsafe {
+            for i in 0..<this.size {
+                result.data[i] = this.data[i] * weights.data[i]
+            }
+        }
+        
+        return result
+    }
+
+    /**
+     * Applies the Softmax activation function.
+     */
+    fun softmax() -> Tensor {
+        result = Tensor(this.shape)
+        mut sum_exp: Float = 0.0
+
+        @unsafe {
+            // Compute exponentials and sum
+            for i in 0..<this.size {
+                val e_val = std.math.exp(this.data[i])
+                result.data[i] = e_val
+                sum_exp += e_val
+            }
+            
+            // Normalize
+            for i in 0..<this.size {
+                result.data[i] = result.data[i] / sum_exp
+            }
+        }
+
+        return result
+    }
+
+    /**
+     * Find the top K highest values / predictions.
+     */
+    fun topK(k: Int) -> Array<Float> {
+        // [STUB] Partial implementation for the sake of the specification example
+        print("Finding Top {k} elements...")
+        return [0.99] // Mock probability 
+    }
+}

@@ -1,0 +1,43 @@
+// Korlang Standard Library: Windowing (Part 1)
+// Module: std.ui.window
+
+@import("std.ui.core")
+
+module std.ui.window
+
+/**
+ * Window abstracts OS-level window creation (Win32/Cocoa/X11/Wayland).
+ * Connects the reactive Korlang rendering context to the screen.
+ */
+class Window {
+    title: String
+    width: Int
+    height: Int
+    
+    // Internal opaque pointer to the OS window context
+    private handle: RawPointer<Any>
+    
+    init(title: String, width: Int = 800, height: Int = 600) {
+        this.title = title
+        this.width = width
+        this.height = height
+        
+        // Native binding invoking OS specific windowing
+        @unsafe {
+            this.handle = __intrinsic_create_window(title, width, height)
+        }
+    }
+    
+    /**
+     * Attaches an instance of a Korlang `view` declarative block
+     * to this window and begins the reactive render loop.
+     */
+    fun attach(uiNode: std.ui.core.ViewComponent) {
+        print("Attaching {uiNode} to Window '{this.title}'")
+        
+        @unsafe {
+            // Begins the main OS event loop and blocks execution
+            __intrinsic_window_run_loop(this.handle, uiNode)
+        }
+    }
+}

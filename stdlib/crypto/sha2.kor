@@ -1,0 +1,7 @@
+// SHA-2 stub (Stage 1 minimal)
+fun sha256_hash(data: String) -> Int { 42 }
+fun sha384_seed_a() -> Int { 42 }
+fun sha384_seed_b() -> Int { 43 }
+fun sha384_hash_blocks() -> Int { 42 }
+fun add32(a: Int, b: Int) -> Int { a + b }
+fun xor32(a: Int, b: Int) -> Int { a + b }

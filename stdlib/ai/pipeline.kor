@@ -1,0 +1,52 @@
+// Korlang Standard Library: AI/ML Pipeline Support (Phase 20)
+// Module: std.ai.pipeline
+
+@import("std.ai.tensor")
+
+module std.ai.pipeline
+
+/**
+ * Pipeline serves as an ML workflow executor, 
+ * chaining operations logically and transforming inputs via `->` operator.
+ */
+class Pipeline<Input, Output> {
+    
+    // Abstract transform that a pipeline must implement
+    abstract fun execute(data: Input) -> Output
+
+    /**
+     * Common constructor for chaining processing
+     */
+    fun chain<NextOutput>(nextPipeline: Pipeline<Output, NextOutput>) -> Pipeline<Input, NextOutput> {
+         // Uses Korlang's arrow closures and functional composition
+         return new ChainedPipeline(this, nextPipeline)
+    }
+}
+
+/**
+ * A concrete implementation demonstrating the integration
+ * of audio buffer to tensor projection using native syntax.
+ */
+class AudioInferencePipeline : Pipeline<AudioBuffer, Array<Float>> {
+    
+    modelPath: String
+    weights: Tensor
+
+    init(modelPath: String) {
+        this.modelPath = modelPath
+        this.weights = Tensor.load(modelPath)
+    }
+
+    /**
+     * Executes the tensor projection workflow on the incoming buffer.
+     * Can be invoked simply with `buffer -> AudioInferencePipeline.execute()`
+     */
+    override fun execute(data: AudioBuffer) -> Array<Float> {
+        val result = data
+            -> toTensor()
+            -> multiply(this.weights)
+            -> softmax()
+
+        return result.topK(1)
+    }
+}

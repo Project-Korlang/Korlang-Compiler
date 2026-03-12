@@ -1,0 +1,64 @@
+// Korlang Standard Library: Compute & GPU (Phase 26)
+// Module: std.gpu.cuda
+
+module std.gpu.cuda
+
+/**
+ * The DataWrapper ensures that memory transferred to the GPU
+ * is aligned properly and explicitly tracked via the Smart-GC Tier 3.
+ */
+@nogc
+class DeviceBuffer<T> {
+    
+    // Pointer to memory strictly living in VRAM
+    private devicePtr: RawPointer<T>
+    size: Int
+    
+    init(size: Int) {
+        this.size = size
+        
+        // Internal codegen translates this to cudaMalloc
+        @unsafe {
+            this.devicePtr = __intrinsic_gpu_allocate(size * sizeof(T))
+        }
+    }
+    
+    fun free() {
+        @unsafe {
+            __intrinsic_gpu_free(this.devicePtr)
+        }
+    }
+    
+    /**
+     * Pushes data from Host (CPU) to Device (GPU).
+     */
+    fun upload(hostData: Array<T>) {
+        @unsafe {
+            __intrinsic_gpu_memcpy_h2d(this.devicePtr, hostData.ptr, this.size * sizeof(T))
+        }
+    }
+    
+    /**
+     * Pulls data from Device (GPU) back to Host (CPU).
+     */
+    fun download() -> Array<T> {
+        val result = Array<T>(this.size)
+        @unsafe {
+            __intrinsic_gpu_memcpy_d2h(result.ptr, this.devicePtr, this.size * sizeof(T))
+        }
+        return result
+    }
+}
+
+/**
+ * Dispatcher handles the launch configuration of a `@gpu` kernel.
+ */
+class Dispatcher {
+    
+    @staticmethod
+    fun launch(blocks: Int, threads: Int, kernel: fun()) {
+        print("Dispatching GPU Kernel: <<<{blocks}, {threads}>>>")
+        // The compiler intercepts the lambda and translates its LLVM IR 
+        // directly to PTX (NVIDIA) or SPIR-V (AMD/Intel)
+    }
+}

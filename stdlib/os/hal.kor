@@ -1,0 +1,63 @@
+// Korlang Standard Library: Bare Metal Subsystems (Phase 25)
+// Module: std.os.hal (Hardware Abstraction Layer)
+
+module std.os.hal
+
+/**
+ * Kernel allows interaction directly with hardware registers
+ * when compiled in `.no_std` environments like K-OS or UEFI.
+ */
+@nogc
+@no_std
+class Kernel {
+    
+    /**
+     * Outb writes to an x86 hardware I/O port directly.
+     * Uses inline assembly wrapped via macros.
+     */
+    @staticmethod
+    @unsafe
+    fun outb(port: Int16, value: Int8) {
+        // [COMPILER INTRINSIC] Generates 'out dx, al'
+        asm {
+            "out dx, al"
+            : 
+            : "{dx}" (port), "{al}" (value)
+            : "memory"
+        }
+    }
+
+    /**
+     * Inb reads from an x86 hardware I/O port.
+     */
+    @staticmethod
+    @unsafe
+    fun inb(port: Int16) -> Int8 {
+        mut result: Int8 = 0
+        // [COMPILER INTRINSIC] Generates 'in al, dx'
+        asm {
+            "in al, dx"
+            : "={al}" (result)
+            : "{dx}" (port)
+            : "memory"
+        }
+        return result
+    }
+
+    /**
+     * Directly manipulates the VGA text buffer in a legacy boot context.
+     */
+    @staticmethod
+    @unsafe
+    fun printVga(text: String, color: Int8 = 0x0F) {
+        // 0xB8000 is the standard VGA memory start location
+        val vgaBuffer = RawPointer<Int16>(0xB8000)
+        
+        for i in 0..<text.length {
+            // Write character and color byte to memory mapped I/O
+            val char = text.charAt(i) as Int16
+            val colorWord = (color as Int16) << 8
+            vgaBuffer[i] = char | colorWord
+        }
+    }
+}

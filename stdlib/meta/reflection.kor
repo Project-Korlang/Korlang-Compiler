@@ -1,0 +1,65 @@
+// Korlang Standard Library: Metaprogramming & Reflection (Phase 21)
+// Module: std.meta
+
+module std.meta
+
+/**
+ * TypeInfo represents compile-time introspection data 
+ * about a Korlang struct, class, or primitive.
+ * Since Korlang avoids runtime reflection overhead (unlike Java),
+ * this information is entirely resolved at compile time.
+ */
+@nogc
+class TypeInfo {
+    name: String
+    sizeBytes: Int
+    isPrimitive: Bool
+    fields: Array<FieldInfo>
+    methods: Array<MethodInfo>
+
+    /**
+     * Resolves the type of the given generic `<T>`.
+     * The compiler replaces this call with static data during semantic analysis.
+     */
+    @staticmethod
+    @macro
+    fun of<T>() -> TypeInfo {
+        // [COMPILER INTRINSIC] - This block is replaced by the compiler
+        return TypeInfo(name: "Unknown", sizeBytes: 0, isPrimitive: false, fields: [], methods: [])
+    }
+}
+
+class FieldInfo {
+    name: String
+    type: TypeInfo
+    offset: Int
+    isMutable: Bool
+}
+
+class MethodInfo {
+    name: String
+    returnType: TypeInfo
+    parameters: Array<TypeInfo>
+}
+
+/**
+ * AstBuilder allows developers to write Korlang code that 
+ * generates Korlang syntax trees during compilation.
+ * 
+ * Inspired by Rust Macros and Zig's comptime.
+ */
+class AstBuilder {
+    
+    /**
+     * Generates a getter method for a given field name dynamically.
+     */
+    @macro
+    fun generateGetter(fieldName: String, fieldType: TypeInfo) -> AstNode {
+        // Pseudo-macro AST generation representation
+        return quote {
+            fun get_{fieldName}() -> {fieldType.name} {
+                return this.{fieldName}
+            }
+        }
+    }
+}

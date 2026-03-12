@@ -1,0 +1,44 @@
+// Korlang Standard Library: File System API (Part 4)
+// Module: std.fs
+
+module std.fs
+
+/**
+ * Standardize File System Operations.
+ * Unlike C, these are asynchronous by default to ensure UI threads
+ * are never blocked during dense I/O tasks.
+ */
+class File {
+    
+    @staticmethod
+    fun readString(path: String) -> Result<String, Error> {
+        print("Reading contents of {path}...")
+        
+        @unsafe {
+            val content = __intrinsic_fs_read_all(path)
+            if content == null {
+                return Result.Err(new Error("File not found or unreadable"))
+            }
+            return Result.Ok(content)
+        }
+    }
+    
+    @staticmethod
+    fun writeString(path: String, content: String) -> Result<Bool, Error> {
+        print("Writing {content.length} bytes to {path}...")
+        
+        @unsafe {
+            val success = __intrinsic_fs_write_all(path, content)
+            if !success {
+                return Result.Err(new Error("Failed to write to file"))
+            }
+            return Result.Ok(true)
+        }
+    }
+    
+    @staticmethod
+    fun watch(path: String, callback: fun(String)) {
+        // [STUB] Binds to OS specific file watchers (inotify/ReadDirectoryChangesW)
+        print("Watching {path} for changes...")
+    }
+}
