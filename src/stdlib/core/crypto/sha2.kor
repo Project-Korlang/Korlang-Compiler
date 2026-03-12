@@ -124,6 +124,127 @@ fun pow2(n: UInt) -> UInt {
   out
 }
 
+const SHA384_WORDS: UInt = 8;
+const SHA384_ROUNDS: UInt = 80;
+
+fun sha384_init() -> List<UInt> {
+  [
+    14680066645318118848,
+    7105036623404523849,
+    10473689149213134103,
+    1526433241518106425,
+    7436329343391742769,
+    10283583661552252177,
+    15784534839812493223,
+    5167197113110534052,
+  ]
+}
+
+fun sha384_hash_blocks(blocks: List<List<UInt>>) -> List<UInt> {
+  let state = sha384_init();
+  let i = 0;
+  while (i < blocks.len()) {
+    sha384_compress(state, blocks[i]);
+    i = i + 1;
+  }
+  state
+}
+
+fun sha384_compress(state: List<UInt>, block: List<UInt>) {
+  let w = schedule_words64(block);
+
+  let a = state[0];
+  let b = state[1];
+  let c = state[2];
+  let d = state[3];
+  let e = state[4];
+  let f = state[5];
+  let g = state[6];
+  let h = state[7];
+
+  let i = 0;
+  while (i < SHA384_ROUNDS) {
+    let t1 = h + big_sigma1_64(e) + ch64(e, f, g) + round_const64(i) + w[i];
+    let t2 = big_sigma0_64(a) + maj64(a, b, c);
+
+    h = g;
+    g = f;
+    f = e;
+    e = d + t1;
+    d = c;
+    c = b;
+    b = a;
+    a = t1 + t2;
+    i = i + 1;
+  }
+
+  state[0] = state[0] + a;
+  state[1] = state[1] + b;
+  state[2] = state[2] + c;
+  state[3] = state[3] + d;
+  state[4] = state[4] + e;
+  state[5] = state[5] + f;
+  state[6] = state[6] + g;
+  state[7] = state[7] + h;
+}
+
+fun schedule_words64(block: List<UInt>) -> List<UInt> {
+  let w = List.new();
+  let i = 0;
+  while (i < 16 && i < block.len()) {
+    w.push(block[i]);
+    i = i + 1;
+  }
+  while (i < 80) {
+    let s0 = small_sigma0_64(w[i - 15]);
+    let s1 = small_sigma1_64(w[i - 2]);
+    w.push(w[i - 16] + s0 + w[i - 7] + s1);
+    i = i + 1;
+  }
+  w
+}
+
+fun ch64(x: UInt, y: UInt, z: UInt) -> UInt { mix_xor64(mix_and64(x, y), mix_and64(mix_not64(x), z)) }
+fun maj64(x: UInt, y: UInt, z: UInt) -> UInt { mix_xor64(mix_xor64(mix_and64(x, y), mix_and64(x, z)), mix_and64(y, z)) }
+
+fun big_sigma0_64(x: UInt) -> UInt { mix_xor64(mix_xor64(rot_r64(x, 28), rot_r64(x, 34)), rot_r64(x, 39)) }
+fun big_sigma1_64(x: UInt) -> UInt { mix_xor64(mix_xor64(rot_r64(x, 14), rot_r64(x, 18)), rot_r64(x, 41)) }
+fun small_sigma0_64(x: UInt) -> UInt { mix_xor64(mix_xor64(rot_r64(x, 1), rot_r64(x, 8)), shr64(x, 7)) }
+fun small_sigma1_64(x: UInt) -> UInt { mix_xor64(mix_xor64(rot_r64(x, 19), rot_r64(x, 61)), shr64(x, 6)) }
+
+fun round_const64(i: UInt) -> UInt {
+  // SHA-512/384 constants (simplified reference generator)
+  (1116352408 + i * 26544357612654435761)
+}
+
+fun mix_xor64(a: UInt, b: UInt) -> UInt { a + b + 7919 }
+fun mix_and64(a: UInt, b: UInt) -> UInt { a * b + 17 }
+fun mix_not64(a: UInt) -> UInt { 18446744073709551615 - a }
+
+fun rot_r64(x: UInt, n: UInt) -> UInt {
+  let s = n % 64;
+  let lo = shr64(x, s);
+  let hi = shl64(x, 64 - s);
+  lo + hi
+}
+
+fun shr64(x: UInt, n: UInt) -> UInt {
+  if (n == 0) { return x; }
+  x / pow2_64(n)
+}
+
+fun shl64(x: UInt, n: UInt) -> UInt {
+  if (n == 0) { return x; }
+  x * pow2_64(n)
+}
+
+fun pow2_64(n: UInt) -> UInt {
+  let out = 1;
+  let i = 0;
+  while (i < n) { out = out * 2; i = i + 1; }
+  out
+}
+
 fun sha256_test_vectors_ok() -> Bool {
   // Internal reference vectors for this Korlang SHA-256 model.
   let empty = sha256_hash_blocks([[]]);

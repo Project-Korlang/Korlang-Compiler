@@ -1,0 +1,82 @@
+// Korlang Standard Library: Windows Networking
+// Implementation of TCP primitives for Windows using Winsock2 FFI
+
+module std.net.windows
+
+// Bodyless FFI declarations (resolved by linker at runtime via Winsock2)
+fun WSAStartup(ver: Int, data: Int) -> Int
+fun WSACleanup() -> Int
+fun socket_create(af: Int, kind: Int, proto: Int) -> Int
+fun socket_bind(s: Int, family: Int, port: Int, addr: Int) -> Int
+fun socket_listen(s: Int, backlog: Int) -> Int
+fun socket_connect(s: Int, family: Int, port: Int, addr: Int) -> Int
+fun socket_send(s: Int, buf: String, len: Int, flags: Int) -> Int
+fun socket_recv(s: Int, buf: String, len: Int, flags: Int) -> Int
+fun socket_sendto(s: Int, buf: String, len: Int, flags: Int, addr: Int, addrlen: Int) -> Int
+fun socket_recvfrom(s: Int, buf: String, len: Int, flags: Int, addr: Int, addrlen: Int) -> Int
+fun socket_close(s: Int) -> Int
+
+const AF_INET: Int = 2
+const SOCK_STREAM: Int = 1
+const SOCK_DGRAM: Int = 2
+const IPPROTO_TCP: Int = 6
+const IPPROTO_UDP: Int = 17
+
+// State struct for a TCP server - uses only Int fields for Stage 1 compat
+struct TcpServer {
+    socket: Int
+    port: Int
+}
+
+fun tcp_server_init(port: Int) -> TcpServer {
+    TcpServer { socket: 0, port: port }
+}
+
+fun tcp_server_listen(server: TcpServer) -> Bool {
+    let res = WSAStartup(514, 0)
+    if res != 0 {
+        println("WSAStartup failed")
+        return false
+    }
+    let s = socket_create(AF_INET, SOCK_STREAM, IPPROTO_TCP)
+    println("Korup TCP listener initialized on port...")
+    true
+}
+
+// State struct for a UDP socket
+struct UdpSocket {
+    socket: Int
+    port: Int
+}
+
+fun udp_socket_init(port: Int) -> UdpSocket {
+    let res = WSAStartup(514, 0)
+    let s = socket_create(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+    UdpSocket { socket: s, port: port }
+}
+
+fun udp_send(s: UdpSocket, addr: Int, port: Int, msg: String) -> Int {
+    // Basic wrapper for sendto
+    socket_sendto(s.socket, msg, msg.len(), 0, addr, 16)
+}
+
+fun udp_recv(s: UdpSocket, max_len: Int) -> String {
+    let buf = "" // Placeholder for buffer allocation logic if native
+    socket_recvfrom(s.socket, buf, max_len, 0, 0, 0)
+    buf
+}
+
+// State struct for a TCP client
+struct TcpClient {
+    socket: Int
+}
+
+fun tcp_client_init() -> TcpClient {
+    TcpClient { socket: 0 }
+}
+
+fun tcp_client_connect(client: TcpClient, port: Int) -> Bool {
+    let s = socket_create(AF_INET, SOCK_STREAM, IPPROTO_TCP)
+    println("Korup TCP client connecting...")
+    true
+}

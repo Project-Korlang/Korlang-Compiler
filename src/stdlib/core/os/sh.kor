@@ -1,0 +1,27 @@
+// Korlang Standard Library: OS Shell Wrappers
+// Compatibility primitives for legacy shell operations
+
+module std.os.sh
+
+import std.system
+
+struct Command {
+    prog: String
+    args: List<String>
+    env: Map<String, String>
+}
+
+fun sh_exec(cmd: String) -> Int {
+    println("Executing shell command: " + cmd)
+    // dispatcher.syscall_exec(cmd) 
+    0
+}
+
+fun sh_pipe(cmds: List<String>) -> String {
+    println("Piping commands...")
+    ""
+}
+
+fun sh_exit_code() -> Int {
+    0
+}

@@ -1,0 +1,30 @@
+// Korlang Standard Library: STUN Client
+// RFC 5389 - Basic Binding Request
+
+module std.net.stun
+
+import std.net.windows
+
+const STUN_BIND_REQ: Int = 0x0001
+const STUN_MAGIC_COOKIE: Int = 0x2112A442
+
+struct StunHeader {
+    msg_type: Int
+    msg_len: Int
+    magic: Int
+    transaction_id: String // 12-byte unique ID
+}
+
+fun stun_discover_public_ip(server: String, port: Int) -> String {
+    let sock = udp_socket_init(0)
+    
+    // Binding Request with no attributes
+    // Header: [0, 1] (Type) [0, 0] (Length) [33, 18, 164, 66] (Cookie) [ID...] (12 bytes)
+    let request = "\x00\x01\x00\x00\x21\x12\xA4\x42ABCDEFGHIJKL" 
+    
+    println("Sending STUN binding request to " + server)
+    // udp_send(sock, server_addr_ptr, port, request) 
+    
+    // Returning a placeholder until binary response parsing is implemented
+    "127.0.0.1" 
+}

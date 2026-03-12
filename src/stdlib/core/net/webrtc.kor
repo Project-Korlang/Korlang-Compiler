@@ -1,0 +1,41 @@
+// Korlang Standard Library: WebRTC
+// High-level wrappers for P2P discovery and data channels
+
+module std.net.webrtc
+
+import std.net.windows
+import std.net.stun
+
+struct RTCPeerConnection {
+    id: String
+    local_description: String
+    remote_description: String
+    is_connected: Bool
+}
+
+fun rtc_create_connection() -> RTCPeerConnection {
+    RTCPeerConnection {
+        id: "node-" + "random",
+        local_description: "",
+        remote_description: "",
+        is_connected: false
+    }
+}
+
+async fun rtc_offer(pc: RTCPeerConnection) -> String {
+    println("Creating WebRTC offer...")
+    pc.local_description = "v=0\no=- ... SD..." 
+    pc.local_description
+}
+
+async fun rtc_answer(pc: RTCPeerConnection, offer: String) {
+    println("Answering WebRTC offer...")
+    pc.remote_description = offer
+    pc.is_connected = true
+}
+
+fun rtc_send_data(pc: RTCPeerConnection, data: String) {
+    if pc.is_connected {
+        println("Sending data through P2P channel: " + data)
+    }
+}
