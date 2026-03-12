@@ -1,0 +1,27 @@
+// Standard math module for Korlang
+module std.math
+import "@nogc";
+
+@nogc
+fun abs(x: Int) -> Int {
+    return if (x < 0) -x else x;
+}
+
+@nogc
+fun max(a: Int, b: Int) -> Int {
+    return if (a > b) a else b;
+}
+
+@nogc
+fun min(a: Int, b: Int) -> Int {
+    return if (a < b) a else b;
+}
+
+// Floating point math using builtins
+fun sin(x: Float) -> Float {
+    return @import("sin")(x);
+}
+
+fun cos(x: Float) -> Float {
+    return @import("cos")(x);
+}

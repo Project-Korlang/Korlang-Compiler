@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use crate::symbols::Symbol;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
@@ -14,11 +15,11 @@ pub enum Type {
     Tuple(Vec<Type>),
     Array(Box<Type>),
     Tensor(Box<Type>),
-    Named(String),
+    Named(Symbol),
     Func(Vec<Type>, Box<Type>),
     Optional(Box<Type>),
-    Generic(String, Vec<Type>), // Generic name, type arguments
-    Parameter(String), // Generic parameter name
+    Generic(Symbol, Vec<Type>), // Generic name, type arguments
+    Parameter(Symbol), // Generic parameter name
     Unknown,
 }
 
@@ -37,8 +38,8 @@ impl Type {
 }
 
 pub struct GenericContext {
-    pub params: Vec<String>,
-    pub constraints: HashMap<String, Vec<Type>>,
+    pub params: Vec<Symbol>,
+    pub constraints: HashMap<Symbol, Vec<Type>>,
 }
 
 impl GenericContext {

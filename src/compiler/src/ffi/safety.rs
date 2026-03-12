@@ -8,7 +8,7 @@ impl FfiSafetyChecker {
     pub fn check_type_safety(ty: &Type, span: Span) -> Vec<Diagnostic> {
         let mut diags = Vec::new();
         match ty {
-            Type::Named(n) if n == "String" => {
+            Type::Named(n) if crate::symbols::lookup(*n) == "String" => {
                 diags.push(Diagnostic::warning(
                     "Passing Korlang String to FFI might require manual memory management on the other side.",
                     span

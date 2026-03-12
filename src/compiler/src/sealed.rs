@@ -1,6 +1,6 @@
 use crate::ast::{SealedDecl, Item};
-use crate::diag::Span;
 use crate::sema::Sema;
+use crate::symbols::Symbol;
 use std::collections::HashSet;
 
 pub struct SealedEnforcer<'a> {
@@ -17,25 +17,25 @@ impl<'a> SealedEnforcer<'a> {
         for item in &s.items {
             match item {
                 Item::Struct(st) => {
-                    child_names.insert(st.name.clone());
+                    child_names.insert(st.name);
                 }
                 Item::Enum(e) => {
-                    child_names.insert(e.name.clone());
+                    child_names.insert(e.name);
                 }
                 _ => {
-                    self.sema.report_error("sealed classes can only contain structs or enums", s.span);
+                    self.sema.diags.push(crate::diag::Diagnostic::error("sealed classes can only contain structs or enums", s.span));
                 }
             }
         }
     }
 
-    pub fn get_exhaustiveness_info(&self, sealed_name: &str) -> Vec<String> {
-        if let Some(s) = self.sema.sealed_types.get(sealed_name) {
-            s.items.iter().map(|item| {
+    pub fn get_exhaustiveness_info(&self, sealed_name: Symbol) -> Vec<Symbol> {
+        if let Some(s) = self.sema.sealed_types.get(&sealed_name) {
+            s.items.iter().filter_map(|item| {
                 match item {
-                    Item::Struct(st) => st.name.clone(),
-                    Item::Enum(e) => e.name.clone(),
-                    _ => String::new(),
+                    Item::Struct(st) => Some(st.name),
+                    Item::Enum(e) => Some(e.name),
+                    _ => None,
                 }
             }).collect()
         } else {

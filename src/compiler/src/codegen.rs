@@ -1,3 +1,4 @@
+#![cfg(feature = "llvm")]
 use crate::ast::*;
 use crate::diag::Diagnostic;
 use crate::escape::{analyze_escape, EscapeResult};
@@ -14,8 +15,8 @@ pub struct Codegen<'ctx> {
     module: Module<'ctx>,
     builder: Builder<'ctx>,
     diags: Vec<Diagnostic>,
-    escape_map: HashMap<String, EscapeResult>,
-    local_literals: HashMap<String, Literal>,
+    escape_map: HashMap<crate::symbols::Symbol, EscapeResult>,
+    local_literals: HashMap<crate::symbols::Symbol, Literal>,
 }
 
 impl<'ctx> Codegen<'ctx> {
@@ -87,7 +88,7 @@ impl<'ctx> Codegen<'ctx> {
             match stmt {
                 Stmt::Var(v) => {
                     if let Expr::Literal(lit, _) = self.fold_expr(&v.value) {
-                        self.local_literals.insert(v.name.clone(), lit);
+                        self.local_literals.insert(v.name, lit);
                     }
                 }
                 Stmt::Expr(Expr::Call { callee, args, .. }, _) => {
@@ -169,7 +170,7 @@ impl<'ctx> Codegen<'ctx> {
     fn emit_arg_value(&self, expr: &Expr) -> Option<BasicValueEnum<'ctx>> {
         match self.fold_expr(expr) {
             Expr::Literal(lit, _) => self.emit_literal_for_call(lit),
-            Expr::Ident(id, _) => self.local_literals.get(&id).and_then(|lit| self.emit_literal_for_call(lit.clone())),
+            Expr::Ident(id, _) => self.local_literals.get(id).and_then(|lit| self.emit_literal_for_call(lit.clone())),
             _ => None,
         }
     }

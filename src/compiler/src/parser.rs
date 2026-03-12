@@ -6,7 +6,10 @@ pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
     diags: Vec<Diagnostic>,
+    recursion_depth: usize,
 }
+
+const MAX_RECURSION_DEPTH: usize = 100;
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
@@ -14,7 +17,21 @@ impl Parser {
             tokens,
             pos: 0,
             diags: Vec::new(),
+            recursion_depth: 0,
         }
+    }
+
+    fn check_recursion(&mut self) -> Result<(), ()> {
+        self.recursion_depth += 1;
+        if self.recursion_depth > MAX_RECURSION_DEPTH {
+            self.error("recursion depth exceeded");
+            return Err(());
+        }
+        Ok(())
+    }
+
+    fn leave_recursion(&mut self) {
+        self.recursion_depth = self.recursion_depth.saturating_sub(1);
     }
 
     pub fn parse_program(mut self) -> Result<Program, Vec<Diagnostic>> {
@@ -34,6 +51,13 @@ impl Parser {
     }
 
     fn parse_item(&mut self) -> Result<Item, ()> {
+        self.check_recursion()?;
+        let res = self.parse_item_internal();
+        self.leave_recursion();
+        res
+    }
+
+    fn parse_item_internal(&mut self) -> Result<Item, ()> {
         if self.match_keyword("@nogc") {
             self.expect_keyword("fun")?;
             return self.parse_fun(true, false).map(Item::Fun);
@@ -308,6 +332,13 @@ impl Parser {
     }
 
     fn parse_stmt(&mut self) -> Result<Stmt, ()> {
+        self.check_recursion()?;
+        let res = self.parse_stmt_internal();
+        self.leave_recursion();
+        res
+    }
+
+    fn parse_stmt_internal(&mut self) -> Result<Stmt, ()> {
         if self.match_keyword("let") {
             return self.parse_var_decl_with(true).map(Stmt::Var);
         }
@@ -422,6 +453,13 @@ impl Parser {
     }
 
     fn parse_block(&mut self) -> Result<Block, ()> {
+        self.check_recursion()?;
+        let res = self.parse_block_internal();
+        self.leave_recursion();
+        res
+    }
+
+    fn parse_block_internal(&mut self) -> Result<Block, ()> {
         let start = self.expect_kind(TokenKind::LBrace)?.span;
         let mut stmts = Vec::new();
         let mut tail = None;
@@ -456,6 +494,13 @@ impl Parser {
     }
 
     fn parse_expr_bp(&mut self, min_bp: u8) -> Result<Expr, ()> {
+        self.check_recursion()?;
+        let res = self.parse_expr_bp_internal(min_bp);
+        self.leave_recursion();
+        res
+    }
+
+    fn parse_expr_bp_internal(&mut self, min_bp: u8) -> Result<Expr, ()> {
         let mut lhs = self.parse_prefix()?;
 
         loop {
@@ -551,7 +596,7 @@ impl Parser {
                     "if" => self.parse_if_expr(),
                     "match" => self.parse_match_expr(),
                     _ if k.starts_with('@') => {
-                        let name = k.to_string();
+                        let name = crate::symbols::intern(k);
                         self.advance();
                         Ok(Expr::Ident(name, tok.span))
                     }
@@ -652,6 +697,13 @@ impl Parser {
     }
 
     fn parse_pattern(&mut self) -> Result<Pattern, ()> {
+        self.check_recursion()?;
+        let res = self.parse_pattern_internal();
+        self.leave_recursion();
+        res
+    }
+
+    fn parse_pattern_internal(&mut self) -> Result<Pattern, ()> {
         let tok = self.current().clone();
         match tok.kind {
             TokenKind::Identifier(ref name) if name == "_" => {
@@ -673,7 +725,7 @@ impl Parser {
                 self.advance();
                 while self.match_kind(TokenKind::Dot) {
                     let part = self.expect_ident()?;
-                    name = format!("{}.{}", name, part);
+                    name = crate::symbols::intern(&format!("{}.{}", name, part));
                 }
                 if self.match_kind(TokenKind::LBrace) {
                     let mut fields = Vec::new();
@@ -759,7 +811,7 @@ impl Parser {
         Ok(Expr::Array(items, Span::new(start.start, end.end)))
     }
 
-    fn parse_struct_lit(&mut self, name: String, start: Span) -> Result<Expr, ()> {
+    fn parse_struct_lit(&mut self, name: crate::symbols::Symbol, start: Span) -> Result<Expr, ()> {
         self.expect_kind(TokenKind::LBrace)?;
         let mut fields = Vec::new();
         if !self.check_kind(TokenKind::RBrace) {
@@ -826,6 +878,13 @@ impl Parser {
     }
 
     fn parse_type_ref(&mut self) -> Result<TypeRef, ()> {
+        self.check_recursion()?;
+        let res = self.parse_type_ref_internal();
+        self.leave_recursion();
+        res
+    }
+
+    fn parse_type_ref_internal(&mut self) -> Result<TypeRef, ()> {
         let mut base = if self.match_kind(TokenKind::LParen) {
             let start = self.prev_span();
             let mut elems = Vec::new();
@@ -958,14 +1017,14 @@ impl Parser {
         Ok(GenericParam { name, constraints, span: Span::new(start.start, self.prev_span().end) })
     }
 
-    fn parse_qualified_ident(&mut self) -> Result<String, ()> {
-        let mut name = self.expect_ident()?;
+    fn parse_qualified_ident(&mut self) -> Result<crate::symbols::Symbol, ()> {
+        let mut name = self.expect_ident()?.to_string();
         while self.match_kind(TokenKind::Dot) {
             let part = self.expect_ident()?;
             name.push('.');
-            name.push_str(&part);
+            name.push_str(&part.to_string());
         }
-        Ok(name)
+        Ok(crate::symbols::intern(&name))
     }
 
     fn infix_binding_power(&self) -> Option<(u8, u8, InfixOp)> {
@@ -1147,11 +1206,11 @@ impl Parser {
         }
     }
 
-    fn expect_ident(&mut self) -> Result<String, ()> {
+    fn expect_ident(&mut self) -> Result<crate::symbols::Symbol, ()> {
         match self.current().kind.clone() {
-            TokenKind::Identifier(name) => {
+            TokenKind::Identifier(sym) => {
                 self.advance();
-                Ok(name)
+                Ok(sym)
             }
             _ => {
                 self.error("expected identifier");

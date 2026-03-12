@@ -1,0 +1,24 @@
+// Standard String utilities for Korlang
+module std.string
+
+struct StringUtils {
+    fun split(s: String, delim: Char) -> [String] {
+        return @import("string_split")(s, delim);
+    }
+
+    fun join(parts: [String], sep: String) -> String {
+        return @import("string_join")(parts, sep);
+    }
+
+    fun to_upper(s: String) -> String {
+        return @import("string_to_upper")(s);
+    }
+
+    fun to_lower(s: String) -> String {
+        return @import("string_to_lower")(s);
+    }
+
+    fun trim(s: String) -> String {
+        return @import("string_trim")(s);
+    }
+}

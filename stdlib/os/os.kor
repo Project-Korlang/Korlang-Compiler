@@ -1,0 +1,21 @@
+// Standard OS interface for Korlang
+module std.os
+import "@bridge" as ffi;
+
+struct OS {
+    fun get_env(name: String) -> String {
+        return ffi.get_env(name);
+    }
+
+    fun args() -> [String] {
+        return ffi.args();
+    }
+
+    fun exit(code: Int) {
+        ffi.exit(code);
+    }
+}
+
+fun get_cwd() -> String {
+    return ffi.get_cwd();
+}

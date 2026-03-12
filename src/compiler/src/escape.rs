@@ -1,16 +1,17 @@
 use crate::ast::*;
+use crate::symbols::Symbol;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Default, Clone)]
 pub struct EscapeResult {
-    pub escapes: HashSet<String>,
+    pub escapes: HashSet<Symbol>,
 }
 
-pub fn analyze_escape(program: &Program) -> HashMap<String, EscapeResult> {
+pub fn analyze_escape(program: &Program) -> HashMap<Symbol, EscapeResult> {
     let mut map = HashMap::new();
     for item in &program.items {
         if let Item::Fun(f) = item {
-            map.insert(f.name.clone(), analyze_fun(f));
+            map.insert(f.name, analyze_fun(f));
         }
     }
     map
@@ -26,10 +27,10 @@ fn analyze_fun(fun: &FunDecl) -> EscapeResult {
     res
 }
 
-fn collect_locals(block: &Block, locals: &mut HashSet<String>) {
+fn collect_locals(block: &Block, locals: &mut HashSet<Symbol>) {
     for stmt in &block.stmts {
         if let Stmt::Var(v) = stmt {
-            locals.insert(v.name.clone());
+            locals.insert(v.name);
         }
         if let Stmt::Block(b) = stmt {
             collect_locals(b, locals);
@@ -45,7 +46,8 @@ fn collect_locals(block: &Block, locals: &mut HashSet<String>) {
         if let Stmt::While(_, b, _) = stmt {
             collect_locals(b, locals);
         }
-        if let Stmt::For(_, _, b, _) = stmt {
+        if let Stmt::For(name, _, b, _) = stmt {
+            locals.insert(*name);
             collect_locals(b, locals);
         }
         if let Stmt::Match(_, arms, _) = stmt {
@@ -58,7 +60,7 @@ fn collect_locals(block: &Block, locals: &mut HashSet<String>) {
     }
 }
 
-fn mark_escapes_in_block(block: &Block, res: &mut EscapeResult, locals: &HashSet<String>) {
+fn mark_escapes_in_block(block: &Block, res: &mut EscapeResult, locals: &HashSet<Symbol>) {
     for stmt in &block.stmts {
         match stmt {
             Stmt::Return(Some(expr), _) => mark_escapes(expr, res, locals, true),
@@ -96,11 +98,11 @@ fn mark_escapes_in_block(block: &Block, res: &mut EscapeResult, locals: &HashSet
     }
 }
 
-fn mark_escapes(expr: &Expr, res: &mut EscapeResult, locals: &HashSet<String>, should_mark: bool) {
+fn mark_escapes(expr: &Expr, res: &mut EscapeResult, locals: &HashSet<Symbol>, should_mark: bool) {
     match expr {
         Expr::Ident(name, _) => {
             if should_mark && locals.contains(name) {
-                res.escapes.insert(name.clone());
+                res.escapes.insert(*name);
             }
         }
         Expr::Call { callee, args, .. } => {
@@ -166,6 +168,7 @@ mod tests {
     use super::*;
     use crate::lexer::Lexer;
     use crate::parser::Parser;
+    use crate::symbols::intern;
 
     fn analyze(src: &str) -> EscapeResult {
         let tokens = Lexer::new(src).tokenize().unwrap();
@@ -176,24 +179,24 @@ mod tests {
     #[test]
     fn escape_return_marks_local() {
         let res = analyze("fun f() { let x = 1; return x; }");
-        assert!(res.escapes.contains("x"));
+        assert!(res.escapes.contains(&intern("x")));
     }
 
     #[test]
     fn escape_pass_to_call() {
         let res = analyze("fun f() { let x = 1; foo(x); }");
-        assert!(res.escapes.contains("x"));
+        assert!(res.escapes.contains(&intern("x")));
     }
 
     #[test]
     fn escape_in_array_literal() {
         let res = analyze("fun f() { let x = 1; let a = [x]; }");
-        assert!(res.escapes.contains("x"));
+        assert!(res.escapes.contains(&intern("x")));
     }
 
     #[test]
     fn no_escape_simple_use() {
         let res = analyze("fun f() { let x = 1; let y = x + 2; }");
-        assert!(!res.escapes.contains("x"));
+        assert!(!res.escapes.contains(&intern("x")));
     }
 }

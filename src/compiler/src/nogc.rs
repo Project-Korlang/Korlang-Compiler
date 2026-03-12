@@ -1,6 +1,6 @@
 use crate::ast::*;
-use crate::sema::{Sema, Type};
-use crate::diag::{Diagnostic, Span};
+use crate::sema::Sema;
+use crate::diag::Diagnostic;
 
 pub struct NoGcChecker<'a> {
     sema: &'a mut Sema,
@@ -65,7 +65,8 @@ impl<'a> NoGcChecker<'a> {
             Expr::Call { callee, args, span } => {
                 if let Expr::Ident(name, _) = &**callee {
                     if !self.sema.is_nogc_function(name) {
-                        self.sema.diags.push(Diagnostic::error(format!("call to non-@nogc function '{}' from @nogc context", name), *span));
+                        let name_s = crate::symbols::lookup(*name);
+                        self.sema.diags.push(Diagnostic::error(format!("call to non-@nogc function '{}' from @nogc context", name_s), *span));
                     }
                 }
                 for arg in args {

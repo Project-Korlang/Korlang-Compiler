@@ -1,0 +1,29 @@
+// Standard Iterator interface for Korlang
+module std.iter
+
+interface Iterator<T> {
+    fun next(mut self) -> Option<T>;
+}
+
+interface IntoIterator<T> {
+    fun iter(self) -> Iterator<T>;
+}
+
+struct Range {
+    var start: Int;
+    var end: Int;
+    mut current: Int;
+
+    fun next(mut self) -> Option<Int> {
+        if (self.current < self.end) {
+            let res = self.current;
+            self.current = self.current + 1;
+            return Option.Some(res);
+        }
+        return Option.None;
+    }
+}
+
+fun range(start: Int, end: Int) -> Range {
+    return Range { start: start, end: end, current: start };
+}

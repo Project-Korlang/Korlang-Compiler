@@ -47,6 +47,8 @@ pub struct Diagnostic {
     pub level: DiagnosticLevel,
     pub message: String,
     pub span: Span,
+    pub code: Option<&'static str>,
+    pub labels: Vec<(Span, String)>,
 }
 
 impl Diagnostic {
@@ -55,7 +57,19 @@ impl Diagnostic {
             level: DiagnosticLevel::Error,
             message: message.into(),
             span,
+            code: None,
+            labels: Vec::new(),
         }
+    }
+
+    pub fn with_code(mut self, code: &'static str) -> Self {
+        self.code = Some(code);
+        self
+    }
+
+    pub fn with_label(mut self, span: Span, message: impl Into<String>) -> Self {
+        self.labels.push((span, message.into()));
+        self
     }
 
     pub fn warning(message: impl Into<String>, span: Span) -> Self {
@@ -63,6 +77,8 @@ impl Diagnostic {
             level: DiagnosticLevel::Warning,
             message: message.into(),
             span,
+            code: None,
+            labels: Vec::new(),
         }
     }
 
@@ -71,6 +87,8 @@ impl Diagnostic {
             level: DiagnosticLevel::Note,
             message: message.into(),
             span,
+            code: None,
+            labels: Vec::new(),
         }
     }
 
@@ -79,11 +97,13 @@ impl Diagnostic {
             level: DiagnosticLevel::Bug,
             message: message.into(),
             span,
+            code: None,
+            labels: Vec::new(),
         }
     }
 
     pub fn report(&self, source: &str, file_name: &str) {
-        let color = match self.level {
+        let level_color = match self.level {
             DiagnosticLevel::Error => "\x1b[31;1m", // Bold Red
             DiagnosticLevel::Warning => "\x1b[33;1m", // Bold Yellow
             DiagnosticLevel::Note => "\x1b[36;1m", // Bold Cyan
@@ -91,25 +111,48 @@ impl Diagnostic {
         };
         let reset = "\x1b[0m";
 
-        eprintln!("{}[{}]{}: {}", color, self.level.to_str(), reset, self.message);
+        let label = if let Some(code) = self.code {
+            format!("{}[{}]", self.level.to_str(), code)
+        } else {
+            self.level.to_str().to_string()
+        };
+
+        eprintln!("{}[{}]{}: {}", level_color, label, reset, self.message);
         eprintln!("  --> {}:{}:{}", file_name, self.span.start.line, self.span.start.column);
 
         let lines: Vec<&str> = source.lines().collect();
-        if self.span.start.line > 0 && self.span.start.line <= lines.len() {
-            let line_idx = self.span.start.line - 1;
+        
+        // Report primary span
+        self.draw_span(&lines, self.span, "", level_color, true);
+
+        // Report secondary labels
+        for (span, msg) in &self.labels {
+            self.draw_span(&lines, *span, msg, "\x1b[36m", false); // Cyan for notes
+        }
+        eprintln!();
+    }
+
+    fn draw_span(&self, lines: &[&str], span: Span, message: &str, color: &str, primary: bool) {
+        let reset = "\x1b[0m";
+        if span.start.line > 0 && span.start.line <= lines.len() {
+            let line_idx = span.start.line - 1;
             let line = lines[line_idx];
             eprintln!("   |");
-            eprintln!("{:3} | {}", self.span.start.line, line);
+            eprintln!("{:3} | {}", span.start.line, line);
             
-            let padding = " ".repeat(self.span.start.column.saturating_sub(1));
-            let highlight_len = if self.span.end.offset > self.span.start.offset {
-                self.span.end.offset - self.span.start.offset
+            let padding = " ".repeat(span.start.column.saturating_sub(1));
+            let highlight_char = if primary { "^" } else { "-" };
+            let highlight_len = if span.end.offset > span.start.offset && span.end.line == span.start.line {
+                span.end.offset - span.start.offset
             } else {
                 1
             };
-            let highlight = "^".repeat(highlight_len);
-            eprintln!("   | {}{}{}{}", padding, color, highlight, reset);
+            let highlight = highlight_char.repeat(highlight_len);
+            if message.is_empty() {
+                eprintln!("   | {}{}{}{}", padding, color, highlight, reset);
+            } else {
+                eprintln!("   | {}{}{}{} {}", padding, color, highlight, reset, message);
+            }
         }
-        eprintln!();
     }
 }

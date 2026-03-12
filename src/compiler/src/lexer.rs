@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
-    Identifier(String),
+    Identifier(crate::symbols::Symbol),
     IntLiteral(i64),
     FloatLiteral(f64),
     StringLiteral(String),
@@ -80,7 +80,6 @@ struct InterpContext {
 
 pub struct Lexer<'a> {
     src: &'a str,
-    chars: Vec<char>,
     pos: usize,
     line: usize,
     col: usize,
@@ -93,7 +92,6 @@ impl<'a> Lexer<'a> {
     pub fn new(src: &'a str) -> Self {
         Self {
             src,
-            chars: src.chars().collect(),
             pos: 0,
             line: 1,
             col: 1,
@@ -129,7 +127,7 @@ impl<'a> Lexer<'a> {
 
             let c = self.peek();
             let tok = match c {
-                'a'..='z' | 'A'..='Z' | '_' => self.lex_ident_or_keyword(),
+                c if c.is_alphabetic() || c == '_' => self.lex_ident_or_keyword(),
                 '0'..='9' => self.lex_number(),
                 '"' => {
                     self.advance();
@@ -174,20 +172,47 @@ impl<'a> Lexer<'a> {
         let start_idx = self.pos;
         self.advance();
         while !self.is_eof() {
-            match self.peek() {
-                'a'..='z' | 'A'..='Z' | '0'..='9' | '_' => self.advance(),
-                _ => break,
+            let c = self.peek();
+            if c.is_alphanumeric() || c == '_' {
+                self.advance();
+            } else {
+                break;
             }
         }
-        let s: String = self.chars[start_idx..self.pos].iter().collect();
-        let kind = match s.as_str() {
-            "fun" | "gpu" | "async" | "let" | "var" | "if" | "else" | "match" | "for" | "while" |
-            "break" | "continue" | "return" | "view" | "resource" | "state" |
-            "spawn" | "@nogc" | "import" | "as" | "struct" | "enum" | "type" |
-            "in" | "mut" | "interface" | "sealed" | "implements" | "class" => TokenKind::Keyword(Box::leak(s.into_boxed_str())),
+        let s = &self.src[start_idx..self.pos];
+        let kind = match s {
+            "fun" => TokenKind::Keyword("fun"),
+            "gpu" => TokenKind::Keyword("gpu"),
+            "async" => TokenKind::Keyword("async"),
+            "let" => TokenKind::Keyword("let"),
+            "var" => TokenKind::Keyword("var"),
+            "if" => TokenKind::Keyword("if"),
+            "else" => TokenKind::Keyword("else"),
+            "match" => TokenKind::Keyword("match"),
+            "for" => TokenKind::Keyword("for"),
+            "while" => TokenKind::Keyword("while"),
+            "break" => TokenKind::Keyword("break"),
+            "continue" => TokenKind::Keyword("continue"),
+            "return" => TokenKind::Keyword("return"),
+            "view" => TokenKind::Keyword("view"),
+            "resource" => TokenKind::Keyword("resource"),
+            "state" => TokenKind::Keyword("state"),
+            "spawn" => TokenKind::Keyword("spawn"),
+            "@nogc" => TokenKind::Keyword("@nogc"),
+            "import" => TokenKind::Keyword("import"),
+            "as" => TokenKind::Keyword("as"),
+            "struct" => TokenKind::Keyword("struct"),
+            "enum" => TokenKind::Keyword("enum"),
+            "type" => TokenKind::Keyword("type"),
+            "in" => TokenKind::Keyword("in"),
+            "mut" => TokenKind::Keyword("mut"),
+            "interface" => TokenKind::Keyword("interface"),
+            "sealed" => TokenKind::Keyword("sealed"),
+            "implements" => TokenKind::Keyword("implements"),
+            "class" => TokenKind::Keyword("class"),
             "true" => TokenKind::BoolLiteral(true),
             "false" => TokenKind::BoolLiteral(false),
-            _ => TokenKind::Identifier(s),
+            _ => TokenKind::Identifier(crate::symbols::intern(s)),
         };
         Ok(Token { kind, span: Span::new(start_pos, self.position()) })
     }
@@ -205,8 +230,8 @@ impl<'a> Lexer<'a> {
             if hex_start == self.pos {
                 return Err(Diagnostic::error("invalid hex literal", Span::new(start_pos, self.position())));
             }
-            let s: String = self.chars[hex_start..self.pos].iter().collect();
-            let v = i64::from_str_radix(&s, 16)
+            let s = &self.src[hex_start..self.pos];
+            let v = i64::from_str_radix(s, 16)
                 .map_err(|_| Diagnostic::error("invalid hex literal", Span::new(start_pos, self.position())))?;
             return Ok(Token { kind: TokenKind::IntLiteral(v), span: Span::new(start_pos, self.position()) });
         }
@@ -220,8 +245,8 @@ impl<'a> Lexer<'a> {
             if bin_start == self.pos {
                 return Err(Diagnostic::error("invalid binary literal", Span::new(start_pos, self.position())));
             }
-            let s: String = self.chars[bin_start..self.pos].iter().collect();
-            let v = i64::from_str_radix(&s, 2)
+            let s = &self.src[bin_start..self.pos];
+            let v = i64::from_str_radix(s, 2)
                 .map_err(|_| Diagnostic::error("invalid binary literal", Span::new(start_pos, self.position())))?;
             return Ok(Token { kind: TokenKind::IntLiteral(v), span: Span::new(start_pos, self.position()) });
         }
@@ -249,7 +274,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let s: String = self.chars[start..self.pos].iter().collect();
+        let s = &self.src[start..self.pos];
         if is_float {
             let v = s.parse::<f64>()
                 .map_err(|_| Diagnostic::error("invalid float literal", Span::new(start_pos, self.position())))?;
@@ -301,7 +326,7 @@ impl<'a> Lexer<'a> {
                         if self.is_eof() || self.peek() != '}' {
                             return Err(Diagnostic::error("invalid unicode escape", Span::new(start, self.position())));
                         }
-                        let hex: String = self.chars[hex_start..self.pos].iter().collect();
+                        let hex = &self.src[hex_start..self.pos];
                         self.advance();
                         let code = u32::from_str_radix(&hex, 16)
                             .map_err(|_| Diagnostic::error("invalid unicode escape", Span::new(start, self.position())))?;
@@ -317,17 +342,19 @@ impl<'a> Lexer<'a> {
                 }
                 continue;
             }
-            if c == '{' {
+            if c == '@' && self.peek_next() == '{' {
                 let interp_start = self.position();
                 if !out.is_empty() {
                     let span = Span::new(start, interp_start);
-                    self.advance();
+                    self.advance(); // @
+                    self.advance(); // {
                     self.push_interpolation(true);
                     let interp_span = Span::new(interp_start, self.position());
                     self.pending.push_back(Token { kind: TokenKind::InterpStart, span: interp_span });
                     return Ok(Some(Token { kind: TokenKind::StringLiteral(out), span }));
                 }
-                self.advance();
+                self.advance(); // @
+                self.advance(); // {
                 self.push_interpolation(true);
                 let interp_span = Span::new(interp_start, self.position());
                 return Ok(Some(Token { kind: TokenKind::InterpStart, span: interp_span }));
@@ -368,7 +395,7 @@ impl<'a> Lexer<'a> {
                     if self.is_eof() || self.peek() != '}' {
                         return Err(Diagnostic::error("invalid unicode escape", Span::new(start, self.position())));
                     }
-                    let hex: String = self.chars[hex_start..self.pos].iter().collect();
+                    let hex = &self.src[hex_start..self.pos];
                     self.advance();
                     let code = u32::from_str_radix(&hex, 16)
                         .map_err(|_| Diagnostic::error("invalid unicode escape", Span::new(start, self.position())))?;
@@ -439,11 +466,13 @@ impl<'a> Lexer<'a> {
                     _ => break,
                 }
             }
-            let name: String = self.chars[ident_start..self.pos].iter().collect();
+            let name = &self.src[ident_start..self.pos];
             let full = format!("@{}", name);
-            let kind = match name.as_str() {
-                "nogc" | "import" | "bridge" => TokenKind::Keyword(Box::leak(full.into_boxed_str())),
-                _ => TokenKind::Identifier(full),
+            let kind = match name {
+                "nogc" => TokenKind::Keyword("@nogc"),
+                "import" => TokenKind::Keyword("@import"),
+                "bridge" => TokenKind::Keyword("@bridge"),
+                _ => TokenKind::Identifier(crate::symbols::intern(&full)),
             };
             return Ok(Token { kind, span: Span::new(start, self.position()) });
         }
@@ -564,15 +593,17 @@ impl<'a> Lexer<'a> {
     }
 
     fn is_eof(&self) -> bool {
-        self.pos >= self.chars.len()
+        self.pos >= self.src.len()
     }
 
     fn peek(&self) -> char {
-        self.chars.get(self.pos).copied().unwrap_or('\0')
+        self.src[self.pos..].chars().next().unwrap_or('\0')
     }
 
     fn peek_next(&self) -> char {
-        self.chars.get(self.pos + 1).copied().unwrap_or('\0')
+        let mut it = self.src[self.pos..].chars();
+        it.next();
+        it.next().unwrap_or('\0')
     }
 
     fn next_char(&mut self) -> Option<char> {
@@ -587,13 +618,14 @@ impl<'a> Lexer<'a> {
 
     fn advance(&mut self) {
         if self.is_eof() { return; }
-        if self.peek() == '\n' {
+        let c = self.peek();
+        self.pos += c.len_utf8();
+        if c == '\n' {
             self.line += 1;
             self.col = 1;
         } else {
             self.col += 1;
         }
-        self.pos += 1;
     }
 
     fn position(&self) -> Position {
@@ -621,7 +653,6 @@ mod tests {
         let source = "abc";
         let lexer = Lexer::new(source);
         assert_eq!(lexer.src, source);
-        assert_eq!(lexer.chars.len(), source.chars().count());
         assert_eq!(lexer.pos, 0);
         assert_eq!(lexer.line, 1);
         assert_eq!(lexer.col, 1);

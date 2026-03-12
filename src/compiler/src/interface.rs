@@ -3,8 +3,8 @@ use crate::ast::InterfaceDecl;
 use std::collections::HashMap;
 
 pub struct InterfaceSystem {
-    pub interfaces: HashMap<String, InterfaceDecl>,
-    pub implementations: HashMap<String, Vec<Type>>, // Interface Name -> Implementing Types
+    pub interfaces: HashMap<crate::symbols::Symbol, InterfaceDecl>,
+    pub implementations: HashMap<crate::symbols::Symbol, Vec<Type>>, // Interface Name -> Implementing Types
 }
 
 impl InterfaceSystem {
@@ -16,11 +16,11 @@ impl InterfaceSystem {
     }
 
     pub fn register_interface(&mut self, decl: InterfaceDecl) {
-        self.interfaces.insert(decl.name.clone(), decl);
+        self.interfaces.insert(decl.name, decl);
     }
-
-    pub fn register_implementation(&mut self, interface_name: &str, ty: Type) {
-        let entry = self.implementations.entry(interface_name.to_string()).or_insert_with(Vec::new);
+    
+    pub fn register_implementation(&mut self, interface_name: crate::symbols::Symbol, ty: Type) {
+        let entry = self.implementations.entry(interface_name).or_insert_with(Vec::new);
         entry.push(ty);
     }
 }

@@ -1,0 +1,20 @@
+// Standard Error and Result types for Korlang
+module std.error
+
+interface Error {
+    fun message() -> String;
+}
+
+struct GenericError {
+    var msg: String;
+    fun message(self) -> String { return self.msg; }
+}
+
+enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+
+fun fail(msg: String) -> Result<Any, GenericError> {
+    return Result.Err(GenericError { msg: msg });
+}

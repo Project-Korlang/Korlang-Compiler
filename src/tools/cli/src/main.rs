@@ -44,8 +44,22 @@ fn main() {
     }
     
     match cmd.as_str() {
-        "build" => build(args, false, verbose, debug),
-        "run" => build(args, true, verbose, debug),
+        "build" => {
+            let watch = args.iter().any(|a| a == "--watch");
+            if watch {
+                watch_build(args, false, verbose, debug);
+            } else {
+                build(args, false, verbose, debug);
+            }
+        }
+        "run" => {
+            let watch = args.iter().any(|a| a == "--watch");
+            if watch {
+                watch_build(args, true, verbose, debug);
+            } else {
+                build(args, true, verbose, debug);
+            }
+        }
         "new" => new_project(args),
         "test" => run_tests(),
         "doc" => generate_docs(),
@@ -88,6 +102,7 @@ fn print_help() {
     println!("    --pgo-use <file> Use PGO profile");
     println!("    --verbose, -v    Verbose output");
     println!("    --debug, -d      Detailed debug logging");
+    println!("    --watch          Watch for file changes and rebuild");
     println!("    --version        Show version");
     println!("    --help, -h       Show this help");
 }
@@ -646,4 +661,34 @@ fn find_repo_root() -> Option<PathBuf> {
         if !cur.pop() { break; }
     }
     None
+}
+
+fn watch_build(args: Vec<String>, run: bool, verbose: bool, debug: bool) {
+    let build_args: Vec<String> = args.iter()
+        .filter(|a| a.as_str() != "--watch")
+        .cloned()
+        .collect();
+    
+    if build_args.is_empty() {
+        eprintln!("\x1b[31merror\x1b[0m: missing input file for --watch");
+        std::process::exit(1);
+    }
+
+    let input = PathBuf::from(&build_args[0]);
+    println!("\x1b[36m[WATCH]\x1b[0m Watching {} and its imports...", input.display());
+
+    let mut last_processed_hash = String::new();
+
+    loop {
+        if let Ok(src) = resolve_source_with_imports(&input) {
+            let current_hash = hash_str(&src);
+            if current_hash != last_processed_hash {
+                last_processed_hash = current_hash;
+                println!("\x1b[36m[WATCH]\x1b[0m Change detected, rebuilding...");
+                build(build_args.clone(), run, verbose, debug);
+                println!("\x1b[36m[WATCH]\x1b[0m Waiting for changes...");
+            }
+        }
+        thread::sleep(std::time::Duration::from_millis(1000));
+    }
 }

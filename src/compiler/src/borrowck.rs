@@ -1,6 +1,7 @@
 use crate::ast::*;
-use crate::sema::{Type, Sema};
-use crate::diag::{Diagnostic, Span};
+use crate::sema::Sema;
+use crate::diag::Diagnostic;
+use crate::symbols::Symbol;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -13,7 +14,7 @@ pub enum OwnershipState {
 
 pub struct BorrowChecker<'a> {
     sema: &'a mut Sema,
-    locals: HashMap<String, OwnershipState>,
+    locals: HashMap<Symbol, OwnershipState>,
 }
 
 impl<'a> BorrowChecker<'a> {
@@ -28,7 +29,7 @@ impl<'a> BorrowChecker<'a> {
         match stmt {
             Stmt::Var(v) => {
                 self.check_expr(&v.value);
-                self.locals.insert(v.name.clone(), OwnershipState::Owned);
+                self.locals.insert(v.name, OwnershipState::Owned);
             }
             Stmt::Expr(e, _) => {
                 self.check_expr(e);
@@ -70,8 +71,9 @@ impl<'a> BorrowChecker<'a> {
             Expr::Ident(name, span) => {
                 if let Some(state) = self.locals.get(name) {
                     if *state == OwnershipState::Moved {
+                        let name_s = crate::symbols::lookup(*name);
                         self.sema.diags.push(Diagnostic::error(
-                            format!("use of moved value: '{}'", name),
+                            format!("use of moved value: '{}'", name_s),
                             *span,
                         ));
                     }
@@ -81,7 +83,7 @@ impl<'a> BorrowChecker<'a> {
                 self.check_expr(right);
                 if let Expr::Ident(name, _) = &**left {
                     // Re-owning a variable
-                    self.locals.insert(name.clone(), OwnershipState::Owned);
+                    self.locals.insert(*name, OwnershipState::Owned);
                 }
             }
             Expr::Call { callee, args, .. } => {
@@ -91,7 +93,7 @@ impl<'a> BorrowChecker<'a> {
                     // Simple move semantics: passing an ident to a function moves it
                     // unless we implement borrowing syntax later
                     if let Expr::Ident(name, _) = arg {
-                        self.locals.insert(name.clone(), OwnershipState::Moved);
+                        self.locals.insert(*name, OwnershipState::Moved);
                     }
                 }
             }

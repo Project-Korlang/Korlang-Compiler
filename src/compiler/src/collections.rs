@@ -1,4 +1,3 @@
-use crate::ast::*;
 use crate::sema::{Type, Sema};
 
 #[derive(Debug, Clone)]
@@ -8,12 +7,12 @@ pub enum CollectionAbstraction {
 }
 
 pub struct CollectionSpecializer<'a> {
-    sema: &'a mut Sema,
+    _sema: &'a mut Sema,
 }
 
 impl<'a> CollectionSpecializer<'a> {
     pub fn new(sema: &'a mut Sema) -> Self {
-        Self { sema }
+        Self { _sema: sema }
     }
 
     pub fn specialize_type(&mut self, ty: &Type) -> Option<CollectionAbstraction> {

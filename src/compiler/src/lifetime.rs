@@ -1,19 +1,20 @@
 use crate::ast::*;
-use crate::sema::{Type, Sema};
+use crate::sema::Sema;
 use crate::diag::{Diagnostic, Span};
+use crate::symbols::Symbol;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Lifetime {
     Static,
     Block(usize), // depth
-    Param(String),
+    Param(Symbol),
 }
 
 pub struct LifetimeChecker<'a> {
     sema: &'a mut Sema,
     current_depth: usize,
-    bindings: HashMap<String, Lifetime>,
+    bindings: HashMap<Symbol, Lifetime>,
 }
 
 impl<'a> LifetimeChecker<'a> {
@@ -33,7 +34,7 @@ impl<'a> LifetimeChecker<'a> {
         self.current_depth -= 1;
     }
 
-    pub fn bind(&mut self, name: String, lifetime: Lifetime) {
+    pub fn bind(&mut self, name: Symbol, lifetime: Lifetime) {
         self.bindings.insert(name, lifetime);
     }
 
@@ -52,7 +53,7 @@ impl<'a> LifetimeChecker<'a> {
         match stmt {
             Stmt::Var(v) => {
                 let life = self.check_expr(&v.value);
-                self.bind(v.name.clone(), life);
+                self.bind(v.name, life);
             }
             Stmt::Expr(e, _) => {
                 self.check_expr(e);

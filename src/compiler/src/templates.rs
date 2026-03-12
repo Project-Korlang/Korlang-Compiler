@@ -1,10 +1,10 @@
 use crate::ast::*;
-use crate::sema::{Type, Sema};
-use crate::diag::{Diagnostic, Span};
+use crate::sema::Type;
+use crate::symbols::Symbol;
 use std::collections::HashMap;
 
 pub struct TemplateSystem {
-    pub instantiations: HashMap<String, Type>,
+    pub instantiations: HashMap<Symbol, Type>,
 }
 
 impl TemplateSystem {
@@ -16,16 +16,16 @@ impl TemplateSystem {
 
     pub fn instantiate_type(&mut self, base_ty: &Type, args: &[Type], params: &[GenericParam]) -> Type {
         // Simple substitution for now
-        let mut subst: HashMap<String, Type> = HashMap::new();
+        let mut subst: HashMap<Symbol, Type> = HashMap::new();
         for (p, a) in params.iter().zip(args.iter()) {
-            subst.insert(p.name.clone(), a.clone());
+            subst.insert(p.name, a.clone());
         }
         self.apply_subst(base_ty, &subst)
     }
 
-    fn apply_subst(&self, ty: &Type, subst: &HashMap<String, Type>) -> Type {
+    fn apply_subst(&self, ty: &Type, subst: &HashMap<Symbol, Type>) -> Type {
         match ty {
-            Type::Named(name) => {
+            Type::Named(name) | Type::Parameter(name) => {
                 if let Some(t) = subst.get(name) {
                     t.clone()
                 } else {

@@ -1,5 +1,4 @@
-use crate::ast::*;
-use crate::sema::Type;
+use crate::ast::{Expr, Literal};
 
 pub struct ConstexprEval;
 

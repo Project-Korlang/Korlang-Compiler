@@ -1,0 +1,335 @@
+warning: unused import: `Arc`
+ --> src\compiler\src\symbols.rs:2:17
+  |
+2 | use std::sync::{Arc, Mutex,...
+  |                 ^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::diag::Span`
+ --> src\compiler\src\sealed.rs:2:5
+  |
+2 | use crate::diag::Span;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Diagnostic`
+ --> src\compiler\src\async_pass.rs:3:19
+  |
+3 | ...diag::{Diagnostic, Span};
+  |           ^^^^^^^^^^
+
+warning: unused import: `Type`
+ --> src\compiler\src\nogc.rs:2:25
+  |
+2 | use crate::sema::{Sema, Type};
+  |                         ^^^^
+
+warning: unused import: `Span`
+ --> src\compiler\src\nogc.rs:3:31
+  |
+3 | ...agnostic, Span};
+  |              ^^^^
+
+warning: unused import: `Type`
+ --> src\compiler\src\borrowck.rs:2:19
+  |
+2 | use crate::sema::{Type, Sema};
+  |                   ^^^^
+
+warning: unused import: `Span`
+ --> src\compiler\src\borrowck.rs:3:31
+  |
+3 | ...agnostic, Span};
+  |              ^^^^
+
+warning: unused import: `Type`
+ --> src\compiler\src\lifetime.rs:2:19
+  |
+2 | use crate::sema::{Type, Sema};
+  |                   ^^^^
+
+warning: unused import: `Type`
+ --> src\compiler\src\moveck.rs:2:19
+  |
+2 | use crate::sema::{Type, Sema};
+  |                   ^^^^
+
+warning: unused import: `Span`
+ --> src\compiler\src\moveck.rs:3:31
+  |
+3 | ...agnostic, Span};
+  |              ^^^^
+
+warning: unused import: `crate::ast::*`
+ --> src\compiler\src\collections.rs:1:5
+  |
+1 | use crate::ast::*;
+  |     ^^^^^^^^^^^^^
+
+warning: unused import: `Sema`
+ --> src\compiler\src\templates.rs:2:25
+  |
+2 | use crate::sema::{Type, Sema};
+  |                         ^^^^
+
+warning: unused imports: `Diagnostic` and `Span`
+ --> src\compiler\src\templates.rs:3:19
+  |
+3 | ...g::{Diagnostic, Span};
+  |        ^^^^^^^^^^  ^^^^
+
+warning: unused import: `Diagnostic`
+ --> src\compiler\src\concepts.rs:3:19
+  |
+3 | ...diag::{Diagnostic, Span};
+  |           ^^^^^^^^^^
+
+warning: unused import: `crate::ast::*`
+ --> src\compiler\src\specialization.rs:1:5
+  |
+1 | use crate::ast::*;
+  |     ^^^^^^^^^^^^^
+
+warning: unused import: `Sema`
+ --> src\compiler\src\specialization.rs:2:25
+  |
+2 | use crate::sema::{Type, Sema};
+  |                         ^^^^
+
+warning: unused import: `crate::sema::Type`
+ --> src\compiler\src\constexpr.rs:2:5
+  |
+2 | use crate::sema::Type;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::ast::GenericParam`
+ --> src\compiler\src\ffi\cpp.rs:1:5
+  |
+1 | use crate::ast::GenericParam;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::diag::Diagnostic`
+ --> src\compiler\src\ffi\rust.rs:2:5
+  |
+2 | use crate::diag::Diagnostic;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `ret_ty`
+  --> src\compiler\src\async_pass.rs:19:21
+   |
+19 | ...   let ret_ty = self.se...
+   |           ^^^^^^ help: if this is intentional, prefix it with an underscore: `_ret_ty`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `sema`
+ --> src\compiler\src\concepts.rs:8:30
+  |
+8 | ...raints(sema: &mut Sema, ...
+  |           ^^^^ help: if this is intentional, prefix it with an underscore: `_sema`
+
+warning: unused variable: `span`
+ --> src\compiler\src\concepts.rs:8:87
+  |
+8 | ...Type], span: Span) {
+  |           ^^^^ help: if this is intentional, prefix it with an underscore: `_span`
+
+warning: unused variable: `arg`
+ --> src\compiler\src\concepts.rs:9:21
+  |
+9 | ... (param, arg) in params....
+  |             ^^^ help: if this is intentional, prefix it with an underscore: `_arg`
+
+warning: unused variable: `constraint`
+  --> src\compiler\src\concepts.rs:10:17
+   |
+10 | ... for constraint in &par...
+   |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_constraint`
+
+warning: unused variable: `base_name`
+ --> src\compiler\src\specialization.rs:7:28
+  |
+7 | ...atch(base_name: &str, ar...
+  |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_base_name`
+
+warning: unused variable: `args`
+ --> src\compiler\src\specialization.rs:7:45
+  |
+7 | ... &str, args: &[Type]) ->...
+  |           ^^^^ help: if this is intentional, prefix it with an underscore: `_args`
+
+warning: field `src` is never read
+  --> src\compiler\src\lexer.rs:82:5
+   |
+81 | pub struct Lexer<'a> {
+   |            ----- field in this struct
+82 |     src: &'a str,
+   |     ^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `next_char` is never used
+   --> src\compiler\src\lexer.rs:609:8
+    |
+ 92 | impl<'a> Lexer<'a> {
+    | ------------------ method in this implementation
+...
+609 |     fn next_char(&mut sel...
+    |        ^^^^^^^^^
+
+warning: field `templates` is never read
+  --> src\compiler\src\sema.rs:26:16
+   |
+16 | ...ct Sema {
+   |       ---- field in this struct
+...
+26 | ...crate) templates: crate...
+   |           ^^^^^^^^^
+
+warning: methods `check_block` and `bind_pattern` are never used
+   --> src\compiler\src\sema.rs:303:8
+    |
+ 30 | impl Sema {
+    | --------- methods in this implementation
+...
+303 |     fn check_block(&mut s...
+    |        ^^^^^^^^^^^
+...
+594 |     fn bind_pattern(&mut ...
+    |        ^^^^^^^^^^^^
+
+warning: field `sema` is never read
+  --> src\compiler\src\collections.rs:11:5
+   |
+10 | pub struct CollectionSpecializer<'a> {
+   |            --------------------- field in this struct
+11 |     sema: &'a mut Sema,
+   |     ^^^^
+
+warning: field `templates` is never read
+  --> src\compiler\src\sema.rs:26:16
+   |
+16 | ...ct Sema {
+   |       ---- field in this struct
+...
+26 | ...crate) templates: crate...
+   |           ^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `korlang-compiler` (lib) generated 31 warnings (run `cargo fix --lib -p korlang-compiler` to apply 26 suggestions)
+warning: `korlang-compiler` (lib test) generated 29 warnings (28 duplicates)
+warning: unused import: `Stmt`
+ --> src\compiler\tests\parser_test.rs:3:35
+  |
+3 | ...t::{Item, Stmt, Expr};
+  |              ^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+ --> src\compiler\tests\lexer_test.rs:7:9
+  |
+7 |     let mut lexer = Lexer::...
+  |         ----^^^^^
+  |         |
+  |         help: remove this `mut`
+  |
+  = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> src\compiler\tests\lexer_test.rs:22:9
+   |
+22 |     let mut lexer = Lexer:...
+   |         ----^^^^^
+   |         |
+   |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+  --> src\compiler\tests\lexer_test.rs:38:9
+   |
+38 |     let mut lexer = Lexer:...
+   |         ----^^^^^
+   |         |
+   |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+  --> src\compiler\tests\sema_test.rs:11:9
+   |
+11 |     let mut sema = Sema::n...
+   |         ----^^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> src\compiler\tests\sema_test.rs:22:9
+   |
+22 |     let mut sema = Sema::n...
+   |         ----^^^^
+   |         |
+   |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+  --> src\compiler\tests\sema_test.rs:40:9
+   |
+40 |     let mut sema = Sema::n...
+   |         ----^^^^
+   |         |
+   |         help: remove this `mut`
+
+warning: `korlang-compiler` (test "parser_test") generated 1 warning (run `cargo fix --test "parser_test" -p korlang-compiler` to apply 1 suggestion)
+warning: `korlang-compiler` (test "lexer_test") generated 3 warnings (run `cargo fix --test "lexer_test" -p korlang-compiler` to apply 3 suggestions)
+warning: `korlang-compiler` (test "sema_test") generated 3 warnings (run `cargo fix --test "sema_test" -p korlang-compiler` to apply 3 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running unittests src\lib.rs (C:\Users\nanda\Desktop\KUBUNTU\Korlang\Korlang-Compiler\target\debug\deps\korlang_compiler-a50e46c4e89a2e01.exe)
+
+running 24 tests
+test lexer::tests::char_escape_parsing ... ok
+test lexer::tests::char_literal_parsing ... ok
+test lexer::tests::float_scientific_parsing ... ok
+test lexer::tests::lexer_layout_matches_expected ... ok
+test lexer::tests::peek_returns_zero_at_eof ... ok
+test lexer::tests::integer_decimal_parsing ... ok
+test lexer::tests::integer_hex_parsing ... ok
+test escape::tests::escape_return_marks_local ... ok
+test escape::tests::escape_pass_to_call ... ok
+test escape::tests::escape_in_array_literal ... ok
+test escape::tests::no_escape_simple_use ... ok
+test lexer::tests::float_standard_parsing ... ok
+test lexer::tests::next_char_reads_utf8 ... ok
+test lexer::tests::integer_binary_parsing ... ok
+test lexer::tests::identifier_parsing ... ok
+test lexer::tests::raw_string_literal ... ok
+test lexer::tests::skip_comment_handles_line_comment ... ok
+test lexer::tests::skip_multiline_comment ... ok
+test lexer::tests::skip_nested_multiline_comment ... ok
+test lexer::tests::skip_whitespace_handles_spaces_tabs_newlines ... ok
+test lexer::tests::string_escape_sequences ... ok
+test lexer::tests::string_interpolation_tokens ... ok
+test lexer::tests::string_literal_parsing ... ok
+test lexer::tests::unicode_escape_sequence ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\lexer_test.rs (C:\Users\nanda\Desktop\KUBUNTU\Korlang\Korlang-Compiler\target\debug\deps\lexer_test-3d73a91b2531dddf.exe)
+
+running 3 tests
+test test_basic_lexing ... ok
+test test_string_interpolation ... ok
+test test_unicode_identifiers ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\parser_test.rs (C:\Users\nanda\Desktop\KUBUNTU\Korlang\Korlang-Compiler\target\debug\deps\parser_test-0c3f879b120d297f.exe)
+
+running 2 tests
+test test_basic_parsing ... ok
+
+thread 'test_recursion_limit' (13112) has overflowed its stack
+error: test failed, to rerun pass `-p korlang-compiler --test parser_test`
+
+Caused by:
+  process didn't exit successfully: `C:\Users\nanda\Desktop\KUBUNTU\Korlang\Korlang-Compiler\target\debug\deps\parser_test-0c3f879b120d297f.exe` (exit code: 0xc00000fd, STATUS_STACK_OVERFLOW)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.

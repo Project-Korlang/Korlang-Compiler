@@ -1,11 +1,12 @@
 use crate::ast::*;
-use crate::sema::{Type, Sema};
-use crate::diag::{Diagnostic, Span};
+use crate::sema::Sema;
+use crate::diag::Diagnostic;
+use crate::symbols::Symbol;
 use std::collections::HashSet;
 
 pub struct MoveChecker<'a> {
     sema: &'a mut Sema,
-    moved_locals: HashSet<String>,
+    moved_locals: HashSet<Symbol>,
 }
 
 impl<'a> MoveChecker<'a> {
@@ -60,8 +61,9 @@ impl<'a> MoveChecker<'a> {
         match expr {
             Expr::Ident(name, span) => {
                 if self.moved_locals.contains(name) {
+                    let name_s = crate::symbols::lookup(*name);
                     self.sema.diags.push(Diagnostic::error(
-                        format!("value '{}' used here after move", name),
+                        format!("value '{}' used here after move", name_s),
                         *span,
                     ));
                 }
@@ -70,10 +72,10 @@ impl<'a> MoveChecker<'a> {
                 for arg in args {
                     // Check before marking as moved
                     self.check_expr(arg);
-                    
+
                     if let Expr::Ident(name, _) = arg {
                         // Mark as moved AFTER checking it
-                        self.moved_locals.insert(name.clone());
+                        self.moved_locals.insert(*name);
                     }
                 }
             }

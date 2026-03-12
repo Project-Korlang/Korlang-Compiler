@@ -1,0 +1,59 @@
+// Standard HashMap implementation for Korlang
+module std.collections
+// Note: This is a simplified version using linear probing or a basic chaining strategy.
+import "@nogc";
+
+struct HashMap<K, V> {
+    mut entries: [Option<(K, V)>];
+    mut size: Int;
+    mut capacity: Int;
+
+    fun new() -> HashMap<K, V> {
+        return HashMap {
+            entries: [], // Replaced by allocation builtin
+            size: 0,
+            capacity: 0,
+        };
+    }
+
+    fun insert(mut self, key: K, value: V) {
+        if (self.size * 2 > self.capacity) {
+            self.rehash();
+        }
+        // Basic insertion logic (pseudo-code as actual hash builtins are needed)
+        let h = @hash(key);
+        let mut idx = h % self.capacity;
+        
+        while (self.entries[idx] != Option.None) {
+            idx = (idx + 1) % self.capacity;
+        }
+        self.entries[idx] = Option.Some((key, value));
+        self.size = self.size + 1;
+    }
+
+    fun get(self, key: K) -> Option<V> {
+        if (self.capacity == 0) return Option.None;
+        let h = @hash(key);
+        let mut idx = h % self.capacity;
+        let start_idx = idx;
+
+        loop {
+            match self.entries[idx] {
+                Option.Some((k, v)) => {
+                    if (k == key) return Option.Some(v);
+                }
+                Option.None => return Option.None,
+            }
+            idx = (idx + 1) % self.capacity;
+            if (idx == start_idx) break;
+        }
+        return Option.None;
+    }
+
+    fun rehash(mut self) {
+        let old_capacity = self.capacity;
+        let new_capacity = if (old_capacity == 0) 8 else old_capacity * 2;
+        // Re-insertion logic would go here
+        self.capacity = new_capacity;
+    }
+}

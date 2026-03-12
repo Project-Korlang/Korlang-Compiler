@@ -1,4 +1,5 @@
 use crate::diag::Span;
+use crate::symbols::Symbol;
 
 #[derive(Debug, Clone)]
 pub struct Program {
@@ -21,7 +22,7 @@ pub enum Item {
 
 #[derive(Debug, Clone)]
 pub struct InterfaceDecl {
-    pub name: String,
+    pub name: Symbol,
     pub generic_params: Vec<GenericParam>,
     pub methods: Vec<FunSig>,
     pub span: Span,
@@ -29,14 +30,14 @@ pub struct InterfaceDecl {
 
 #[derive(Debug, Clone)]
 pub struct GenericParam {
-    pub name: String,
+    pub name: Symbol,
     pub constraints: Vec<TypeRef>,
     pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct FunSig {
-    pub name: String,
+    pub name: Symbol,
     pub params: Vec<Param>,
     pub ret: Option<TypeRef>,
     pub is_async: bool,
@@ -45,7 +46,7 @@ pub struct FunSig {
 
 #[derive(Debug, Clone)]
 pub struct SealedDecl {
-    pub name: String,
+    pub name: Symbol,
     pub generic_params: Vec<GenericParam>,
     pub items: Vec<Item>,
     pub span: Span,
@@ -54,7 +55,7 @@ pub struct SealedDecl {
 #[derive(Debug, Clone)]
 pub struct FunDecl {
     pub receiver: Option<TypeRef>,
-    pub name: String,
+    pub name: Symbol,
     pub generic_params: Vec<GenericParam>,
     pub params: Vec<Param>,
     pub ret: Option<TypeRef>,
@@ -66,14 +67,14 @@ pub struct FunDecl {
 
 #[derive(Debug, Clone)]
 pub struct Param {
-    pub name: String,
+    pub name: Symbol,
     pub ty: TypeRef,
     pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct StructDecl {
-    pub name: String,
+    pub name: Symbol,
     pub generic_params: Vec<GenericParam>,
     pub fields: Vec<FieldDecl>,
     pub implements: Vec<TypeRef>,
@@ -82,14 +83,14 @@ pub struct StructDecl {
 
 #[derive(Debug, Clone)]
 pub struct FieldDecl {
-    pub name: String,
+    pub name: Symbol,
     pub ty: TypeRef,
     pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct EnumDecl {
-    pub name: String,
+    pub name: Symbol,
     pub generic_params: Vec<GenericParam>,
     pub variants: Vec<VariantDecl>,
     pub span: Span,
@@ -97,14 +98,14 @@ pub struct EnumDecl {
 
 #[derive(Debug, Clone)]
 pub struct VariantDecl {
-    pub name: String,
+    pub name: Symbol,
     pub payload: Vec<TypeRef>,
     pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct TypeAliasDecl {
-    pub name: String,
+    pub name: Symbol,
     pub generic_params: Vec<GenericParam>,
     pub target: TypeRef,
     pub span: Span,
@@ -112,7 +113,7 @@ pub struct TypeAliasDecl {
 
 #[derive(Debug, Clone)]
 pub struct ViewDecl {
-    pub name: String,
+    pub name: Symbol,
     pub params: Vec<Param>,
     pub body: Vec<ViewNode>,
     pub span: Span,
@@ -120,7 +121,7 @@ pub struct ViewDecl {
 
 #[derive(Debug, Clone)]
 pub struct ViewNode {
-    pub name: String,
+    pub name: Symbol,
     pub args: Vec<ViewArg>,
     pub children: Vec<ViewNode>,
     pub span: Span,
@@ -128,22 +129,22 @@ pub struct ViewNode {
 
 #[derive(Debug, Clone)]
 pub struct ViewArg {
-    pub name: Option<String>,
+    pub name: Option<Symbol>,
     pub value: Expr,
     pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct ResourceDecl {
-    pub name: String,
-    pub resource_type: String,
+    pub name: Symbol,
+    pub resource_type: Symbol,
     pub entries: Vec<ResourceEntry>,
     pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub struct ResourceEntry {
-    pub key: String,
+    pub key: Symbol,
     pub value: Expr,
     pub span: Span,
 }
@@ -151,7 +152,7 @@ pub struct ResourceEntry {
 #[derive(Debug, Clone)]
 pub struct VarDecl {
     pub mutable: bool,
-    pub name: String,
+    pub name: Symbol,
     pub ty: Option<TypeRef>,
     pub value: Expr,
     pub span: Span,
@@ -166,7 +167,7 @@ pub enum Stmt {
     Continue(Span),
     If(Expr, Block, Option<Box<Stmt>>, Span),
     While(Expr, Block, Span),
-    For(String, Expr, Block, Span),
+    For(Symbol, Expr, Block, Span),
     Match(Expr, Vec<MatchArm>, Span),
     Block(Block),
 }
@@ -188,13 +189,13 @@ pub struct MatchArm {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Literal, Span),
-    Ident(String, Span),
-    StructLit { name: String, fields: Vec<(String, Expr)>, span: Span },
+    Ident(Symbol, Span),
+    StructLit { name: Symbol, fields: Vec<(Symbol, Expr)>, span: Span },
     Unary { op: UnaryOp, expr: Box<Expr>, span: Span },
     Binary { left: Box<Expr>, op: BinaryOp, right: Box<Expr>, span: Span },
     Assign { left: Box<Expr>, op: AssignOp, right: Box<Expr>, span: Span },
     Call { callee: Box<Expr>, args: Vec<Expr>, span: Span },
-    Member { target: Box<Expr>, name: String, span: Span },
+    Member { target: Box<Expr>, name: Symbol, span: Span },
     Index { target: Box<Expr>, index: Box<Expr>, span: Span },
     If { cond: Box<Expr>, then_block: Block, else_block: Block, span: Span },
     Match { expr: Box<Expr>, arms: Vec<MatchArm>, span: Span },
@@ -258,18 +259,18 @@ pub enum AssignOp {
 
 #[derive(Debug, Clone)]
 pub enum Pattern {
-    Ident(String, Span),
+    Ident(Symbol, Span),
     Wildcard(Span),
     Literal(Literal, Span),
     Tuple(Vec<Pattern>, Span),
-    Variant { name: String, args: Vec<Pattern>, span: Span },
-    Struct { name: String, fields: Vec<(String, Pattern)>, span: Span },
+    Variant { name: Symbol, args: Vec<Pattern>, span: Span },
+    Struct { name: Symbol, fields: Vec<(Symbol, Pattern)>, span: Span },
     Is(TypeRef, Box<Pattern>, Span),
 }
 
 #[derive(Debug, Clone)]
 pub enum TypeRef {
-    Named(String, Vec<TypeRef>, Span),
+    Named(Symbol, Vec<TypeRef>, Span),
     Tuple(Vec<TypeRef>, Span),
     Array(Box<TypeRef>, Span),
     Tensor { elem: Box<TypeRef>, shape: Vec<ShapeDim>, span: Span },
@@ -280,6 +281,6 @@ pub enum TypeRef {
 #[derive(Debug, Clone)]
 pub enum ShapeDim {
     Int(i64),
-    Ident(String),
+    Ident(Symbol),
     Unknown,
 }

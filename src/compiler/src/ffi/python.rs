@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 pub struct PythonBridge {
-    pub call_metrics: HashMap<String, PythonCallMetric>,
+    pub call_metrics: HashMap<crate::symbols::Symbol, PythonCallMetric>,
 }
 
 pub struct PythonCallMetric {
@@ -23,7 +23,8 @@ impl PythonBridge {
         println!("[PYTHON-FFI] Calling {} with args {:?}", func_name, args);
         let duration = start.elapsed().as_millis();
         
-        let metric = self.call_metrics.entry(func_name.to_string()).or_insert(PythonCallMetric {
+        let sym = crate::symbols::intern(func_name);
+        let metric = self.call_metrics.entry(sym).or_insert(PythonCallMetric {
             count: 0,
             total_duration_ms: 0,
         });
@@ -35,7 +36,8 @@ impl PythonBridge {
 
     pub fn get_report(&self) {
         println!("--- Python Bridge Performance Report ---");
-        for (name, metric) in &self.call_metrics {
+        for (sym, metric) in &self.call_metrics {
+            let name = crate::symbols::lookup(*sym);
             println!("Function: {}, Calls: {}, Avg Duration: {}ms", 
                 name, metric.count, metric.total_duration_ms / metric.count as u128);
         }

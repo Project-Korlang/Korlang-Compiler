@@ -1,0 +1,61 @@
+// Standard Networking module for Korlang
+module std.net
+
+import "@bridge" as ffi;
+import std.io;
+import std.error;
+
+struct Socket {
+    mut handle: Int;
+    var domain: Int;
+    var type: Int;
+    var protocol: Int;
+
+    fun new(domain: Int, type: Int, protocol: Int) -> Result<Socket, Error> {
+        let fd = ffi.socket(domain, type, protocol);
+        if (fd < 0) return Result.Err(GenericError { msg: "Failed to create socket" });
+        return Result.Ok(Socket { handle: fd, domain: domain, type: type, protocol: protocol });
+    }
+
+    fun bind(self, address: String, port: Int) -> Result<Void, Error> {
+        let res = ffi.bind(self.handle, address, port);
+        if (res < 0) return Result.Err(GenericError { msg: "Failed to bind socket" });
+        return Result.Ok(());
+    }
+
+    fun listen(self, backlog: Int) -> Result<Void, Error> {
+        let res = ffi.listen(self.handle, backlog);
+        if (res < 0) return Result.Err(GenericError { msg: "Failed to listen on socket" });
+        return Result.Ok(());
+    }
+
+    fun accept(self) -> Result<Socket, Error> {
+        let fd = ffi.accept(self.handle);
+        if (fd < 0) return Result.Err(GenericError { msg: "Failed to accept connection" });
+        return Result.Ok(Socket { handle: fd, domain: self.domain, type: self.type, protocol: self.protocol });
+    }
+}
+
+class TcpListener {
+    var socket: Socket;
+
+    fun bind(address: String) -> Result<TcpListener, Error> {
+        let socket = Socket.new(2, 1, 0)?; // AF_INET, SOCK_STREAM
+        socket.bind(address, 8080)?;
+        socket.listen(128)?;
+        return Result.Ok(TcpListener { socket: socket });
+    }
+
+    fun accept(self) -> Result<TcpStream, Error> {
+        let client_socket = self.socket.accept()?;
+        return Result.Ok(TcpStream { socket: client_socket });
+    }
+}
+
+struct TcpStream {
+    var socket: Socket;
+}
+
+interface WebRtcEndpoint {
+    fun connect(offer: String) -> String;
+}

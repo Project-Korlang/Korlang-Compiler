@@ -1,0 +1,69 @@
+// Standard Vector implementation for Korlang
+module std.collections
+import "@nogc";
+
+/**
+ * Vector<T> is a dynamic array that grows as items are added.
+ */
+struct Vector<T> {
+    mut data: [T];
+    mut len: Int;
+    mut cap: Int;
+
+    fun new() -> Vector<T> {
+        return Vector {
+            data: [],
+            len: 0,
+            cap: 0,
+        };
+    }
+
+    @nogc
+    fun push(mut self, item: T) {
+        if (self.len == self.cap) {
+            self.grow();
+        }
+        self.data[self.len] = item;
+        self.len = self.len + 1;
+    }
+
+    @nogc
+    fun pop(mut self) -> T {
+        if (self.len == 0) {
+            panic("Vector.pop: empty vector");
+        }
+        self.len = self.len - 1;
+        return self.data[self.len];
+    }
+
+    @nogc
+    fun grow(mut self) {
+        let new_cap = if (self.cap == 0) 4 else self.cap * 2;
+        // In a real implementation, we would call a builtin for allocation
+        let new_data = Array_realloc<T>(self.data, new_cap);
+        self.data = new_data;
+        self.cap = new_cap;
+    }
+
+    fun get(self, index: Int) -> T {
+        if (index < 0 || index >= self.len) {
+            panic("Vector.get: index out of bounds");
+        }
+        return self.data[index];
+    }
+
+    fun set(mut self, index: Int, item: T) {
+        if (index < 0 || index >= self.len) {
+            panic("Vector.set: index out of bounds");
+        }
+        self.data[index] = item;
+    }
+
+    fun size(self) -> Int {
+        return self.len;
+    }
+
+    fun clear(mut self) {
+        self.len = 0;
+    }
+}

@@ -18,7 +18,7 @@ impl<'a> PatternChecker<'a> {
                 self.sema.unify(expected_ty, &lit_ty, *span);
             }
             Pattern::Ident(name, span) => {
-                self.sema.define_var(name, expected_ty.clone(), *span);
+                self.sema.define_var(*name, expected_ty.clone(), *span);
             }
             Pattern::Wildcard(_) => {}
             Pattern::Tuple(parts, span) => {
@@ -55,18 +55,19 @@ impl<'a> PatternChecker<'a> {
             }
         }
     }
-    pub fn check_exhaustiveness(&mut self, matched_types: &[Type], sealed_name: &str, span: Span) {
+    pub fn check_exhaustiveness(&mut self, matched_types: &[Type], sealed_name: crate::symbols::Symbol, span: Span) {
         let enforcer = crate::sealed::SealedEnforcer::new(self.sema);
         let expected = enforcer.get_exhaustiveness_info(sealed_name);
         let mut matched_names = std::collections::HashSet::new();
         for ty in matched_types {
             if let Type::Named(name) = ty {
-                matched_names.insert(name.clone());
+                matched_names.insert(*name);
             }
         }
         for name in expected {
             if !matched_names.contains(&name) {
-                self.sema.report_error(format!("match is not exhaustive: missing variant '{}'", name), span);
+                let name_s = crate::symbols::lookup(name);
+                self.sema.diags.push(crate::diag::Diagnostic::error(format!("match is not exhaustive: missing variant '{}'", name_s), span));
             }
         }
     }

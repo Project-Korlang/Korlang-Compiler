@@ -10,19 +10,19 @@ use crate::interface::InterfaceSystem;
 
 #[derive(Default)]
 pub(crate) struct Scope {
-    pub(crate) vars: HashMap<String, Type>,
+    pub(crate) vars: HashMap<crate::symbols::Symbol, Type>,
 }
 
 pub struct Sema {
     pub(crate) scopes: Vec<Scope>,
     pub(crate) diags: Vec<Diagnostic>,
-    pub(crate) functions: HashMap<String, Type>,
-    pub(crate) extensions: HashMap<String, Vec<(Type, Type)>>, // Receiver type -> Vec<(Method Name, Method Sig)>
+    pub(crate) functions: HashMap<crate::symbols::Symbol, Type>,
+    pub(crate) extensions: HashMap<crate::symbols::Symbol, Vec<(Type, Type)>>, // Receiver type -> Vec<(Method Name, Method Sig)>
     pub(crate) interface_system: InterfaceSystem,
-    pub(crate) sealed_types: HashMap<String, SealedDecl>,
-    pub(crate) structs: HashMap<String, StructDecl>,
-    pub(crate) fun_decls: HashMap<String, FunDecl>,
-    pub(crate) nogc_functions: HashMap<String, bool>,
+    pub(crate) sealed_types: HashMap<crate::symbols::Symbol, SealedDecl>,
+    pub(crate) structs: HashMap<crate::symbols::Symbol, StructDecl>,
+    pub(crate) fun_decls: HashMap<crate::symbols::Symbol, FunDecl>,
+    pub(crate) nogc_functions: HashMap<crate::symbols::Symbol, bool>,
     pub(crate) templates: crate::templates::TemplateSystem,
     pub(crate) permissive: bool,
 }
@@ -44,14 +44,14 @@ impl Sema {
         };
         s.push_scope();
         // Predeclare builtins used by the self-hosted compiler.
-        s.define_builtin("null", Type::Any);
-        s.define_builtin("List", Type::Named("List".to_string()));
-        s.define_builtin("Result", Type::Named("Result".to_string()));
-        s.define_builtin("@import", Type::Func(vec![Type::String], Box::new(Type::Any)));
-        s.define_builtin("print", Type::Func(vec![Type::Any], Box::new(Type::Unit)));
-        s.define_builtin("println", Type::Func(vec![Type::Any], Box::new(Type::Unit)));
-        s.define_builtin("readLine", Type::Func(vec![], Box::new(Type::String)));
-        s.define_builtin("uiWindowDemo", Type::Func(vec![], Box::new(Type::Int)));
+        s.define_builtin(crate::symbols::intern("null"), Type::Any);
+        s.define_builtin(crate::symbols::intern("List"), Type::Named(crate::symbols::intern("List")));
+        s.define_builtin(crate::symbols::intern("Result"), Type::Named(crate::symbols::intern("Result")));
+        s.define_builtin(crate::symbols::intern("@import"), Type::Func(vec![Type::String], Box::new(Type::Any)));
+        s.define_builtin(crate::symbols::intern("print"), Type::Func(vec![Type::Any], Box::new(Type::Unit)));
+        s.define_builtin(crate::symbols::intern("println"), Type::Func(vec![Type::Any], Box::new(Type::Unit)));
+        s.define_builtin(crate::symbols::intern("readLine"), Type::Func(vec![], Box::new(Type::String)));
+        s.define_builtin(crate::symbols::intern("uiWindowDemo"), Type::Func(vec![], Box::new(Type::Int)));
         s
     }
 
@@ -60,26 +60,40 @@ impl Sema {
         for item in &program.items {
             match item {
                 Item::Struct(s) => {
-                    self.structs.insert(s.name.clone(), s.clone());
-                    self.define_builtin(&s.name, Type::Named(s.name.clone()));
+                    self.structs.insert(s.name, s.clone());
+                    self.define_builtin(s.name, Type::Named(s.name));
                 }
-                Item::Enum(e) => self.define_builtin(&e.name, Type::Named(e.name.clone())),
-                Item::TypeAlias(t) => self.define_builtin(&t.name, Type::Named(t.name.clone())),
+                Item::Enum(e) => {
+                    self.define_builtin(e.name, Type::Named(e.name));
+                    for v in &e.variants {
+                        let payload_types = v.payload.iter().map(|p| self.type_from_ref(p)).collect();
+                        let sig = Type::Func(payload_types, Box::new(Type::Named(e.name)));
+                        self.define_builtin(v.name, sig);
+                    }
+                }
+                Item::TypeAlias(t) => self.define_builtin(t.name, Type::Named(t.name)),
                 Item::Interface(i) => {
                     self.interface_system.interfaces.insert(i.name.clone(), i.clone());
-                    self.define_builtin(&i.name, Type::Named(i.name.clone()));
+                    self.define_builtin(i.name, Type::Named(i.name));
                 }
                 Item::Sealed(s) => {
-                    self.sealed_types.insert(s.name.clone(), s.clone());
-                    self.define_builtin(&s.name, Type::Named(s.name.clone()));
+                    self.sealed_types.insert(s.name, s.clone());
+                    self.define_builtin(s.name, Type::Named(s.name));
                     // Pre-register items inside sealed class
                     for nested in &s.items {
                         match nested {
                             Item::Struct(st) => {
-                                self.structs.insert(st.name.clone(), st.clone());
-                                self.define_builtin(&st.name, Type::Named(st.name.clone()));
+                                self.structs.insert(st.name, st.clone());
+                                self.define_builtin(st.name, Type::Named(st.name));
                             }
-                            Item::Enum(e) => self.define_builtin(&e.name, Type::Named(e.name.clone())),
+                            Item::Enum(e) => {
+                                self.define_builtin(e.name, Type::Named(e.name));
+                                for v in &e.variants {
+                                    let payload_types = v.payload.iter().map(|p| self.type_from_ref(p)).collect();
+                                    let sig = Type::Func(payload_types, Box::new(Type::Named(e.name)));
+                                    self.define_builtin(v.name, sig);
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -92,12 +106,12 @@ impl Sema {
                 let sig = self.fun_sig(f);
                 if let Some(recv) = &f.receiver {
                     let recv_ty = self.type_from_ref(recv);
-                    let entry = self.extensions.entry(f.name.clone()).or_insert_with(Vec::new);
+                    let entry = self.extensions.entry(f.name).or_insert_with(Vec::new);
                     entry.push((recv_ty, sig));
                 } else {
-                    self.functions.insert(f.name.clone(), sig);
-                    self.fun_decls.insert(f.name.clone(), f.clone());
-                    self.nogc_functions.insert(f.name.clone(), f.nogc);
+                    self.functions.insert(f.name, sig);
+                    self.fun_decls.insert(f.name, f.clone());
+                    self.nogc_functions.insert(f.name, f.nogc);
                 }
             }
         }
@@ -134,7 +148,7 @@ impl Sema {
                 } else {
                     ty
                 };
-                self.define_var(&v.name, final_ty, v.span);
+                self.define_var(v.name, final_ty, v.span);
             }
             Item::Stmt(s) => {
                 self.check_stmt(s);
@@ -145,7 +159,7 @@ impl Sema {
     fn check_struct(&mut self, s: &StructDecl) {
         self.push_scope();
         for p in &s.generic_params {
-            self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+            self.define_var(p.name, Type::Parameter(p.name.clone()), p.span);
         }
         for interface_ref in &s.implements {
             let interface_ty = self.type_from_ref(interface_ref);
@@ -158,7 +172,9 @@ impl Sema {
                         }).unwrap_or(false);
                         
                         if !has_method {
-                            self.diags.push(Diagnostic::error(format!("struct '{}' does not implement method '{}' from interface '{}'", s.name, method.name, name), s.span));
+                            let s_name = crate::symbols::lookup(s.name);
+                            let m_name = crate::symbols::lookup(method.name);
+                            self.diags.push(Diagnostic::error(format!("struct '{}' does not implement method '{}' from interface '{}'", s_name, m_name, name), s.span));
                         }
                     }
                 } else {
@@ -172,7 +188,7 @@ impl Sema {
     fn check_interface(&mut self, i: &InterfaceDecl) {
         self.push_scope();
         for p in &i.generic_params {
-            self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+            self.define_var(p.name, Type::Parameter(p.name.clone()), p.span);
         }
         // In a more complete implementation, we would also validate parameters/returns of method signatures here
         self.pop_scope();
@@ -181,7 +197,7 @@ impl Sema {
     fn check_sealed(&mut self, s: &SealedDecl) {
         self.push_scope();
         for p in &s.generic_params {
-            self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+            self.define_var(p.name, Type::Parameter(p.name.clone()), p.span);
         }
         
         let mut enforcer = crate::sealed::SealedEnforcer::new(self);
@@ -197,7 +213,7 @@ impl Sema {
         self.push_scope();
         for p in &fun.params {
             let t = self.type_from_ref(&p.ty);
-            self.define_var(&p.name, t, p.span);
+            self.define_var(p.name, t, p.span);
         }
         let body_ty = if let Some(body) = &fun.body {
             self.check_block_with(body, fun.nogc)
@@ -207,7 +223,8 @@ impl Sema {
         if let Some(ret) = &fun.ret {
             let ret_ty = self.type_from_ref(ret);
             // Relax return check for main and common Int returners that end in Stmt
-            if (fun.name == "main" || ret_ty == Type::Int) && body_ty == Type::Unit {
+            let main_sym = crate::symbols::intern("main");
+            if (fun.name == main_sym || ret_ty == Type::Int) && body_ty == Type::Unit {
                 // OK: Codegen will handle default return 0 for Int
             } else {
                 self.unify(&ret_ty, &body_ty, fun.span);
@@ -231,7 +248,7 @@ impl Sema {
                 } else {
                     ty
                 };
-                self.define_var(&v.name, final_ty, v.span);
+                self.define_var(v.name, final_ty, v.span);
                 Type::Unit
             }
             Stmt::Expr(e, _) => {
@@ -273,7 +290,7 @@ impl Sema {
                     }
                 };
                 self.push_scope();
-                self.define_var(name, elem, *span);
+                self.define_var(*name, elem, *span);
                 self.check_block_with(body, nogc);
                 self.pop_scope();
                 Type::Unit
@@ -330,7 +347,8 @@ impl Sema {
                 self.type_of_literal(l)
             }
             Expr::Ident(name, span) => {
-                if name == "null" {
+                let null_sym = crate::symbols::intern("null");
+                if *name == null_sym {
                     return Type::Nothing;
                 }
                 self.lookup_var(name, *span)
@@ -408,7 +426,9 @@ impl Sema {
             }
             Expr::Call { callee, args, span } => {
                 if let Expr::Ident(name, _) = &**callee {
-                    if name == "@import" || name == "@bridge" {
+                    let import_sym = crate::symbols::intern("@import");
+                    let bridge_sym = crate::symbols::intern("@bridge");
+                    if *name == import_sym || *name == bridge_sym {
                         if args.is_empty() {
                             self.diags.push(Diagnostic::error("FFI call requires a string argument", *span));
                         } else if !matches!(args[0], Expr::Literal(Literal::String(_), _)) {
@@ -579,16 +599,16 @@ impl Sema {
         }
     }
 
-    fn define_builtin(&mut self, name: &str, ty: Type) {
+    fn define_builtin(&mut self, name: crate::symbols::Symbol, ty: Type) {
         if let Some(scope) = self.scopes.last_mut() {
-            scope.vars.insert(name.to_string(), ty);
+            scope.vars.insert(name, ty);
         }
     }
 
     fn bind_pattern(&mut self, pat: &Pattern) {
         match pat {
             Pattern::Ident(name, span) => {
-                self.define_var(name, Type::Unknown, *span);
+                self.define_var(*name, Type::Unknown, *span);
             }
             Pattern::Tuple(parts, _) => {
                 for p in parts {
@@ -624,8 +644,9 @@ impl Sema {
     pub fn type_from_ref(&self, tr: &TypeRef) -> Type {
         match tr {
             TypeRef::Named(name, args, _span) => {
+                let name_s = crate::symbols::lookup(*name);
                 if args.is_empty() {
-                    match name.as_str() {
+                    match name_s.as_str() {
                         "Int" => Type::Int,
                         "UInt" => Type::UInt,
                         "Float" => Type::Float,
@@ -635,11 +656,11 @@ impl Sema {
                         "Void" | "Unit" => Type::Unit,
                         "Any" => Type::Any,
                         "Nothing" => Type::Nothing,
-                        _ => Type::Named(name.clone()),
+                        _ => Type::Named(*name),
                     }
                 } else {
                     let arg_tys = args.iter().map(|a| self.type_from_ref(a)).collect();
-                    Type::Generic(name.clone(), arg_tys)
+                    Type::Generic(*name, arg_tys)
                 }
             }
             TypeRef::Tuple(elems, _) => Type::Tuple(elems.iter().map(|e| self.type_from_ref(e)).collect()),
@@ -653,7 +674,7 @@ impl Sema {
     fn fun_sig(&mut self, f: &FunDecl) -> Type {
         self.push_scope();
         for p in &f.generic_params {
-            self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+            self.define_var(p.name, Type::Parameter(p.name.clone()), p.span);
         }
         let params = f.params.iter().map(|p| self.type_from_ref(&p.ty)).collect();
         let ret = f.ret.as_ref().map(|t| self.type_from_ref(t)).unwrap_or(Type::Unit);
@@ -661,7 +682,7 @@ impl Sema {
         Type::Func(params, Box::new(ret))
     }
 
-    fn lookup_var(&mut self, name: &str, span: Span) -> Type {
+    fn lookup_var(&mut self, name: &crate::symbols::Symbol, span: Span) -> Type {
         for scope in self.scopes.iter().rev() {
             if let Some(t) = scope.vars.get(name) {
                 return t.clone();
@@ -670,16 +691,18 @@ impl Sema {
         if let Some(t) = self.functions.get(name) {
             return t.clone();
         }
-        self.diags.push(Diagnostic::error(format!("undefined symbol '{name}'"), span));
+        let name_s = crate::symbols::lookup(*name);
+        self.diags.push(Diagnostic::error(format!("undefined symbol '{name_s}'"), span));
         Type::Unknown
     }
 
-    pub(crate) fn define_var(&mut self, name: &str, ty: Type, span: Span) {
+    pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
         if let Some(scope) = self.scopes.last_mut() {
-            if scope.vars.contains_key(name) {
-                self.diags.push(Diagnostic::error(format!("redefinition of '{name}'"), span));
+            if scope.vars.contains_key(&name) {
+                let name_s = crate::symbols::lookup(name);
+                self.diags.push(Diagnostic::error(format!("redefinition of '{name_s}'"), span));
             } else {
-                scope.vars.insert(name.to_string(), ty);
+                scope.vars.insert(name, ty);
             }
         }
     }
@@ -775,11 +798,11 @@ impl Sema {
         }
     }
 
-    pub fn is_nogc_function(&self, name: &str) -> bool {
+    pub fn is_nogc_function(&self, name: &crate::symbols::Symbol) -> bool {
         self.nogc_functions.get(name).copied().unwrap_or(false)
     }
 
-    fn lookup_fun_decl(&self, name: &str) -> Option<&FunDecl> {
+    fn lookup_fun_decl(&self, name: &crate::symbols::Symbol) -> Option<&FunDecl> {
         self.fun_decls.get(name)
     }
 

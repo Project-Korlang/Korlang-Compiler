@@ -1,0 +1,1156 @@
+    Checking korlang-compiler v0.1.0 (C:\Users\nanda\Desktop\KUBUNTU\Korlang\Korlang-Compiler\src\compiler)
+warning: unused import: `Arc`
+ --> src\compiler\src\symbols.rs:2:17
+  |
+2 | use std::sync::{Arc, Mutex, OnceLock};
+  |                 ^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::diag::Span`
+ --> src\compiler\src\sealed.rs:2:5
+  |
+2 | use crate::diag::Span;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Diagnostic`
+ --> src\compiler\src\async_pass.rs:3:19
+  |
+3 | use crate::diag::{Diagnostic, Span};
+  |                   ^^^^^^^^^^
+
+warning: unused import: `Type`
+ --> src\compiler\src\nogc.rs:2:25
+  |
+2 | use crate::sema::{Sema, Type};
+  |                         ^^^^
+
+warning: unused import: `Span`
+ --> src\compiler\src\nogc.rs:3:31
+  |
+3 | use crate::diag::{Diagnostic, Span};
+  |                               ^^^^
+
+warning: unused import: `Type`
+ --> src\compiler\src\borrowck.rs:2:19
+  |
+2 | use crate::sema::{Type, Sema};
+  |                   ^^^^
+
+warning: unused import: `Span`
+ --> src\compiler\src\borrowck.rs:3:31
+  |
+3 | use crate::diag::{Diagnostic, Span};
+  |                               ^^^^
+
+warning: unused import: `Type`
+ --> src\compiler\src\lifetime.rs:2:19
+  |
+2 | use crate::sema::{Type, Sema};
+  |                   ^^^^
+
+warning: unused import: `Type`
+ --> src\compiler\src\moveck.rs:2:19
+  |
+2 | use crate::sema::{Type, Sema};
+  |                   ^^^^
+
+warning: unused import: `Span`
+ --> src\compiler\src\moveck.rs:3:31
+  |
+3 | use crate::diag::{Diagnostic, Span};
+  |                               ^^^^
+
+warning: unused import: `crate::ast::*`
+ --> src\compiler\src\collections.rs:1:5
+  |
+1 | use crate::ast::*;
+  |     ^^^^^^^^^^^^^
+
+warning: unused import: `Sema`
+ --> src\compiler\src\templates.rs:2:25
+  |
+2 | use crate::sema::{Type, Sema};
+  |                         ^^^^
+
+warning: unused imports: `Diagnostic` and `Span`
+ --> src\compiler\src\templates.rs:3:19
+  |
+3 | use crate::diag::{Diagnostic, Span};
+  |                   ^^^^^^^^^^  ^^^^
+
+warning: unused import: `Diagnostic`
+ --> src\compiler\src\concepts.rs:3:19
+  |
+3 | use crate::diag::{Diagnostic, Span};
+  |                   ^^^^^^^^^^
+
+warning: unused import: `crate::ast::*`
+ --> src\compiler\src\specialization.rs:1:5
+  |
+1 | use crate::ast::*;
+  |     ^^^^^^^^^^^^^
+
+warning: unused import: `Sema`
+ --> src\compiler\src\specialization.rs:2:25
+  |
+2 | use crate::sema::{Type, Sema};
+  |                         ^^^^
+
+warning: unused import: `crate::sema::Type`
+ --> src\compiler\src\constexpr.rs:2:5
+  |
+2 | use crate::sema::Type;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::ast::GenericParam`
+ --> src\compiler\src\ffi\cpp.rs:1:5
+  |
+1 | use crate::ast::GenericParam;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::diag::Diagnostic`
+ --> src\compiler\src\ffi\rust.rs:2:5
+  |
+2 | use crate::diag::Diagnostic;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sealed.rs:33:53
+    |
+ 33 |         if let Some(s) = self.sema.sealed_types.get(sealed_name) {
+    |                                                 --- ^^^^^^^^^^^ expected `&Symbol`, found `&str`
+    |                                                 |
+    |                                                 arguments to this method are incorrect
+    |
+    = note: expected reference `&Symbol`
+               found reference `&str`
+note: method defined here
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\map.rs:997:12
+    |
+997 |     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
+    |            ^^^
+
+error[E0308]: `match` arms have incompatible types
+  --> src\compiler\src\sealed.rs:38:26
+   |
+35 | /                 match item {
+36 | |                     Item::Struct(st) => st.name.clone(),
+   | |                                         --------------- this is found to be of type `Symbol`
+37 | |                     Item::Enum(e) => e.name.clone(),
+   | |                                      -------------- this is found to be of type `Symbol`
+38 | |                     _ => String::new(),
+   | |                          ^^^^^^^^^^^^^ expected `Symbol`, found `String`
+39 | |                 }
+   | |_________________- `match` arms have incompatible types
+
+error[E0308]: mismatched types
+  --> src\compiler\src\async_pass.rs:32:50
+   |
+32 |             Type::Generic(name, args) if name == "Future" || name == "Result" => {
+   |                                          ----    ^^^^^^^^ expected `Symbol`, found `&str`
+   |                                          |
+   |                                          expected because this is `Symbol`
+
+error[E0308]: mismatched types
+  --> src\compiler\src\async_pass.rs:32:70
+   |
+32 |             Type::Generic(name, args) if name == "Future" || name == "Result" => {
+   |                                                              ----    ^^^^^^^^ expected `Symbol`, found `&str`
+   |                                                              |
+   |                                                              expected because this is `Symbol`
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+  --> src\compiler\src\nogc.rs:68:126
+   |
+68 | ...o non-@nogc function '{}' from @nogc context", name), *span));
+   |                          --                       ^^^^ `Symbol` cannot be formatted with the default formatter
+   |                          |
+   |                          required by this formatting parameter
+   |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+  --> src\compiler\src\symbols.rs:5:1
+   |
+ 5 | pub struct Symbol(pub u32);
+   | ^^^^^^^^^^^^^^^^^
+   = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+   = note: required for `&Symbol` to implement `std::fmt::Display`
+   = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:331:33
+    |
+331 |         Ok(ResourceDecl { name, resource_type, entries, span: Span::new(start.start, end.end) })
+    |                                 ^^^^^^^^^^^^^ expected `Symbol`, found `String`
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:579:28
+    |
+579 |                 if name == "tensor" && self.check_kind(TokenKind::LBracket) {
+    |                    ----    ^^^^^^^^ expected `Symbol`, found `&str`
+    |                    |
+    |                    expected because this is `Symbol`
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:583:50
+    |
+583 |                     return self.parse_struct_lit(name, tok.span);
+    |                                 ---------------- ^^^^ expected `String`, found `Symbol`
+    |                                 |
+    |                                 arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\parser.rs:800:8
+    |
+800 |     fn parse_struct_lit(&mut self, name: String, start: Span) -> Result<Expr, ()> {
+    |        ^^^^^^^^^^^^^^^^            ------------
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:594:40
+    |
+594 |                         Ok(Expr::Ident(name, tok.span))
+    |                            ----------- ^^^^ expected `Symbol`, found `String`
+    |                            |
+    |                            arguments to this enum variant are incorrect
+    |
+note: tuple variant defined here
+   --> src\compiler\src\ast.rs:192:5
+    |
+192 |     Ident(Symbol, Span),
+    |     ^^^^^
+
+error[E0277]: can't compare `Symbol` with `str`
+   --> src\compiler\src\parser.rs:695:53
+    |
+695 |             TokenKind::Identifier(ref name) if name == "_" => {
+    |                                                     ^^ no implementation for `Symbol == str`
+    |
+help: the trait `PartialEq<str>` is not implemented for `Symbol`
+      but trait `PartialEq<Symbol>` is implemented for it
+   --> src\compiler\src\symbols.rs:4:30
+    |
+  4 | #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    |                              ^^^^^^^^^
+    = help: for that trait implementation, expected `Symbol`, found `str`
+    = note: required for `&Symbol` to implement `PartialEq<&str>`
+
+error[E0277]: can't compare `Symbol` with `str`
+   --> src\compiler\src\parser.rs:699:53
+    |
+699 |             TokenKind::Identifier(ref name) if name == "is" => {
+    |                                                     ^^ no implementation for `Symbol == str`
+    |
+help: the trait `PartialEq<str>` is not implemented for `Symbol`
+      but trait `PartialEq<Symbol>` is implemented for it
+   --> src\compiler\src\symbols.rs:4:30
+    |
+  4 | #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    |                              ^^^^^^^^^
+    = help: for that trait implementation, expected `Symbol`, found `str`
+    = note: required for `&Symbol` to implement `PartialEq<&str>`
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+   --> src\compiler\src\parser.rs:714:45
+    |
+714 |                     name = format!("{}.{}", name, part);
+    |                                     --      ^^^^ `Symbol` cannot be formatted with the default formatter
+    |                                     |
+    |                                     required by this formatting parameter
+    |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+   --> src\compiler\src\symbols.rs:5:1
+    |
+  5 | pub struct Symbol(pub u32);
+    | ^^^^^^^^^^^^^^^^^
+    = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+    = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:714:28
+    |
+714 |                     name = format!("{}.{}", name, part);
+    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Symbol`, found `String`
+    |
+    = note: this error originates in the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:819:30
+    |
+819 |         Ok(Expr::StructLit { name, fields, span: Span::new(start.start, end.end) })
+    |                              ^^^^ expected `Symbol`, found `String`
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:901:32
+    |
+901 |                 TypeRef::Named(name, args, Span::new(span.start, end.end))
+    |                 -------------- ^^^^ expected `Symbol`, found `String`
+    |                 |
+    |                 arguments to this enum variant are incorrect
+    |
+note: tuple variant defined here
+   --> src\compiler\src\ast.rs:273:5
+    |
+273 |     Named(Symbol, Vec<TypeRef>, Span),
+    |     ^^^^^
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:903:32
+    |
+903 |                 TypeRef::Named(name, Vec::new(), span)
+    |                 -------------- ^^^^ expected `Symbol`, found `String`
+    |                 |
+    |                 arguments to this enum variant are incorrect
+    |
+note: tuple variant defined here
+   --> src\compiler\src\ast.rs:273:5
+    |
+273 |     Named(Symbol, Vec<TypeRef>, Span),
+    |     ^^^^^
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:940:28
+    |
+940 |                 if name == "_" {
+    |                    ----    ^^^ expected `Symbol`, found `&str`
+    |                    |
+    |                    expected because this is `Symbol`
+
+error[E0599]: no method named `push` found for struct `Symbol` in the current scope
+    --> src\compiler\src\parser.rs:1003:18
+     |
+1003 |             name.push('.');
+     |                  ^^^^ method not found in `Symbol`
+     |
+    ::: src\compiler\src\symbols.rs:5:1
+     |
+   5 | pub struct Symbol(pub u32);
+     | ----------------- method `push` not found for this struct
+
+error[E0599]: no method named `push_str` found for struct `Symbol` in the current scope
+    --> src\compiler\src\parser.rs:1004:18
+     |
+1004 |             name.push_str(&part);
+     |                  ^^^^^^^^ method not found in `Symbol`
+     |
+    ::: src\compiler\src\symbols.rs:5:1
+     |
+   5 | pub struct Symbol(pub u32);
+     | ----------------- method `push_str` not found for this struct
+
+error[E0308]: mismatched types
+    --> src\compiler\src\parser.rs:1006:12
+     |
+1006 |         Ok(name)
+     |         -- ^^^^ expected `String`, found `Symbol`
+     |         |
+     |         arguments to this enum variant are incorrect
+     |
+help: the type constructed contains `Symbol` due to the type of the argument passed
+    --> src\compiler\src\parser.rs:1006:9
+     |
+1006 |         Ok(name)
+     |         ^^^----^
+     |            |
+     |            this argument influences the type of `Ok`
+note: tuple variant defined here
+    --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\core\src\result.rs:561:5
+     |
+ 561 |     Ok(#[stable(feature = "rust1", since = "1.0.0")] T),
+     |     ^^
+
+error[E0599]: no method named `current_kind` found for mutable reference `&mut Parser` in the current scope
+    --> src\compiler\src\parser.rs:1189:20
+     |
+1189 |         match self.current_kind() {
+     |                    ^^^^^^^^^^^^
+     |
+help: there is a method `current` with a similar name
+     |
+1189 -         match self.current_kind() {
+1189 +         match self.current() {
+     |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:137:33
+    |
+137 |                 self.define_var(&v.name, final_ty, v.span);
+    |                      ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                      |
+    |                      arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+137 -                 self.define_var(&v.name, final_ty, v.span);
+137 +                 self.define_var(v.name, final_ty, v.span);
+    |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:148:29
+    |
+148 |             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+    |                  ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                  |
+    |                  arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+148 -             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+148 +             self.define_var(p.name, Type::Parameter(p.name.clone()), p.span);
+    |
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+   --> src\compiler\src\sema.rs:163:153
+    |
+163 | ...d '{}' from interface '{}'", s_name, m_name, name), s.span));
+    |                           --                    ^^^^ `Symbol` cannot be formatted with the default formatter
+    |                           |
+    |                           required by this formatting parameter
+    |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+   --> src\compiler\src\symbols.rs:5:1
+    |
+  5 | pub struct Symbol(pub u32);
+    | ^^^^^^^^^^^^^^^^^
+    = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+    = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+   --> src\compiler\src\sema.rs:167:91
+    |
+167 |                     self.diags.push(Diagnostic::error(format!("interface '{}' not found", name), s.span));
+    |                                                                           --              ^^^^ `Symbol` cannot be formatted with the default formatter
+    |                                                                           |
+    |                                                                           required by this formatting parameter
+    |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+   --> src\compiler\src\symbols.rs:5:1
+    |
+  5 | pub struct Symbol(pub u32);
+    | ^^^^^^^^^^^^^^^^^
+    = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+    = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:177:29
+    |
+177 |             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+    |                  ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                  |
+    |                  arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+177 -             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+177 +             self.define_var(p.name, Type::Parameter(p.name.clone()), p.span);
+    |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:186:29
+    |
+186 |             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+    |                  ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                  |
+    |                  arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+186 -             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+186 +             self.define_var(p.name, Type::Parameter(p.name.clone()), p.span);
+    |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:202:29
+    |
+202 |             self.define_var(&p.name, t, p.span);
+    |                  ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                  |
+    |                  arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+202 -             self.define_var(&p.name, t, p.span);
+202 +             self.define_var(p.name, t, p.span);
+    |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:237:33
+    |
+237 |                 self.define_var(&v.name, final_ty, v.span);
+    |                      ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                      |
+    |                      arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+237 -                 self.define_var(&v.name, final_ty, v.span);
+237 +                 self.define_var(v.name, final_ty, v.span);
+    |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:279:33
+    |
+279 |                 self.define_var(name, elem, *span);
+    |                      ---------- ^^^^ expected `Symbol`, found `&Symbol`
+    |                      |
+    |                      arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider dereferencing the borrow
+    |
+279 |                 self.define_var(*name, elem, *span);
+    |                                 +
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+   --> src\compiler\src\sema.rs:445:105
+    |
+445 |                         self.diags.push(Diagnostic::error(format!("no method '{}' found for type {:?}", name, target_ty), *m_span));
+    |                                                                               --                        ^^^^ `Symbol` cannot be formatted with the default formatter
+    |                                                                               |
+    |                                                                               required by this formatting parameter
+    |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+   --> src\compiler\src\symbols.rs:5:1
+    |
+  5 | pub struct Symbol(pub u32);
+    | ^^^^^^^^^^^^^^^^^
+    = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+    = note: required for `&Symbol` to implement `std::fmt::Display`
+    = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+   --> src\compiler\src\sema.rs:458:115
+    |
+458 | ...                   self.diags.push(Diagnostic::error(format!("generic argument count mismatch for '{}'", name), *span));
+    |                                                                                                       --    ^^^^ `Symbol` cannot be formatted with the default formatter
+    |                                                                                                       |
+    |                                                                                                       required by this formatting parameter
+    |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+   --> src\compiler\src\symbols.rs:5:1
+    |
+  5 | pub struct Symbol(pub u32);
+    | ^^^^^^^^^^^^^^^^^
+    = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+    = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+   --> src\compiler\src\sema.rs:519:100
+    |
+519 |                     self.diags.push(Diagnostic::error(format!("unknown member '{}' for type {:?}", name, target_ty), *span));
+    |                                                                                --                  ^^^^ `Symbol` cannot be formatted with the default formatter
+    |                                                                                |
+    |                                                                                required by this formatting parameter
+    |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+   --> src\compiler\src\symbols.rs:5:1
+    |
+  5 | pub struct Symbol(pub u32);
+    | ^^^^^^^^^^^^^^^^^
+    = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+    = note: required for `&Symbol` to implement `std::fmt::Display`
+    = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:528:50
+    |
+528 |                     Type::Named(name) if name == "List" => Type::Unknown,
+    |                                          ----    ^^^^^^ expected `Symbol`, found `&str`
+    |                                          |
+    |                                          expected because this is `Symbol`
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:597:33
+    |
+597 |                 self.define_var(name, Type::Unknown, *span);
+    |                      ---------- ^^^^ expected `Symbol`, found `&Symbol`
+    |                      |
+    |                      arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider dereferencing the borrow
+    |
+597 |                 self.define_var(*name, Type::Unknown, *span);
+    |                                 +
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:663:29
+    |
+663 |             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+    |                  ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                  |
+    |                  arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+663 -             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+663 +             self.define_var(p.name, Type::Parameter(p.name.clone()), p.span);
+    |
+
+error[E0308]: mismatched types
+  --> src\compiler\src\escape.rs:16:5
+   |
+ 9 | pub fn analyze_escape(program: &Program) -> HashMap<String, EscapeResult> {
+   |                                             ----------------------------- expected `HashMap<String, EscapeResult>` because of return type
+...
+13 |             map.insert(f.name.clone(), analyze_fun(f));
+   |             ---        -------------- this argument has type `Symbol`...
+   |             |
+   |             ... which causes `map` to have type `HashMap<Symbol, EscapeResult>`
+...
+16 |     map
+   |     ^^^ expected `HashMap<String, EscapeResult>`, found `HashMap<Symbol, EscapeResult>`
+   |
+   = note: expected struct `HashMap<String, _>`
+              found struct `HashMap<Symbol, _>`
+
+error[E0308]: mismatched types
+   --> src\compiler\src\escape.rs:32:27
+    |
+ 32 |             locals.insert(v.name.clone());
+    |                    ------ ^^^^^^^^^^^^^^ expected `String`, found `Symbol`
+    |                    |
+    |                    arguments to this method are incorrect
+    |
+note: method defined here
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\set.rs:995:12
+    |
+995 |     pub fn insert(&mut self, value: T) -> bool {
+    |            ^^^^^^
+
+error[E0277]: the trait bound `String: Borrow<Symbol>` is not satisfied
+   --> src\compiler\src\escape.rs:102:47
+    |
+102 |             if should_mark && locals.contains(name) {
+    |                                      -------- ^^^^ the trait `Borrow<Symbol>` is not implemented for `String`
+    |                                      |
+    |                                      required by a bound introduced by this call
+    |
+help: the trait `Borrow<Symbol>` is not implemented for `String`
+      but trait `Borrow<str>` is implemented for it
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\alloc\src\str.rs:189:1
+    |
+189 | impl Borrow<str> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `str`, found `Symbol`
+note: required by a bound in `HashSet::<T, S, A>::contains`
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\set.rs:769:12
+    |
+767 |     pub fn contains<Q: ?Sized>(&self, value: &Q) -> bool
+    |            -------- required by a bound in this associated function
+768 |     where
+769 |         T: Borrow<Q>,
+    |            ^^^^^^^^^ required by this bound in `HashSet::<T, S, A>::contains`
+
+error[E0308]: mismatched types
+   --> src\compiler\src\escape.rs:103:36
+    |
+103 |                 res.escapes.insert(name.clone());
+    |                             ------ ^^^^^^^^^^^^ expected `String`, found `Symbol`
+    |                             |
+    |                             arguments to this method are incorrect
+    |
+note: method defined here
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\set.rs:995:12
+    |
+995 |     pub fn insert(&mut self, value: T) -> bool {
+    |            ^^^^^^
+
+error[E0308]: mismatched types
+  --> src\compiler\src\typeck.rs:13:67
+   |
+13 |     crate::extension::check_extension_dispatch(sema, receiver_ty, name, span)
+   |     ------------------------------------------                    ^^^^ expected `Symbol`, found `&str`
+   |     |
+   |     arguments to this function are incorrect
+   |
+note: function defined here
+  --> src\compiler\src\extension.rs:15:8
+   |
+15 | pub fn check_extension_dispatch(sema: &mut Sema, receiver_ty: &Type, method_name: crate::symbols::Symbol, span: Span) -> Type {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^                                      -----------------------------------
+
+error[E0308]: mismatched types
+  --> src\compiler\src\pattern.rs:60:57
+   |
+60 |         let expected = enforcer.get_exhaustiveness_info(sealed_name);
+   |                                 ----------------------- ^^^^^^^^^^^ expected `&str`, found `Symbol`
+   |                                 |
+   |                                 arguments to this method are incorrect
+   |
+note: method defined here
+  --> src\compiler\src\sealed.rs:32:12
+   |
+32 |     pub fn get_exhaustiveness_info(&self, sealed_name: &str) -> Vec<String> {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^        -----------------
+
+error[E0308]: mismatched types
+   --> src\compiler\src\pattern.rs:68:40
+    |
+ 68 |             if !matched_names.contains(&name) {
+    |                               -------- ^^^^^ expected `&Symbol`, found `&String`
+    |                               |
+    |                               arguments to this method are incorrect
+    |
+    = note: expected reference `&Symbol`
+               found reference `&String`
+note: method defined here
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\set.rs:767:12
+    |
+767 |     pub fn contains<Q: ?Sized>(&self, value: &Q) -> bool
+    |            ^^^^^^^^
+
+error[E0308]: mismatched types
+  --> src\compiler\src\pattern.rs:69:53
+   |
+69 |                 let name_s = crate::symbols::lookup(name);
+   |                              ---------------------- ^^^^ expected `Symbol`, found `String`
+   |                              |
+   |                              arguments to this function are incorrect
+   |
+note: function defined here
+  --> src\compiler\src\symbols.rs:44:8
+   |
+44 | pub fn lookup(sym: Symbol) -> String {
+   |        ^^^^^^ -----------
+
+error[E0308]: mismatched types
+    --> src\compiler\src\borrowck.rs:31:36
+     |
+  31 |                 self.locals.insert(v.name.clone(), OwnershipState::Owned);
+     |                             ------ ^^^^^^^^^^^^^^ expected `String`, found `Symbol`
+     |                             |
+     |                             arguments to this method are incorrect
+     |
+note: method defined here
+    --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\map.rs:1295:12
+     |
+1295 |     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
+     |            ^^^^^^
+
+error[E0277]: the trait bound `String: Borrow<Symbol>` is not satisfied
+   --> src\compiler\src\borrowck.rs:71:54
+    |
+ 71 |                 if let Some(state) = self.locals.get(name) {
+    |                                                  --- ^^^^ the trait `Borrow<Symbol>` is not implemented for `String`
+    |                                                  |
+    |                                                  required by a bound introduced by this call
+    |
+help: the trait `Borrow<Symbol>` is not implemented for `String`
+      but trait `Borrow<str>` is implemented for it
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\alloc\src\str.rs:189:1
+    |
+189 | impl Borrow<str> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `str`, found `Symbol`
+note: required by a bound in `HashMap::<K, V, S, A>::get`
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\map.rs:999:12
+    |
+997 |     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
+    |            --- required by a bound in this associated function
+998 |     where
+999 |         K: Borrow<Q>,
+    |            ^^^^^^^^^ required by this bound in `HashMap::<K, V, S, A>::get`
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+  --> src\compiler\src\borrowck.rs:74:65
+   |
+74 | ...                   format!("use of moved value: '{}'", name),
+   |                                                     --    ^^^^ `Symbol` cannot be formatted with the default formatter
+   |                                                     |
+   |                                                     required by this formatting parameter
+   |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+  --> src\compiler\src\symbols.rs:5:1
+   |
+ 5 | pub struct Symbol(pub u32);
+   | ^^^^^^^^^^^^^^^^^
+   = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+   = note: required for `&Symbol` to implement `std::fmt::Display`
+   = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+    --> src\compiler\src\borrowck.rs:84:40
+     |
+  84 |                     self.locals.insert(name.clone(), OwnershipState::Owned);
+     |                                 ------ ^^^^^^^^^^^^ expected `String`, found `Symbol`
+     |                                 |
+     |                                 arguments to this method are incorrect
+     |
+note: method defined here
+    --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\map.rs:1295:12
+     |
+1295 |     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
+     |            ^^^^^^
+
+error[E0308]: mismatched types
+    --> src\compiler\src\borrowck.rs:94:44
+     |
+  94 |                         self.locals.insert(name.clone(), OwnershipState::Moved);
+     |                                     ------ ^^^^^^^^^^^^ expected `String`, found `Symbol`
+     |                                     |
+     |                                     arguments to this method are incorrect
+     |
+note: method defined here
+    --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\map.rs:1295:12
+     |
+1295 |     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
+     |            ^^^^^^
+
+error[E0308]: mismatched types
+  --> src\compiler\src\lifetime.rs:55:27
+   |
+55 |                 self.bind(v.name.clone(), life);
+   |                      ---- ^^^^^^^^^^^^^^ expected `String`, found `Symbol`
+   |                      |
+   |                      arguments to this method are incorrect
+   |
+note: method defined here
+  --> src\compiler\src\lifetime.rs:36:12
+   |
+36 |     pub fn bind(&mut self, name: String, lifetime: Lifetime) {
+   |            ^^^^            ------------
+
+error[E0277]: the trait bound `String: Borrow<Symbol>` is not satisfied
+   --> src\compiler\src\lifetime.rs:87:35
+    |
+ 87 |                 self.bindings.get(name).cloned().unwrap_or(Lifetime::Block(self.current_depth))
+    |                               --- ^^^^ the trait `Borrow<Symbol>` is not implemented for `String`
+    |                               |
+    |                               required by a bound introduced by this call
+    |
+help: the trait `Borrow<Symbol>` is not implemented for `String`
+      but trait `Borrow<str>` is implemented for it
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\alloc\src\str.rs:189:1
+    |
+189 | impl Borrow<str> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `str`, found `Symbol`
+note: required by a bound in `HashMap::<K, V, S, A>::get`
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\map.rs:999:12
+    |
+997 |     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
+    |            --- required by a bound in this associated function
+998 |     where
+999 |         K: Borrow<Q>,
+    |            ^^^^^^^^^ required by this bound in `HashMap::<K, V, S, A>::get`
+
+error[E0277]: the trait bound `String: Borrow<Symbol>` is not satisfied
+   --> src\compiler\src\moveck.rs:62:47
+    |
+ 62 |                 if self.moved_locals.contains(name) {
+    |                                      -------- ^^^^ the trait `Borrow<Symbol>` is not implemented for `String`
+    |                                      |
+    |                                      required by a bound introduced by this call
+    |
+help: the trait `Borrow<Symbol>` is not implemented for `String`
+      but trait `Borrow<str>` is implemented for it
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\alloc\src\str.rs:189:1
+    |
+189 | impl Borrow<str> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `str`, found `Symbol`
+note: required by a bound in `HashSet::<T, S, A>::contains`
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\set.rs:769:12
+    |
+767 |     pub fn contains<Q: ?Sized>(&self, value: &Q) -> bool
+    |            -------- required by a bound in this associated function
+768 |     where
+769 |         T: Borrow<Q>,
+    |            ^^^^^^^^^ required by this bound in `HashSet::<T, S, A>::contains`
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+  --> src\compiler\src\moveck.rs:64:68
+   |
+64 |                         format!("value '{}' used here after move", name),
+   |                                         --                         ^^^^ `Symbol` cannot be formatted with the default formatter
+   |                                         |
+   |                                         required by this formatting parameter
+   |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+  --> src\compiler\src\symbols.rs:5:1
+   |
+ 5 | pub struct Symbol(pub u32);
+   | ^^^^^^^^^^^^^^^^^
+   = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+   = note: required for `&Symbol` to implement `std::fmt::Display`
+   = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+   --> src\compiler\src\moveck.rs:76:50
+    |
+ 76 |                         self.moved_locals.insert(name.clone());
+    |                                           ------ ^^^^^^^^^^^^ expected `String`, found `Symbol`
+    |                                           |
+    |                                           arguments to this method are incorrect
+    |
+note: method defined here
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\set.rs:995:12
+    |
+995 |     pub fn insert(&mut self, value: T) -> bool {
+    |            ^^^^^^
+
+error[E0277]: the trait bound `String: Borrow<Symbol>` is not satisfied
+    --> src\compiler\src\moveck.rs:84:46
+     |
+  84 |                     self.moved_locals.remove(name);
+     |                                       ------ ^^^^ the trait `Borrow<Symbol>` is not implemented for `String`
+     |                                       |
+     |                                       required by a bound introduced by this call
+     |
+help: the trait `Borrow<Symbol>` is not implemented for `String`
+      but trait `Borrow<str>` is implemented for it
+    --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\alloc\src\str.rs:189:1
+     |
+ 189 | impl Borrow<str> for String {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     = help: for that trait implementation, expected `str`, found `Symbol`
+note: required by a bound in `HashSet::<T, S, A>::remove`
+    --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\set.rs:1044:12
+     |
+1042 |     pub fn remove<Q: ?Sized>(&mut self, value: &Q) -> bool
+     |            ------ required by a bound in this associated function
+1043 |     where
+1044 |         T: Borrow<Q>,
+     |            ^^^^^^^^^ required by this bound in `HashSet::<T, S, A>::remove`
+
+error[E0308]: mismatched types
+    --> src\compiler\src\templates.rs:21:26
+     |
+  21 |             subst.insert(p.name.clone(), a.clone());
+     |                   ------ ^^^^^^^^^^^^^^ expected `String`, found `Symbol`
+     |                   |
+     |                   arguments to this method are incorrect
+     |
+note: method defined here
+    --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\map.rs:1295:12
+     |
+1295 |     pub fn insert(&mut self, k: K, v: V) -> Option<V> {
+     |            ^^^^^^
+
+error[E0277]: the trait bound `String: Borrow<Symbol>` is not satisfied
+   --> src\compiler\src\templates.rs:29:44
+    |
+ 29 |                 if let Some(t) = subst.get(name) {
+    |                                        --- ^^^^ the trait `Borrow<Symbol>` is not implemented for `String`
+    |                                        |
+    |                                        required by a bound introduced by this call
+    |
+help: the trait `Borrow<Symbol>` is not implemented for `String`
+      but trait `Borrow<str>` is implemented for it
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\alloc\src\str.rs:189:1
+    |
+189 | impl Borrow<str> for String {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `str`, found `Symbol`
+note: required by a bound in `HashMap::<K, V, S, A>::get`
+   --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\std\src\collections\hash\map.rs:999:12
+    |
+997 |     pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
+    |            --- required by a bound in this associated function
+998 |     where
+999 |         K: Borrow<Q>,
+    |            ^^^^^^^^^ required by this bound in `HashMap::<K, V, S, A>::get`
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+  --> src\compiler\src\ffi\cpp.rs:31:56
+   |
+31 |             header.push_str(&format!("struct {} {{\n", s.name));
+   |                                              --        ^^^^^^ `Symbol` cannot be formatted with the default formatter
+   |                                              |
+   |                                              required by this formatting parameter
+   |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+  --> src\compiler\src\symbols.rs:5:1
+   |
+ 5 | pub struct Symbol(pub u32);
+   | ^^^^^^^^^^^^^^^^^
+   = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+   = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+  --> src\compiler\src\ffi\cpp.rs:33:91
+   |
+33 |                 header.push_str(&format!("    {} {};\n", self.type_ref_to_cpp(&field.ty), field.name));
+   |                                                  -- required by this formatting parameter ^^^^^^^^^^ `Symbol` cannot be formatted with the default formatter
+   |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+  --> src\compiler\src\symbols.rs:5:1
+   |
+ 5 | pub struct Symbol(pub u32);
+   | ^^^^^^^^^^^^^^^^^
+   = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+   = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+  --> src\compiler\src\ffi\cpp.rs:39:94
+   |
+39 |             header.push_str(&format!("class {} {{\npublic:\n    virtual ~{}() = default;\n", i.name, i.name));
+   |                                             -- required by this formatting parameter         ^^^^^^ `Symbol` cannot be formatted with the default formatter
+   |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+  --> src\compiler\src\symbols.rs:5:1
+   |
+ 5 | pub struct Symbol(pub u32);
+   | ^^^^^^^^^^^^^^^^^
+   = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+   = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: `Symbol` doesn't implement `std::fmt::Display`
+  --> src\compiler\src\ffi\cpp.rs:41:74
+   |
+41 |                 header.push_str(&format!("    virtual void {}() = 0;\n", method.name));
+   |                                                            --            ^^^^^^^^^^^ `Symbol` cannot be formatted with the default formatter
+   |                                                            |
+   |                                                            required by this formatting parameter
+   |
+help: the trait `std::fmt::Display` is not implemented for `Symbol`
+  --> src\compiler\src\symbols.rs:5:1
+   |
+ 5 | pub struct Symbol(pub u32);
+   | ^^^^^^^^^^^^^^^^^
+   = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+   = note: this error originates in the macro `$crate::__export::format_args` which comes from the expansion of the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no method named `as_str` found for reference `&Symbol` in the current scope
+  --> src\compiler\src\ffi\cpp.rs:53:25
+   |
+53 |                 match n.as_str() {
+   |                         ^^^^^^ method not found in `&Symbol`
+
+error[E0308]: `match` arms have incompatible types
+  --> src\compiler\src\ffi\cpp.rs:57:26
+   |
+53 | /                 match n.as_str() {
+54 | |                     "Int" => "int64_t".to_string(),
+   | |                              --------------------- this is found to be of type `String`
+55 | |                     "Float" => "double".to_string(),
+   | |                                -------------------- this is found to be of type `String`
+56 | |                     "String" => "std::string".to_string(),
+   | |                                 ------------------------- this is found to be of type `String`
+57 | |                     _ => n.clone(),
+   | |                          ^^^^^^^^^ expected `String`, found `Symbol`
+58 | |                 }
+   | |_________________- `match` arms have incompatible types
+
+error[E0308]: `match` arms have incompatible types
+  --> src\compiler\src\ffi\cpp.rs:69:31
+   |
+65 | /         match ty {
+66 | |             Type::Int => "int64_t".to_string(),
+   | |                          --------------------- this is found to be of type `String`
+67 | |             Type::Float => "double".to_string(),
+   | |                            -------------------- this is found to be of type `String`
+68 | |             Type::String => "std::string".to_string(),
+   | |                             ------------------------- this is found to be of type `String`
+69 | |             Type::Named(n) => n.clone(),
+   | |                               ^^^^^^^^^ expected `String`, found `Symbol`
+70 | |             _ => "void*".to_string(),
+71 | |         }
+   | |_________- `match` arms have incompatible types
+
+error[E0277]: can't compare `Symbol` with `str`
+  --> src\compiler\src\ffi\safety.rs:11:33
+   |
+11 |             Type::Named(n) if n == "String" => {
+   |                                 ^^ no implementation for `Symbol == str`
+   |
+help: the trait `PartialEq<str>` is not implemented for `Symbol`
+      but trait `PartialEq<Symbol>` is implemented for it
+  --> src\compiler\src\symbols.rs:4:30
+   |
+ 4 | #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+   |                              ^^^^^^^^^
+   = help: for that trait implementation, expected `Symbol`, found `str`
+   = note: required for `&Symbol` to implement `PartialEq<&str>`
+
+warning: unused variable: `ret_ty`
+  --> src\compiler\src\async_pass.rs:19:21
+   |
+19 |                 let ret_ty = self.sema.type_from_ref(ret);
+   |                     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_ret_ty`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `sema`
+ --> src\compiler\src\concepts.rs:8:30
+  |
+8 |     pub fn check_constraints(sema: &mut Sema, params: &[GenericParam], args: &[Type], span: Span) {
+  |                              ^^^^ help: if this is intentional, prefix it with an underscore: `_sema`
+
+warning: unused variable: `span`
+ --> src\compiler\src\concepts.rs:8:87
+  |
+8 |     pub fn check_constraints(sema: &mut Sema, params: &[GenericParam], args: &[Type], span: Span) {
+  |                                                                                       ^^^^ help: if this is intentional, prefix it with an underscore: `_span`
+
+warning: unused variable: `arg`
+ --> src\compiler\src\concepts.rs:9:21
+  |
+9 |         for (param, arg) in params.iter().zip(args.iter()) {
+  |                     ^^^ help: if this is intentional, prefix it with an underscore: `_arg`
+
+warning: unused variable: `constraint`
+  --> src\compiler\src\concepts.rs:10:17
+   |
+10 |             for constraint in &param.constraints {
+   |                 ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_constraint`
+
+warning: unused variable: `base_name`
+ --> src\compiler\src\specialization.rs:7:28
+  |
+7 |     pub fn find_best_match(base_name: &str, args: &[Type]) -> Option<String> {
+  |                            ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_base_name`
+
+warning: unused variable: `args`
+ --> src\compiler\src\specialization.rs:7:45
+  |
+7 |     pub fn find_best_match(base_name: &str, args: &[Type]) -> Option<String> {
+  |                                             ^^^^ help: if this is intentional, prefix it with an underscore: `_args`
+
+Some errors have detailed explanations: E0277, E0308, E0599.
+For more information about an error, try `rustc --explain E0277`.
+warning: `korlang-compiler` (lib) generated 26 warnings
+error: could not compile `korlang-compiler` (lib) due to 65 previous errors; 26 warnings emitted

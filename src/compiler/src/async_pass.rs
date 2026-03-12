@@ -1,6 +1,6 @@
 use crate::ast::*;
 use crate::sema::{Sema, Type};
-use crate::diag::{Diagnostic, Span};
+use crate::diag::Span;
 
 pub struct AsyncCompiler<'a> {
     sema: &'a mut Sema,
@@ -16,7 +16,7 @@ impl<'a> AsyncCompiler<'a> {
             // Transform the function into a state machine
             // For now, we just validate that it returns a Result or some awaitable type
             if let Some(ret) = &f.ret {
-                let ret_ty = self.sema.type_from_ref(ret);
+                let _ret_ty = self.sema.type_from_ref(ret);
                 // In Korlang, async functions return a Future<T> implicitly
                 // The sema should wrap the return type in Future
             }

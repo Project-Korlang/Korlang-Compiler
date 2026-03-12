@@ -1,0 +1,529 @@
+    Checking korlang-compiler v0.1.0 (C:\Users\nanda\Desktop\KUBUNTU\Korlang\Korlang-Compiler\src\compiler)
+warning: unused import: `Arc`
+ --> src\compiler\src\symbols.rs:2:17
+  |
+2 | use std::sync::{Arc, Mutex, OnceLock};
+  |                 ^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::diag::Span`
+ --> src\compiler\src\sealed.rs:2:5
+  |
+2 | use crate::diag::Span;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Diagnostic`
+ --> src\compiler\src\async_pass.rs:3:19
+  |
+3 | use crate::diag::{Diagnostic, Span};
+  |                   ^^^^^^^^^^
+
+warning: unused import: `Type`
+ --> src\compiler\src\nogc.rs:2:25
+  |
+2 | use crate::sema::{Sema, Type};
+  |                         ^^^^
+
+warning: unused import: `Span`
+ --> src\compiler\src\nogc.rs:3:31
+  |
+3 | use crate::diag::{Diagnostic, Span};
+  |                               ^^^^
+
+warning: unused import: `Type`
+ --> src\compiler\src\borrowck.rs:2:19
+  |
+2 | use crate::sema::{Type, Sema};
+  |                   ^^^^
+
+warning: unused import: `Span`
+ --> src\compiler\src\borrowck.rs:3:31
+  |
+3 | use crate::diag::{Diagnostic, Span};
+  |                               ^^^^
+
+warning: unused import: `Type`
+ --> src\compiler\src\lifetime.rs:2:19
+  |
+2 | use crate::sema::{Type, Sema};
+  |                   ^^^^
+
+warning: unused import: `Type`
+ --> src\compiler\src\moveck.rs:2:19
+  |
+2 | use crate::sema::{Type, Sema};
+  |                   ^^^^
+
+warning: unused import: `Span`
+ --> src\compiler\src\moveck.rs:3:31
+  |
+3 | use crate::diag::{Diagnostic, Span};
+  |                               ^^^^
+
+warning: unused import: `crate::ast::*`
+ --> src\compiler\src\collections.rs:1:5
+  |
+1 | use crate::ast::*;
+  |     ^^^^^^^^^^^^^
+
+warning: unused import: `Sema`
+ --> src\compiler\src\templates.rs:2:25
+  |
+2 | use crate::sema::{Type, Sema};
+  |                         ^^^^
+
+warning: unused imports: `Diagnostic` and `Span`
+ --> src\compiler\src\templates.rs:3:19
+  |
+3 | use crate::diag::{Diagnostic, Span};
+  |                   ^^^^^^^^^^  ^^^^
+
+warning: unused import: `Diagnostic`
+ --> src\compiler\src\concepts.rs:3:19
+  |
+3 | use crate::diag::{Diagnostic, Span};
+  |                   ^^^^^^^^^^
+
+warning: unused import: `crate::ast::*`
+ --> src\compiler\src\specialization.rs:1:5
+  |
+1 | use crate::ast::*;
+  |     ^^^^^^^^^^^^^
+
+warning: unused import: `Sema`
+ --> src\compiler\src\specialization.rs:2:25
+  |
+2 | use crate::sema::{Type, Sema};
+  |                         ^^^^
+
+warning: unused import: `crate::sema::Type`
+ --> src\compiler\src\constexpr.rs:2:5
+  |
+2 | use crate::sema::Type;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::ast::GenericParam`
+ --> src\compiler\src\ffi\cpp.rs:1:5
+  |
+1 | use crate::ast::GenericParam;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::diag::Diagnostic`
+ --> src\compiler\src\ffi\rust.rs:2:5
+  |
+2 | use crate::diag::Diagnostic;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:331:33
+    |
+331 |         Ok(ResourceDecl { name, resource_type, entries, span: Span::new(start.start, end.end) })
+    |                                 ^^^^^^^^^^^^^ expected `Symbol`, found `String`
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:583:50
+    |
+583 |                     return self.parse_struct_lit(name, tok.span);
+    |                                 ---------------- ^^^^ expected `String`, found `Symbol`
+    |                                 |
+    |                                 arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\parser.rs:800:8
+    |
+800 |     fn parse_struct_lit(&mut self, name: String, start: Span) -> Result<Expr, ()> {
+    |        ^^^^^^^^^^^^^^^^            ------------
+help: try using a conversion method
+    |
+583 |                     return self.parse_struct_lit(name.to_string(), tok.span);
+    |                                                      ++++++++++++
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:594:40
+    |
+594 |                         Ok(Expr::Ident(name, tok.span))
+    |                            ----------- ^^^^ expected `Symbol`, found `String`
+    |                            |
+    |                            arguments to this enum variant are incorrect
+    |
+note: tuple variant defined here
+   --> src\compiler\src\ast.rs:192:5
+    |
+192 |     Ident(Symbol, Span),
+    |     ^^^^^
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:714:28
+    |
+714 |                     name = format!("{}.{}", name, part);
+    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Symbol`, found `String`
+    |
+    = note: this error originates in the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:806:97
+    |
+806 |                 let field = if let Ok(sym) = std::panic::catch_unwind(|| crate::symbols::intern(&field_name_str)) {
+    |                                                                          ---------------------- ^^^^^^^^^^^^^^^ expected `&str`, found `&Symbol`
+    |                                                                          |
+    |                                                                          arguments to this function are incorrect
+    |
+    = note: expected reference `&str`
+               found reference `&Symbol`
+note: function defined here
+   --> src\compiler\src\symbols.rs:64:8
+    |
+ 64 | pub fn intern(s: &str) -> Symbol {
+    |        ^^^^^^ -------
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:809:44
+    |
+809 |                     crate::symbols::intern(&field_name_str)
+    |                     ---------------------- ^^^^^^^^^^^^^^^ expected `&str`, found `&Symbol`
+    |                     |
+    |                     arguments to this function are incorrect
+    |
+    = note: expected reference `&str`
+               found reference `&Symbol`
+note: function defined here
+   --> src\compiler\src\symbols.rs:64:8
+    |
+ 64 | pub fn intern(s: &str) -> Symbol {
+    |        ^^^^^^ -------
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:813:53
+    |
+813 |                 fields.push((crate::symbols::intern(&field_name_str), value));
+    |                              ---------------------- ^^^^^^^^^^^^^^^ expected `&str`, found `&Symbol`
+    |                              |
+    |                              arguments to this function are incorrect
+    |
+    = note: expected reference `&str`
+               found reference `&Symbol`
+note: function defined here
+   --> src\compiler\src\symbols.rs:64:8
+    |
+ 64 | pub fn intern(s: &str) -> Symbol {
+    |        ^^^^^^ -------
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:907:32
+    |
+907 |                 TypeRef::Named(name, args, Span::new(span.start, end.end))
+    |                 -------------- ^^^^ expected `Symbol`, found `String`
+    |                 |
+    |                 arguments to this enum variant are incorrect
+    |
+note: tuple variant defined here
+   --> src\compiler\src\ast.rs:273:5
+    |
+273 |     Named(Symbol, Vec<TypeRef>, Span),
+    |     ^^^^^
+
+error[E0308]: mismatched types
+   --> src\compiler\src\parser.rs:909:32
+    |
+909 |                 TypeRef::Named(name, Vec::new(), span)
+    |                 -------------- ^^^^ expected `Symbol`, found `String`
+    |                 |
+    |                 arguments to this enum variant are incorrect
+    |
+note: tuple variant defined here
+   --> src\compiler\src\ast.rs:273:5
+    |
+273 |     Named(Symbol, Vec<TypeRef>, Span),
+    |     ^^^^^
+
+error[E0599]: no method named `push` found for struct `Symbol` in the current scope
+    --> src\compiler\src\parser.rs:1009:18
+     |
+1009 |             name.push('.');
+     |                  ^^^^ method not found in `Symbol`
+     |
+    ::: src\compiler\src\symbols.rs:5:1
+     |
+   5 | pub struct Symbol(pub u32);
+     | ----------------- method `push` not found for this struct
+
+error[E0599]: no method named `push_str` found for struct `Symbol` in the current scope
+    --> src\compiler\src\parser.rs:1010:18
+     |
+1010 |             name.push_str(&part);
+     |                  ^^^^^^^^ method not found in `Symbol`
+     |
+    ::: src\compiler\src\symbols.rs:5:1
+     |
+   5 | pub struct Symbol(pub u32);
+     | ----------------- method `push_str` not found for this struct
+
+error[E0308]: mismatched types
+    --> src\compiler\src\parser.rs:1012:12
+     |
+1012 |         Ok(name)
+     |         -- ^^^^ expected `String`, found `Symbol`
+     |         |
+     |         arguments to this enum variant are incorrect
+     |
+help: the type constructed contains `Symbol` due to the type of the argument passed
+    --> src\compiler\src\parser.rs:1012:9
+     |
+1012 |         Ok(name)
+     |         ^^^----^
+     |            |
+     |            this argument influences the type of `Ok`
+note: tuple variant defined here
+    --> C:\Users\nanda\.rustup\toolchains\nightly-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\core\src\result.rs:561:5
+     |
+ 561 |     Ok(#[stable(feature = "rust1", since = "1.0.0")] T),
+     |     ^^
+help: try using a conversion method
+     |
+1012 |         Ok(name.to_string())
+     |                ++++++++++++
+
+error[E0599]: no method named `current_kind` found for mutable reference `&mut Parser` in the current scope
+    --> src\compiler\src\parser.rs:1195:20
+     |
+1195 |         match self.current_kind() {
+     |                    ^^^^^^^^^^^^
+     |
+help: there is a method `current` with a similar name
+     |
+1195 -         match self.current_kind() {
+1195 +         match self.current() {
+     |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:137:33
+    |
+137 |                 self.define_var(&v.name, final_ty, v.span);
+    |                      ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                      |
+    |                      arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+137 -                 self.define_var(&v.name, final_ty, v.span);
+137 +                 self.define_var(v.name, final_ty, v.span);
+    |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:148:29
+    |
+148 |             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+    |                  ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                  |
+    |                  arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+148 -             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+148 +             self.define_var(p.name, Type::Parameter(p.name.clone()), p.span);
+    |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:177:29
+    |
+177 |             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+    |                  ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                  |
+    |                  arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+177 -             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+177 +             self.define_var(p.name, Type::Parameter(p.name.clone()), p.span);
+    |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:186:29
+    |
+186 |             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+    |                  ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                  |
+    |                  arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+186 -             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+186 +             self.define_var(p.name, Type::Parameter(p.name.clone()), p.span);
+    |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:202:29
+    |
+202 |             self.define_var(&p.name, t, p.span);
+    |                  ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                  |
+    |                  arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+202 -             self.define_var(&p.name, t, p.span);
+202 +             self.define_var(p.name, t, p.span);
+    |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:237:33
+    |
+237 |                 self.define_var(&v.name, final_ty, v.span);
+    |                      ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                      |
+    |                      arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+237 -                 self.define_var(&v.name, final_ty, v.span);
+237 +                 self.define_var(v.name, final_ty, v.span);
+    |
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:279:33
+    |
+279 |                 self.define_var(name, elem, *span);
+    |                      ---------- ^^^^ expected `Symbol`, found `&Symbol`
+    |                      |
+    |                      arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider dereferencing the borrow
+    |
+279 |                 self.define_var(*name, elem, *span);
+    |                                 +
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:597:33
+    |
+597 |                 self.define_var(name, Type::Unknown, *span);
+    |                      ---------- ^^^^ expected `Symbol`, found `&Symbol`
+    |                      |
+    |                      arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider dereferencing the borrow
+    |
+597 |                 self.define_var(*name, Type::Unknown, *span);
+    |                                 +
+
+error[E0308]: mismatched types
+   --> src\compiler\src\sema.rs:663:29
+    |
+663 |             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+    |                  ---------- ^^^^^^^ expected `Symbol`, found `&Symbol`
+    |                  |
+    |                  arguments to this method are incorrect
+    |
+note: method defined here
+   --> src\compiler\src\sema.rs:685:19
+    |
+685 |     pub(crate) fn define_var(&mut self, name: crate::symbols::Symbol, ty: Type, span: Span) {
+    |                   ^^^^^^^^^^            ----------------------------
+help: consider removing the borrow
+    |
+663 -             self.define_var(&p.name, Type::Parameter(p.name.clone()), p.span);
+663 +             self.define_var(p.name, Type::Parameter(p.name.clone()), p.span);
+    |
+
+error[E0308]: mismatched types
+  --> src\compiler\src\typeck.rs:13:67
+   |
+13 |     crate::extension::check_extension_dispatch(sema, receiver_ty, name, span)
+   |     ------------------------------------------                    ^^^^ expected `Symbol`, found `&str`
+   |     |
+   |     arguments to this function are incorrect
+   |
+note: function defined here
+  --> src\compiler\src\extension.rs:15:8
+   |
+15 | pub fn check_extension_dispatch(sema: &mut Sema, receiver_ty: &Type, method_name: crate::symbols::Symbol, span: Span) -> Type {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^                                      -----------------------------------
+
+warning: unused variable: `ret_ty`
+  --> src\compiler\src\async_pass.rs:19:21
+   |
+19 |                 let ret_ty = self.sema.type_from_ref(ret);
+   |                     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_ret_ty`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `sema`
+ --> src\compiler\src\concepts.rs:8:30
+  |
+8 |     pub fn check_constraints(sema: &mut Sema, params: &[GenericParam], args: &[Type], span: Span) {
+  |                              ^^^^ help: if this is intentional, prefix it with an underscore: `_sema`
+
+warning: unused variable: `span`
+ --> src\compiler\src\concepts.rs:8:87
+  |
+8 |     pub fn check_constraints(sema: &mut Sema, params: &[GenericParam], args: &[Type], span: Span) {
+  |                                                                                       ^^^^ help: if this is intentional, prefix it with an underscore: `_span`
+
+warning: unused variable: `arg`
+ --> src\compiler\src\concepts.rs:9:21
+  |
+9 |         for (param, arg) in params.iter().zip(args.iter()) {
+  |                     ^^^ help: if this is intentional, prefix it with an underscore: `_arg`
+
+warning: unused variable: `constraint`
+  --> src\compiler\src\concepts.rs:10:17
+   |
+10 |             for constraint in &param.constraints {
+   |                 ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_constraint`
+
+warning: unused variable: `base_name`
+ --> src\compiler\src\specialization.rs:7:28
+  |
+7 |     pub fn find_best_match(base_name: &str, args: &[Type]) -> Option<String> {
+  |                            ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_base_name`
+
+warning: unused variable: `args`
+ --> src\compiler\src\specialization.rs:7:45
+  |
+7 |     pub fn find_best_match(base_name: &str, args: &[Type]) -> Option<String> {
+  |                                             ^^^^ help: if this is intentional, prefix it with an underscore: `_args`
+
+Some errors have detailed explanations: E0308, E0599.
+For more information about an error, try `rustc --explain E0308`.
+warning: `korlang-compiler` (lib) generated 26 warnings
+error: could not compile `korlang-compiler` (lib) due to 23 previous errors; 26 warnings emitted

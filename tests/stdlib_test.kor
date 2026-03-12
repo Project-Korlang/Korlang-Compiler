@@ -1,0 +1,39 @@
+// Integration test for Korlang Standard Library Collections
+import std.collections;
+import std.io;
+
+fun main() -> Int {
+    println("Testing std.collections...");
+
+    // Test Vector
+    let mut vec = Vector.new<Int>();
+    vec.push(10);
+    vec.push(20);
+    vec.push(30);
+
+    if (vec.len != 3) {
+        println("Vector length mismatch!");
+        return 1;
+    }
+
+    // Test HashMap
+    let mut map = HashMap.new<String, Int>();
+    map.insert("one", 1);
+    map.insert("two", 2);
+
+    match map.get("one") {
+        Option.Some(val) => {
+            if (val != 1) {
+                println("HashMap value mismatch!");
+                return 1;
+            }
+        }
+        Option.None => {
+            println("HashMap key not found!");
+            return 1;
+        }
+    }
+
+    println("All stdlib tests passed!");
+    return 0;
+}

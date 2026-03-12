@@ -1,4 +1,6 @@
 pub mod diag;
+pub mod symbols;
+pub mod arena;
 pub mod types;
 pub mod interface;
 pub mod sealed;
@@ -9,6 +11,7 @@ pub mod lexer;
 pub mod parser;
 pub mod ast;
 pub mod sema;
+#[cfg(feature = "llvm")]
 pub mod codegen;
 pub mod linker;
 pub mod escape;
@@ -22,5 +25,6 @@ pub mod templates;
 pub mod concepts;
 pub mod specialization;
 pub mod constexpr;
+#[cfg(feature = "llvm")]
 pub mod backend;
 pub mod ffi;

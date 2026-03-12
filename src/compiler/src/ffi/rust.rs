@@ -1,5 +1,4 @@
 use crate::sema::Type;
-use crate::diag::Diagnostic;
 
 pub struct RustTraitMapper;
 

@@ -1,0 +1,89 @@
+// Standard I/O module for Korlang
+module std.io
+import "@bridge" as ffi;
+
+interface Read {
+    fun read(mut buf: [u8]) -> Int;
+}
+
+interface Write {
+    fun write(buf: [u8]) -> Int;
+}
+
+struct File implements Read, Write {
+    var handle: Int;
+
+    fun open(path: String, mode: String) -> File {
+        let h = ffi.open(path, mode);
+        return File { handle: h };
+    }
+
+    fun read(mut buf: [u8]) -> Int {
+        return ffi.read(self.handle, buf);
+    }
+
+    fun write(buf: [u8]) -> Int {
+        return ffi.write(self.handle, buf);
+    }
+
+    fun close() {
+        ffi.close(self.handle);
+    }
+}
+
+/**
+ * BufferedWriter provides buffered writing for any Write implementation.
+ */
+struct BufferedWriter<W: Write> {
+    mut writer: W;
+    mut buffer: [u8];
+    mut pos: Int;
+
+    fun new(writer: W, size: Int) -> BufferedWriter<W> {
+        return BufferedWriter {
+            writer: writer,
+            buffer: Array_new<u8>(size),
+            pos: 0,
+        };
+    }
+
+    fun write(mut self, buf: [u8]) -> Int {
+        mut written = 0;
+        while (written < buf.size()) {
+            let available = self.buffer.size() - self.pos;
+            let remaining = buf.size() - written;
+            let to_copy = if (remaining < available) remaining else available;
+            
+            // Simplified copy for now
+            mut i = 0;
+            while (i < to_copy) {
+                self.buffer[self.pos + i] = buf[written + i];
+                i = i + 1;
+            }
+            
+            self.pos = self.pos + to_copy;
+            written = written + to_copy;
+            
+            if (self.pos == self.buffer.size()) {
+                self.flush();
+            }
+        }
+        return written;
+    }
+
+    fun flush(mut self) {
+        if (self.pos > 0) {
+            self.writer.write(self.buffer.slice(0, self.pos));
+            self.pos = 0;
+        }
+    }
+}
+
+fun print(s: String) {
+    ffi.print(s);
+}
+
+fun println(s: String) {
+    ffi.print(s);
+    ffi.print("\n");
+}
