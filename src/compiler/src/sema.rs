@@ -199,7 +199,11 @@ impl Sema {
             let t = self.type_from_ref(&p.ty);
             self.define_var(&p.name, t, p.span);
         }
-        let body_ty = self.check_block_with(&fun.body, fun.nogc);
+        let body_ty = if let Some(body) = &fun.body {
+            self.check_block_with(body, fun.nogc)
+        } else {
+            Type::Unit
+        };
         if let Some(ret) = &fun.ret {
             let ret_ty = self.type_from_ref(ret);
             // Relax return check for main and common Int returners that end in Stmt
@@ -802,15 +806,15 @@ impl Sema {
                 if f.nogc {
                     {
                         let mut bck = BorrowChecker::new(self);
-                        bck.check_block(&f.body);
+                        if let Some(body) = &f.body { bck.check_block(body); }
                     }
                     {
                         let mut mck = MoveChecker::new(self);
-                        mck.check_block(&f.body);
+                        if let Some(body) = &f.body { mck.check_block(body); }
                     }
                     {
                         let mut lck = LifetimeChecker::new(self);
-                        lck.check_block(&f.body);
+                        if let Some(body) = &f.body { lck.check_block(body); }
                     }
                     {
                         let mut ngck = crate::nogc::NoGcChecker::new(self);

@@ -1,0 +1,31 @@
+// Korlang HT Test Suite
+// Tests all HT.1.1, HT.1.2, HT.2.1, HT.3.1, HT.4.1 modules together
+
+import std.ast.serial
+import std.p2p.discovery
+import std.kir.tensor
+import std.formal.semantics
+import std.sys.mmu
+
+fun main() -> Int {
+    println("=== Korlang HT Test Suite ===")
+    println("")
+
+    demonstrate_ast_serial()
+    println("")
+
+    discovery_demo()
+    println("")
+
+    kir_demo()
+    println("")
+
+    semantics_demo()
+    println("")
+
+    mmu_demo()
+    println("")
+
+    println("=== All HT Tests Passed ===")
+    0
+}

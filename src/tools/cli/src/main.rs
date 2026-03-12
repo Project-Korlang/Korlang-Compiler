@@ -164,6 +164,11 @@ fn build(args: Vec<String>, run: bool, verbose: bool, debug: bool) {
     
     let target_dir = PathBuf::from(".korlang/target");
     let _ = fs::create_dir_all(&target_dir);
+    if debug {
+        let debug_src = target_dir.join("build_source.kor");
+        let _ = fs::write(&debug_src, &src);
+    }
+    let _ = fs::create_dir_all(&target_dir);
     let cache_dir = target_dir.join("cache");
     let _ = fs::create_dir_all(&cache_dir);
     

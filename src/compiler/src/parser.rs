@@ -145,8 +145,15 @@ impl Parser {
         } else {
             None
         };
-        let body = self.parse_block()?;
-        let end = body.span.end;
+
+        let body = if self.check_kind(TokenKind::LBrace) {
+            Some(self.parse_block()?)
+        } else {
+            // Bodyless function (extern)
+            None
+        };
+
+        let end = body.as_ref().map(|b| b.span.end).unwrap_or(self.prev_span().end);
         Ok(FunDecl { receiver, name, generic_params, params, ret, body, nogc, is_async, span: Span::new(start.start, end) })
     }
 
@@ -539,12 +546,20 @@ impl Parser {
                 }
                 Ok(Expr::Ident(name, tok.span))
             }
-            TokenKind::Keyword("if") => self.parse_if_expr(),
-            TokenKind::Keyword("match") => self.parse_match_expr(),
-            TokenKind::Keyword(k) if k.starts_with('@') => {
-                let name = k.to_string();
-                self.advance();
-                Ok(Expr::Ident(name, tok.span))
+            TokenKind::Keyword(k) => {
+                match k {
+                    "if" => self.parse_if_expr(),
+                    "match" => self.parse_match_expr(),
+                    _ if k.starts_with('@') => {
+                        let name = k.to_string();
+                        self.advance();
+                        Ok(Expr::Ident(name, tok.span))
+                    }
+                    _ => {
+                        self.error_at(tok.span, &format!("unexpected keyword in expression: {}", k));
+                        Err(())
+                    }
+                }
             }
             TokenKind::LParen => {
                 self.advance();
@@ -587,14 +602,20 @@ impl Parser {
         self.advance();
         let cond = self.parse_expr()?;
         let then_block = self.parse_block()?;
-        self.expect_keyword("else")?;
-        let else_block = if self.check_keyword("if") {
-            let if_expr = self.parse_if_expr()?;
-            let span = self.span_of(&if_expr);
-            Block { stmts: Vec::new(), tail: Some(Box::new(if_expr)), span }
+        
+        let else_block = if self.match_keyword("else") {
+            if self.check_keyword("if") {
+                let if_expr = self.parse_if_expr()?;
+                let span = self.span_of(&if_expr);
+                Block { stmts: Vec::new(), tail: Some(Box::new(if_expr)), span }
+            } else {
+                self.parse_block()?
+            }
         } else {
-            self.parse_block()?
+            // Optional else for if-expressions used as statements or returning unit
+            Block { stmts: Vec::new(), tail: None, span: then_block.span }
         };
+        
         let span = Span::new(start.start, else_block.span.end);
         Ok(Expr::If { cond: Box::new(cond), then_block, else_block, span })
     }

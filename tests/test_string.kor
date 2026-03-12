@@ -1,0 +1,7 @@
+fun test_mock(data: String) -> String {
+    data
+}
+fun main() -> Int {
+    test_mock("");
+    0
+}

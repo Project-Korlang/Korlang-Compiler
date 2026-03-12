@@ -181,7 +181,7 @@ impl<'a> Lexer<'a> {
         }
         let s: String = self.chars[start_idx..self.pos].iter().collect();
         let kind = match s.as_str() {
-            "fun" | "gpu" | "let" | "var" | "if" | "else" | "match" | "for" | "while" |
+            "fun" | "gpu" | "async" | "let" | "var" | "if" | "else" | "match" | "for" | "while" |
             "break" | "continue" | "return" | "view" | "resource" | "state" |
             "spawn" | "@nogc" | "import" | "as" | "struct" | "enum" | "type" |
             "in" | "mut" | "interface" | "sealed" | "implements" | "class" => TokenKind::Keyword(Box::leak(s.into_boxed_str())),
@@ -271,9 +271,6 @@ impl<'a> Lexer<'a> {
                 self.advance();
                 self.in_string = false;
                 let span = Span::new(start, end_pos);
-                if out.is_empty() {
-                    return Ok(None);
-                }
                 return Ok(Some(Token { kind: TokenKind::StringLiteral(out), span }));
             }
             if c == '\\' {

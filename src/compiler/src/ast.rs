@@ -58,7 +58,7 @@ pub struct FunDecl {
     pub generic_params: Vec<GenericParam>,
     pub params: Vec<Param>,
     pub ret: Option<TypeRef>,
-    pub body: Block,
+    pub body: Option<Block>,
     pub nogc: bool,
     pub is_async: bool,
     pub span: Span,

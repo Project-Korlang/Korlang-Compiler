@@ -19,8 +19,10 @@ pub fn analyze_escape(program: &Program) -> HashMap<String, EscapeResult> {
 fn analyze_fun(fun: &FunDecl) -> EscapeResult {
     let mut res = EscapeResult::default();
     let mut locals = HashSet::new();
-    collect_locals(&fun.body, &mut locals);
-    mark_escapes_in_block(&fun.body, &mut res, &locals);
+    if let Some(body) = &fun.body {
+        collect_locals(body, &mut locals);
+        mark_escapes_in_block(body, &mut res, &locals);
+    }
     res
 }
 

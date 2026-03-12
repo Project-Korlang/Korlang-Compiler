@@ -1,0 +1,14 @@
+struct RTCPeerConnection {
+    id: Int;
+    state: Int;
+}
+
+fun rtc_peer_create() -> RTCPeerConnection {
+    println("WebRTC: Initializing new RTCPeerConnection");
+    RTCPeerConnection { id: 1, state: 0 };
+}
+
+fun main() -> Int {
+    rtc_peer_create();
+    0
+}

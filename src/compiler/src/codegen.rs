@@ -68,6 +68,10 @@ impl<'ctx> Codegen<'ctx> {
     }
 
     fn emit_function(&mut self, fun: &FunDecl) {
+        let body = match &fun.body {
+            Some(b) => b,
+            None => return, // Extern function, declaration is enough
+        };
         let func = match self.module.get_function(&fun.name) {
             Some(f) => f,
             None => return,
@@ -79,7 +83,7 @@ impl<'ctx> Codegen<'ctx> {
         self.local_literals.clear();
 
         // Emit basic statement calls for the self-hosted driver.
-        for stmt in &fun.body.stmts {
+        for stmt in &body.stmts {
             match stmt {
                 Stmt::Var(v) => {
                     if let Expr::Literal(lit, _) = self.fold_expr(&v.value) {
@@ -94,7 +98,7 @@ impl<'ctx> Codegen<'ctx> {
         }
 
         if let Some(ret) = &fun.ret {
-            if let Some(val) = self.try_emit_return(&fun.body, ret) {
+            if let Some(val) = self.try_emit_return(body, ret) {
                 let _ = self.builder.build_return(Some(&val));
                 returned = true;
             }
@@ -142,7 +146,7 @@ impl<'ctx> Codegen<'ctx> {
                     .get_function("korlang_ui_demo_window")
                     .unwrap_or_else(|| self.module.add_function("korlang_ui_demo_window", ty, None));
                 let call = self.builder.build_call(f, &[], "ui_demo").ok()?;
-                return call.try_as_basic_value().left();
+                return call.try_as_basic_value().basic();
             }
 
             // Regular function calls for user-defined functions and externs.
@@ -156,7 +160,7 @@ impl<'ctx> Codegen<'ctx> {
                     }
                 }
                 let call = self.builder.build_call(f, &arg_values, "call").ok()?;
-                return call.try_as_basic_value().left();
+                return call.try_as_basic_value().basic();
             }
         }
         None

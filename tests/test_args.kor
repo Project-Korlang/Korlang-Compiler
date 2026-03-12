@@ -1,0 +1,5 @@
+fun my_func(a: Int) { }
+fun main() -> Int {
+    my_func(5);
+    0
+}

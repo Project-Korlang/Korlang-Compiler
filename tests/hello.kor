@@ -1,0 +1,4 @@
+fun main() -> Int {
+    println("Hello from WSL")
+    0
+}

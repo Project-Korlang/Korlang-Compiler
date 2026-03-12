@@ -1,0 +1,19 @@
+// Korlang S4 Test Suite
+// Tests all S4.2 and S4.3 modules together
+
+import std.net.webrtc
+import std.sys.script
+
+fun main() -> Int {
+    println("=== Korlang S4 Test Suite ===");
+    println("");
+
+    webrtc_demo();
+    println("");
+
+    script_modernize_demo();
+    println("");
+
+    println("=== All S4 Tests Passed ===");
+    0;
+}

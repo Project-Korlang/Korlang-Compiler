@@ -13,7 +13,9 @@ impl<'a> NoGcChecker<'a> {
 
     pub fn check_fun(&mut self, f: &FunDecl) {
         if f.nogc {
-            self.check_block(&f.body);
+            if let Some(body) = &f.body {
+                self.check_block(body);
+            }
         }
     }
 

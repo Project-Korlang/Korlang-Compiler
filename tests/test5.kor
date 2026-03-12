@@ -1,0 +1,14 @@
+struct RTCPeerConnection {
+    id: Int
+    state: Int
+}
+
+fun rtc_peer_create() -> RTCPeerConnection {
+    println("WebRTC: Initializing new RTCPeerConnection")
+    // Replace struct literal setup with an empty tuple just to test
+}
+
+fun main() -> Int {
+    rtc_peer_create()
+    0
+}

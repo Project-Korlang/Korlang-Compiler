@@ -1,0 +1,2 @@
+import "test_mod.kor";
+fun main() -> Int { test_fn(); 0; }

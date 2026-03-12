@@ -39,5 +39,11 @@ pub fn build_link_command(object_file: &Path, config: &LinkerConfig) -> Vec<Stri
         cmd.push(format!("-fprofile-use={}", profile.display()));
     }
     cmd.extend(config.extra_args.iter().cloned());
+    
+    // Add platform-specific libraries
+    if cfg!(windows) {
+        cmd.push("-lws2_32".to_string());
+    }
+    
     cmd
 }

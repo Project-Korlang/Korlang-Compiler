@@ -1,0 +1,7 @@
+fun main() -> Int {
+    let my_bool = true
+    if my_bool {
+        println("hi")
+    }
+    0
+}
